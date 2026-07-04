@@ -5,6 +5,12 @@ import { buildGraphemeOffsets, computeFillWidth } from './MonetLyricsEngine';
 // 由顶级 rAF loop 统一调用，彻底绕过 React render
 export const wordRegistry = new Set();
 
+const setWordVisualState = (el, fillWidth, glowStr = 'none') => {
+  if (!el) return;
+  el.style.setProperty('--fill-width-px', `${fillWidth}px`);
+  el.style.setProperty('--word-glow', glowStr);
+};
+
 function computeGlow(currentTime, startTime, endTime, lineRenderEndTime, fontPx, isChorus) {
   if (currentTime <= startTime) return 'none';
   
@@ -53,48 +59,57 @@ export default function MonetWordSweep({
   useEffect(() => {
     if (!token.timed) return;
     
-    // 如果该词所在的行已成历史，我们直接赋予满值，不需要加入 loop 计算
+    const fullWidth = graphemeOffsets[graphemeOffsets.length - 1] || 0;
+
+    // Folia-style hot path: only the active line participates in the rAF word
+    // sweep. Waiting and passed lines are static, avoiding N visible lines * M
+    // words worth of per-frame DOM writes.
     if (status === 'passed') {
-      if (spanRef.current) {
-        const fullWidth = graphemeOffsets[graphemeOffsets.length - 1];
-        spanRef.current.style.setProperty('--fill-width-px', `${fullWidth}px`);
-        spanRef.current.style.setProperty('--word-glow', 'none');
-      }
+      setWordVisualState(spanRef.current, fullWidth, 'none');
       return;
     }
-    
-    // 如果是在等待或活跃阶段，加入高频更新队列
+
+    if (status !== 'active') {
+      setWordVisualState(spanRef.current, 0, 'none');
+      return;
+    }
+
     const lastValueRef = { fillWidth: -1, glowStr: '' };
 
     const wordUpdater = (currentTime) => {
       if (!spanRef.current) return;
       const el = spanRef.current;
-      
+
       const fillWidth = computeFillWidth(
-        currentTime, 
-        token.startTime, 
-        token.endTime, 
-        token.graphemeTimings, 
+        currentTime,
+        token.startTime,
+        token.endTime,
+        token.graphemeTimings,
         graphemeOffsets
       );
-      
+
       const glowStr = showGlow
         ? computeGlow(currentTime, token.startTime, token.endTime, lineRenderEndTime, fontPx, isChorus)
         : 'none';
-      
-      if (fillWidth !== lastValueRef.fillWidth) {
-        el.style.setProperty('--fill-width-px', `${fillWidth}px`);
-        lastValueRef.fillWidth = fillWidth;
+
+      // Quantize tiny sub-pixel changes so 60fps doesn't force style recalcs for
+      // imperceptible deltas.
+      const roundedFillWidth = Math.round(fillWidth * 10) / 10;
+
+      if (roundedFillWidth !== lastValueRef.fillWidth) {
+        el.style.setProperty('--fill-width-px', `${roundedFillWidth}px`);
+        lastValueRef.fillWidth = roundedFillWidth;
       }
-      
+
       if (glowStr !== lastValueRef.glowStr) {
         el.style.setProperty('--word-glow', glowStr);
         lastValueRef.glowStr = glowStr;
       }
     };
 
+    wordUpdater(token.startTime);
     wordRegistry.add(wordUpdater);
-    
+
     return () => {
       wordRegistry.delete(wordUpdater);
     };

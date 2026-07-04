@@ -78,7 +78,8 @@ function AppContent() {
 
   const immersiveCoverUrl = currentSong?.coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
   const immersiveBgMode = advancedLyricConfig.backgroundMode || 'cover';
-  const bgBlur = advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 40;
+  const configuredBgBlur = advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 32;
+  const bgBlur = Math.min(configuredBgBlur, 48);
   const immersiveBgStyle = useMemo(() => ({
     backgroundImage: immersiveBgMode === 'none' ? 'none' : `url(${immersiveCoverUrl})`,
     opacity: immersiveBgMode === 'cover' ? 1 : immersiveBgMode === 'soft' ? 0.55 : 0,
@@ -409,7 +410,7 @@ function AppContent() {
             />
             <div className="lyrics-overlay-wash" />
 
-            <MonetFloatingDecor />
+            {advancedLyricConfig.showDecor === true && <MonetFloatingDecor />}
 
             {/* Custom window control buttons for Modern Layout Immersive View */}
             {layoutMode === 'modern' && (
@@ -521,8 +522,8 @@ function AppContent() {
                           onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
                       </label>
                       <label className="setting-row-inline">
-                        <span>显示行数：{advancedLyricConfig.visibleLines || 7} 行</span>
-                        <input type="range" min="1" max="13" step="2" value={advancedLyricConfig.visibleLines || 7}
+                        <span>显示行数：{advancedLyricConfig.visibleLines || 5} 行</span>
+                        <input type="range" min="1" max="9" step="2" value={advancedLyricConfig.visibleLines || 5}
                           onChange={(e) => updateAdvancedLyricConfig({ visibleLines: Number(e.target.value) })} />
                       </label>
                       <label className="setting-row-inline">
@@ -567,9 +568,14 @@ function AppContent() {
                         <input type="checkbox" checked={advancedLyricConfig.showGlow === true}
                           onChange={(e) => updateAdvancedLyricConfig({ showGlow: e.target.checked })} />
                       </label>
+                      <label className="setting-row-inline compact-toggle">
+                        <span>Floating decor</span>
+                        <input type="checkbox" checked={advancedLyricConfig.showDecor === true}
+                          onChange={(e) => updateAdvancedLyricConfig({ showDecor: e.target.checked })} />
+                      </label>
                       <label className="setting-row-inline">
-                        <span>非活动歌词模糊度：{(advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 1.5).toFixed(1)}</span>
-                        <input type="range" min="0" max="4.0" step="0.2" value={advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 1.5}
+                        <span>非活动歌词模糊度：{(advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.8).toFixed(1)}</span>
+                        <input type="range" min="0" max="3.0" step="0.2" value={advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.8}
                           onChange={(e) => updateAdvancedLyricConfig({ inactiveLyricBlur: Number(e.target.value) })} />
                       </label>
                     </div>
@@ -593,8 +599,8 @@ function AppContent() {
                           onChange={(e) => updateAdvancedLyricConfig({ showCover: e.target.checked })} />
                       </label>
                       <label className="setting-row-inline">
-                        <span>背景模糊度：{advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 40}px</span>
-                        <input type="range" min="0" max="100" step="2" value={advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 40}
+                        <span>背景模糊度：{advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 32}px</span>
+                        <input type="range" min="0" max="60" step="2" value={advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 32}
                           onChange={(e) => updateAdvancedLyricConfig({ backgroundBlur: Number(e.target.value) })} />
                       </label>
                     </div>

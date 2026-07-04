@@ -9,9 +9,83 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #050209;
+        overflow: hidden;
+      }
+      .initial-loader {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+        background-color: #050209;
+        font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      }
+      .loader-spinner-wrapper {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      .loader-spinner {
+        box-sizing: border-box;
+        width: 60px;
+        height: 60px;
+        border: 3px solid rgba(255, 64, 129, 0.08);
+        border-radius: 50%;
+        border-top-color: #ff4081;
+        animation: spin 1s cubic-bezier(0.5, 0.1, 0.4, 0.9) infinite;
+        filter: drop-shadow(0 0 8px rgba(255, 64, 129, 0.55));
+      }
+      .loader-strawberry {
+        position: absolute;
+        font-size: 24px;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+      .loader-text {
+        margin-top: 24px;
+        font-size: 20px;
+        font-weight: 800;
+        color: #ffffff;
+        letter-spacing: 2px;
+        background: linear-gradient(135deg, #ffffff 0%, #ff80ab 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: text-pulse 2s ease-in-out infinite;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(0.92); opacity: 0.85; }
+        50% { transform: scale(1.12); opacity: 1; }
+      }
+      @keyframes text-pulse {
+        0%, 100% { opacity: 0.75; }
+        50% { opacity: 1; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="initial-loader">
+        <div class="loader-spinner-wrapper">
+          <div class="loader-spinner"></div>
+          <div class="loader-strawberry">🍓</div>
+        </div>
+        <div class="loader-text">ICHIGOMusic</div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

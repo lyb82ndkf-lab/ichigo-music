@@ -24,6 +24,7 @@ export default function MonetPosterLayout({
   const animMode = advancedLyricConfig?.animationMode || 'regular';
   const isRegularMode = animMode === 'regular';
   const showCover = advancedLyricConfig?.showCover !== false && isRegularMode;
+  const enableDecor = advancedLyricConfig?.showDecor === true;
   const fontScale = (advancedLyricConfig?.fontSize || 24) / 24;
   const fontFamilyMap = {
     Inter: '"Inter", "Noto Sans SC", sans-serif',
@@ -58,6 +59,12 @@ export default function MonetPosterLayout({
     }
   };
 
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, []);
   // Responsive Layout Tracking for Canvas exact pixel measurements
   const [dimensions, setDimensions] = useState({
     fontPx: 36 * fontScale,
@@ -100,7 +107,8 @@ export default function MonetPosterLayout({
   }, [fontScale]);
 
   const visibleLines = useMemo(() => {
-    const linesToKeep = advancedLyricConfig?.visibleLines || 7;
+    const configuredLines = advancedLyricConfig?.visibleLines || 5;
+    const linesToKeep = Math.max(1, Math.min(configuredLines, 5));
     const half = Math.floor(linesToKeep / 2);
     const baseTime = currentTime ?? currentTimeRef?.current ?? 0;
     const displayTime = Math.max(0, baseTime + manualScrollOffset);
@@ -121,7 +129,7 @@ export default function MonetPosterLayout({
       ? lyrics.map(line => ({ ...line, translation: '' }))
       : lyrics;
     return buildVisibleWindow(sourceLyrics, effectiveActiveIndex, displayTime, { before: half, after: half });
-  }, [lyrics, activeLineIndex, currentTime, currentTimeRef, manualScrollOffset, advancedLyricConfig?.visibleLines, advancedLyricConfig?.showTranslation]);
+  }, [lyrics, activeLineIndex, currentTime, manualScrollOffset, advancedLyricConfig?.visibleLines, advancedLyricConfig?.showTranslation]);
 
   // Active Intro Key logic for transitions on song change
   const [introKey, setIntroKey] = useState(currentSong?.id || 'initial');
@@ -210,7 +218,7 @@ export default function MonetPosterLayout({
             will-change: transform; 
           }
           .monet-cover-img { 
-            will-change: transform; 
+            transform: translateZ(0); 
           }
           
           .monet-artist-text {
@@ -260,8 +268,8 @@ export default function MonetPosterLayout({
         `}
       </style>
 
-      {/* Background Decor */}
-      <MonetFloatingDecor />
+      {/* Background Decor: disabled by default for smoother lyric rendering. */}
+      {enableDecor && <MonetFloatingDecor />}
 
       {/* LEFT: Metadata & Lyrics */}
       <div className="monet-left-pane">

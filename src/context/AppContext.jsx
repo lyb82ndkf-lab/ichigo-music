@@ -54,6 +54,27 @@ export function AppProvider({ children }) {
   // Audio elements ref (shared across components)
   const [audioElement, setAudioElement] = useState(null);
 
+  // Derived customization values from unified profile
+  const colorMode = profile.colorMode || DEFAULT_PROFILE.colorMode;
+  const layoutMode = profile.layoutMode || DEFAULT_PROFILE.layoutMode;
+  const theme = profile.theme || DEFAULT_PROFILE.theme;
+  const customThemeColors = profile.customTheme || DEFAULT_PROFILE.customTheme;
+  const navbarConfig = profile.navbarItems || DEFAULT_PROFILE.navbarItems;
+  const lyricStyle = profile.lyricStyle || DEFAULT_PROFILE.lyricStyle;
+  const visualizerMode = profile.visualizer?.mode || DEFAULT_PROFILE.visualizer.mode;
+  const appearanceConfig = profile.appearance || DEFAULT_PROFILE.appearance;
+  const coverConfig = profile.cover || DEFAULT_PROFILE.cover;
+  const backgroundConfig = profile.background || DEFAULT_PROFILE.background;
+  const advancedLyricConfig = profile.immersiveLyrics || DEFAULT_PROFILE.immersiveLyrics;
+  const visualizerConfig = profile.visualizer || DEFAULT_PROFILE.visualizer;
+  const desktopLyricsConfig = profile.desktopLyrics || DEFAULT_PROFILE.desktopLyrics;
+  const audioConfig = profile.audio || DEFAULT_PROFILE.audio;
+  const playbackConfig = profile.playback || DEFAULT_PROFILE.playback;
+  const renderingConfig = profile.rendering || DEFAULT_PROFILE.rendering;
+  const shortcuts = profile.shortcuts || DEFAULT_PROFILE.shortcuts;
+  const audioQuality = audioConfig.quality || 'exhigh';
+  const playMode = playbackConfig.playMode || 'sequence';
+
   // Dynamic warm/cold color extraction
   const [extractedColors, setExtractedColors] = useState({
     warm: '#ff4081',
@@ -171,27 +192,6 @@ export function AppProvider({ children }) {
     setVolumeState(numeric);
     updateProfile({ audio: { volume: numeric, muted: numeric === 0 } });
   }, [updateProfile]);
-
-  // Derived customization values from unified profile
-  const colorMode = profile.colorMode || DEFAULT_PROFILE.colorMode;
-  const layoutMode = profile.layoutMode || DEFAULT_PROFILE.layoutMode;
-  const theme = profile.theme || DEFAULT_PROFILE.theme;
-  const customThemeColors = profile.customTheme || DEFAULT_PROFILE.customTheme;
-  const navbarConfig = profile.navbarItems || DEFAULT_PROFILE.navbarItems;
-  const lyricStyle = profile.lyricStyle || DEFAULT_PROFILE.lyricStyle;
-  const visualizerMode = profile.visualizer?.mode || DEFAULT_PROFILE.visualizer.mode;
-  const appearanceConfig = profile.appearance || DEFAULT_PROFILE.appearance;
-  const coverConfig = profile.cover || DEFAULT_PROFILE.cover;
-  const backgroundConfig = profile.background || DEFAULT_PROFILE.background;
-  const advancedLyricConfig = profile.immersiveLyrics || DEFAULT_PROFILE.immersiveLyrics;
-  const visualizerConfig = profile.visualizer || DEFAULT_PROFILE.visualizer;
-  const desktopLyricsConfig = profile.desktopLyrics || DEFAULT_PROFILE.desktopLyrics;
-  const audioConfig = profile.audio || DEFAULT_PROFILE.audio;
-  const playbackConfig = profile.playback || DEFAULT_PROFILE.playback;
-  const renderingConfig = profile.rendering || DEFAULT_PROFILE.rendering;
-  const shortcuts = profile.shortcuts || DEFAULT_PROFILE.shortcuts;
-  const audioQuality = audioConfig.quality || 'exhigh';
-  const playMode = playbackConfig.playMode || 'sequence';
 
   // Load account status on mount.
   useEffect(() => {

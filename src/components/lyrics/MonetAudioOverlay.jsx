@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+﻿import React, { useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 
 function resolveCanvasColor(color, fallback = '#ff3366') {
@@ -21,8 +21,8 @@ function normalizeStyle(style) {
 export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerStyle = 'bars', isBehindCover = false }) {
   const canvasRef = useRef(null);
   const { renderingConfig, advancedLyricConfig } = useApp();
-  const visualizerFps = renderingConfig?.visualizerFps !== undefined ? Number(renderingConfig.visualizerFps) : 60;
-  const fps = visualizerFps === 0 ? 0 : Math.max(24, visualizerFps);
+  const visualizerFps = renderingConfig?.visualizerFps !== undefined ? Number(renderingConfig.visualizerFps) : 30;
+  const fps = visualizerFps === 0 ? 0 : Math.min(60, Math.max(24, visualizerFps));
   const normalizedStyle = useMemo(() => normalizeStyle(visualizerStyle), [visualizerStyle]);
 
   const scaleRef = useRef(1.0);
@@ -48,6 +48,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
     let time = 0;
     const minFrameMs = fps === 0 ? 0 : 1000 / fps;
     const resolvedPrimary = resolveCanvasColor(primaryColor || 'var(--primary)');
+    const sampleOffset = 4;
 
     const resizeCanvas = () => {
       const rect = canvas.parentElement.getBoundingClientRect();
@@ -99,14 +100,14 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
     };
 
     const drawBars = () => {
-      const numBars = width > 900 ? 56 : 44;
+      const numBars = width > 900 ? 40 : 32;
       const gap = 3;
       const barWidth = Math.max(2, (width - (numBars - 1) * gap) / numBars);
       const sampleSpan = currentBufferLength * 0.45;
       const scale = scaleRef.current;
       const offsetY = offsetYRef.current;
       for (let i = 0; i < numBars; i++) {
-        const value = dataArray[4 + Math.floor((i / numBars) * sampleSpan)] || 0;
+        const value = dataArray[sampleOffset + Math.floor((i / numBars) * sampleSpan)] || 0;
         const envelope = Math.sin((i / (numBars - 1)) * Math.PI);
         const amplitude = (2 + Math.pow(value / 255, 0.82) * height * 0.9 * envelope) * scale;
         const x = i * (barWidth + gap);
@@ -118,12 +119,12 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
     const drawWave = () => {
       ctx.lineWidth = 2;
       ctx.beginPath();
-      const points = 64;
+      const points = 48;
       const sampleSpan = currentBufferLength * 0.45;
       const scale = scaleRef.current;
       const offsetY = offsetYRef.current;
       for (let i = 0; i < points; i++) {
-        const value = dataArray[4 + Math.floor((i / points) * sampleSpan)] || 0;
+        const value = dataArray[sampleOffset + Math.floor((i / points) * sampleSpan)] || 0;
         const x = (i / (points - 1)) * width;
         const wave = Math.pow(value / 255, 0.82) * height * 0.85 * scale;
         const y = height * 0.82 - wave * Math.sin((i / (points - 1)) * Math.PI) + offsetY;
@@ -151,10 +152,10 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
         maxPulse = Math.min(width, height) * 0.25;
       }
       
-      const bars = 60;
+      const bars = 48;
       const sampleSpan = currentBufferLength * 0.6;
       for (let i = 0; i < bars; i++) {
-        const value = dataArray[4 + Math.floor((i / bars) * sampleSpan)] || 0;
+        const value = dataArray[sampleOffset + Math.floor((i / bars) * sampleSpan)] || 0;
         const angle = (i / bars) * Math.PI * 2;
         const outer = inner + (value / 255) * maxPulse * scale;
         ctx.beginPath();
@@ -196,3 +197,4 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
     </div>
   );
 }
+

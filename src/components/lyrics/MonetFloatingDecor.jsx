@@ -6,7 +6,7 @@ export default function MonetFloatingDecor() {
     const icons = [Sparkles, Music, Star, Circle, Heart];
     const arr = [];
     // 固定伪随机种子，保证每次切回来粒子的位置都是一致的，不会乱跳
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 6; i++) {
       const Icon = icons[i % icons.length];
       const x = ((i * 127 + 43) % 100);
       const y = ((i * 73 + 19) % 100);
@@ -48,7 +48,9 @@ export default function MonetFloatingDecor() {
         `}
       </style>
       <div className="monet-intro-decor" style={{ width: '100%', height: '100%' }}>
-        {particles.map((p) => (
+        {particles.map((p) => {
+          const Icon = p.Icon;
+          return (
           <div
             key={p.id}
             style={{
@@ -59,15 +61,17 @@ export default function MonetFloatingDecor() {
               height: `${p.size}px`,
               color: 'var(--primary)',
               opacity: 0.3,
-              filter: 'blur(2px)',
+              filter: 'blur(1px)',
               animation: `monet-float ${p.duration}s ease-in-out infinite`,
+              willChange: 'transform',
               animationDelay: `${p.delay}s`,
               transformOrigin: 'center center'
             }}
           >
-            <p.Icon size={p.size} strokeWidth={1.5} />
+            <Icon size={p.size} strokeWidth={1.5} />
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { measureLineLayout, parseDisplayTokens } from './MonetLyricsEngine';
 import MonetWordSweep from './MonetWordSweep';
 
@@ -27,10 +27,12 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
   } else {
     // 距离中心越远，越透明且越小，并且添加模糊
     const distance = Math.abs(offset);
-    const blurAmount = inactiveLyricBlur !== undefined ? inactiveLyricBlur : 1.5;
+    const blurAmount = inactiveLyricBlur !== undefined ? inactiveLyricBlur : 0.8;
     opacity = Math.max(0.15, 0.72 - distance * 0.15);
     scale = Math.max(0.7, 0.92 - distance * 0.08);
-    blur = Math.min(12, distance * blurAmount);
+    // Keep blur bounded like folia-major; large animated CSS filters are one of
+    // the most expensive paint paths in the immersive view.
+    blur = Math.min(3.2, distance * blurAmount);
     fontWeight = 500;
     color = 'var(--text-muted)';
   }
@@ -52,7 +54,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
         filter: blur > 0 ? `blur(${blur}px)` : 'none',
         transformOrigin: 'left center',
         transition: 'transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s ease, filter 0.4s ease',
-        willChange: 'transform, opacity, filter',
+        willChange: status === 'active' || Math.abs(offset) <= 1 ? 'transform, opacity' : 'auto',
         display: 'flex',
         flexDirection: 'column',
         gap: `${fontPx * 0.2}px`,
@@ -73,7 +75,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
           wordBreak: 'break-word',
         }}
       >
-        {tokens.map((token, i) => (
+        {tokens.map((token) => (
           <MonetWordSweep
             key={token.key}
             token={token}
@@ -157,8 +159,9 @@ export default function MonetLyricsRail({ visibleLines, fontPx, translationFontP
         width: '100%',
         height: '100%',
         overflow: 'hidden',
-        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)',
-        maskImage: 'linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%)'
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 11%, black 88%, transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, transparent 0%, black 11%, black 88%, transparent 100%)',
+        contain: 'layout paint style'
       }}
     >
       {positionedLines.map(entry => (

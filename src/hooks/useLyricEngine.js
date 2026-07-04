@@ -120,52 +120,63 @@ export function useLyricEngine(songId, audioElement) {
     };
   }, [songId]);
 
-  // Main synchronization loop (rAF)
+  // Main synchronization loop: line-level sync does not need a per-frame rAF
   useEffect(() => {
     if (!audioElement || lyrics.length === 0) return;
 
-    let rafId;
+    const findActiveIndex = (currentTime, currentLyrics, preferredIndex) => {
+      if (preferredIndex >= 0 && preferredIndex < currentLyrics.length) {
+        const line = currentLyrics[preferredIndex];
+        if (currentTime >= line.time && currentTime < line.time + line.duration) {
+          return preferredIndex;
+        }
+
+        const nextIndex = preferredIndex + 1;
+        const nextLine = currentLyrics[nextIndex];
+        if (nextLine && currentTime >= nextLine.time && currentTime < nextLine.time + nextLine.duration) {
+          return nextIndex;
+        }
+      }
+
+      let low = 0;
+      let high = currentLyrics.length - 1;
+      let result = -1;
+      while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (currentTime >= currentLyrics[mid].time) {
+          result = mid;
+          low = mid + 1;
+        } else {
+          high = mid - 1;
+        }
+      }
+      return result;
+    };
+
     const updateActiveLine = () => {
-      const currentTime = audioElement.currentTime;
+      const currentTime = audioElement.currentTime || 0;
       engineRef.current.currentTime = currentTime;
 
       const currentLyrics = engineRef.current.lyrics;
       if (currentLyrics.length > 0) {
-        let newIndex = -1;
-        const currIdx = engineRef.current.activeIndex;
-        
-        // Fast path: still in the same line
-        if (currIdx >= 0 && currIdx < currentLyrics.length) {
-          const line = currentLyrics[currIdx];
-          if (currentTime >= line.time && currentTime < line.time + line.duration) {
-            newIndex = currIdx;
-          }
-        }
+        const newIndex = findActiveIndex(currentTime, currentLyrics, engineRef.current.activeIndex);
 
-        // Slow path: linear search backward (handles seeking)
-        if (newIndex === -1) {
-          for (let i = currentLyrics.length - 1; i >= 0; i--) {
-            if (currentTime >= currentLyrics[i].time) {
-              newIndex = i;
-              break;
-            }
-          }
-        }
-
-        // Only trigger React state update if the index actually changed
         if (newIndex !== engineRef.current.activeIndex) {
           engineRef.current.activeIndex = newIndex;
           setActiveLineIndex(newIndex);
         }
       }
-
-      rafId = requestAnimationFrame(updateActiveLine);
     };
 
-    rafId = requestAnimationFrame(updateActiveLine);
+    updateActiveLine();
+    const intervalId = window.setInterval(updateActiveLine, 80);
+    audioElement.addEventListener('seeked', updateActiveLine);
+    audioElement.addEventListener('timeupdate', updateActiveLine);
 
     return () => {
-      cancelAnimationFrame(rafId);
+      window.clearInterval(intervalId);
+      audioElement.removeEventListener('seeked', updateActiveLine);
+      audioElement.removeEventListener('timeupdate', updateActiveLine);
     };
   }, [audioElement, lyrics]);
 

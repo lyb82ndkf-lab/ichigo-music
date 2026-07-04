@@ -98,24 +98,33 @@ export function parseDisplayTokens(line) {
   if (!line || !line.text) return [];
 
   // 如果没有 YRC 的 words，降级为单字符 Token 模式（即 LRC）
+  // LRC / non-word-synced lines: keep one timed token for the whole line.
+  // Splitting fallback lines into one component per grapheme creates dozens of
+  // rAF subscribers and mask layers per line; folia-major keeps this path at
+  // line-token granularity and only uses grapheme timings inside that token.
   if (!line.isYrc || !line.words || line.words.length === 0) {
     const graphemes = splitGraphemes(line.text);
-    const sweepDuration = Math.min(line.duration || 5, Math.max(2, graphemes.length * 0.35 + 0.5));
+    const lineDuration = Math.max(0.4, line.duration || 5);
+    const sweepDuration = Math.min(lineDuration, Math.max(2, graphemes.length * 0.18 + 0.5));
     const timePerGrapheme = sweepDuration / Math.max(1, graphemes.length);
-    
-    return graphemes.map((g, idx) => {
+    const graphemeTimings = graphemes.map((_, idx) => {
       const gStart = line.time + idx * timePerGrapheme;
       return {
-        text: g,
         startTime: gStart,
-        endTime: gStart + timePerGrapheme,
-        key: `${line.time}-fallback-${idx}`,
-        timed: true,
-        startOffset: idx,
-        endOffset: idx + 1,
-        graphemeTimings: [{ startTime: gStart, endTime: gStart + timePerGrapheme }]
+        endTime: gStart + timePerGrapheme
       };
     });
+
+    return [{
+      text: line.text,
+      startTime: line.time,
+      endTime: line.time + sweepDuration,
+      key: `${line.time}-fallback-full`,
+      timed: true,
+      startOffset: 0,
+      endOffset: line.text.length,
+      graphemeTimings
+    }];
   }
 
   const tokens = [];

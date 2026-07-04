@@ -1,59 +1,57 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { splitGraphemes } from './MonetLyricsEngine';
 
-function splitTextIntoSegments(text, maxLen = 14) {
-  if (!text) return [];
-  const segs = text.split(/([，。、；\s,.;]+)/).filter(Boolean);
-  const result = [];
-  let current = '';
-  for (let s of segs) {
-    if (current.length + s.length > maxLen) {
-      if (current) result.push(current);
-      current = s;
-    } else {
-      current += s;
-    }
-  }
-  if (current) result.push(current);
-  return result.map(r => r.trim()).filter(Boolean);
-}
+// Group the characters/words of the line into timed segments chronologically
+function buildTimedSegments(line, maxLen = 14) {
+  if (!line || !line.text) return [];
 
-// Build timing for characters in a segment
-function buildCharTimings(segmentText, lineStartTime, lineDuration, lineWords) {
-  const graphemes = splitGraphemes(segmentText);
-  const timings = [];
-  
-  if (lineWords && lineWords.length > 0) {
-    // Attempt to map to YRC word timings if available
-    let charIdx = 0;
-    for (let word of lineWords) {
+  const segments = [];
+  let currentSegment = { text: '', graphemes: [], timings: [] };
+
+  if (line.words && line.words.length > 0) {
+    // YRC mode: group words
+    for (let word of line.words) {
       const wordGraphemes = splitGraphemes(word.text);
+
+      // If adding this word makes it exceed maxLen, and we already have some characters, push segment
+      if (currentSegment.graphemes.length + wordGraphemes.length > maxLen && currentSegment.graphemes.length > 0) {
+        segments.push(currentSegment);
+        currentSegment = { text: '', graphemes: [], timings: [] };
+      }
+
       const timePerGrapheme = word.durationSec / Math.max(1, wordGraphemes.length);
-      
-      for (let i = 0; i < wordGraphemes.length; i++) {
-        if (charIdx >= graphemes.length) break;
-        timings.push({
+      wordGraphemes.forEach((g, i) => {
+        currentSegment.graphemes.push(g);
+        currentSegment.timings.push({
           startTime: word.startSec + i * timePerGrapheme,
           endTime: word.startSec + (i + 1) * timePerGrapheme
         });
-        charIdx++;
-      }
+      });
     }
-  }
+  } else {
+    // LRC mode: distribute all characters of line.text chronologically
+    const allGraphemes = splitGraphemes(line.text);
+    const duration = line.duration || 4;
+    const timePerGrapheme = duration / Math.max(1, allGraphemes.length);
 
-  // Fallback or fill missing timings
-  const duration = lineDuration || 4;
-  const timePerGrapheme = duration / Math.max(1, graphemes.length);
-  while (timings.length < graphemes.length) {
-    const idx = timings.length;
-    const start = lineStartTime + idx * timePerGrapheme;
-    timings.push({
-      startTime: start,
-      endTime: start + timePerGrapheme
+    allGraphemes.forEach((g, idx) => {
+      if (currentSegment.graphemes.length >= maxLen) {
+        segments.push(currentSegment);
+        currentSegment = { text: '', graphemes: [], timings: [] };
+      }
+      currentSegment.graphemes.push(g);
+      currentSegment.timings.push({
+        startTime: line.time + idx * timePerGrapheme,
+        endTime: line.time + (idx + 1) * timePerGrapheme
+      });
     });
   }
 
-  return timings;
+  if (currentSegment.graphemes.length > 0) {
+    segments.push(currentSegment);
+  }
+
+  return segments;
 }
 
 export default function TiltLyrics({
@@ -65,21 +63,12 @@ export default function TiltLyrics({
   showGlow = true,
   globalOffset = 0
 }) {
-  const segments = useMemo(() => splitTextIntoSegments(line.text), [line.text]);
   const containerRef = useRef(null);
 
   // Flattened characters representation to hook refs easily
   const segmentedGraphemes = useMemo(() => {
-    return segments.map(seg => {
-      const graphemes = splitGraphemes(seg);
-      const timings = buildCharTimings(seg, line.time, line.duration || 4, line.words || []);
-      return {
-        text: seg,
-        graphemes,
-        timings
-      };
-    });
-  }, [segments, line]);
+    return buildTimedSegments(line, 14);
+  }, [line]);
 
   // Keep flat array of refs
   const charRefs = useRef([]);
