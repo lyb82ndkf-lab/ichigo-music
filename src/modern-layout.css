@@ -1,0 +1,384 @@
+/* ==========================================================================
+   MODERN LAYOUT DESIGN SYSTEM
+   ========================================================================== */
+
+:root {
+  /* 毛玻璃面板 */
+  --glass-panel-bg: rgba(0, 0, 0, 0.10);
+  --glass-panel-filter: blur(12px) saturate(1.8) brightness(1.16);
+  --glass-panel-shadow: 
+    inset 0 0 2px 1px rgba(255, 255, 255, 0.35),
+    inset 0 0 10px 4px rgba(255, 255, 255, 0.15),
+    0 4px 16px rgba(17, 17, 26, 0.05),
+    0 8px 24px rgba(17, 17, 26, 0.05),
+    0 16px 56px rgba(17, 17, 26, 0.05),
+    inset 0 4px 16px rgba(17, 17, 26, 0.05),
+    inset 0 8px 24px rgba(17, 17, 26, 0.05),
+    inset 0 16px 56px rgba(17, 17, 26, 0.05);
+  --glass-panel-radius: 50px;
+  
+  /* 毛玻璃按钮 */
+  --glass-btn-bg: rgba(255, 255, 255, 0.035);
+  --glass-btn-hover-bg: linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.055) 44%, rgba(var(--accent-rgb), 0.070));
+  
+  /* 播放按钮 */
+  --play-btn-size: 58px;
+  --play-btn-bg: rgba(0, 0, 0, 0.10);
+  
+  /* 过渡动画 */
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  
+  /* 现代布局专属配色 */
+  --modern-bg: #08090B;
+  --modern-surface: #0E1014;
+  --modern-ink: #E8ECEF;
+  --modern-ink-2: #D2D7DC;
+  --modern-muted: #8A9099;
+  --modern-hairline: #1A1D22;
+}
+
+/* 根据当前主题动态计算 rgb */
+.theme-strawberry { --accent-rgb: 255, 51, 102; }
+.theme-sakura { --accent-rgb: 255, 102, 178; }
+.theme-matcha { --accent-rgb: 76, 175, 80; }
+.theme-ocean { --accent-rgb: 0, 176, 255; }
+.theme-purple { --accent-rgb: 171, 71, 188; }
+.theme-dark { --accent-rgb: 243, 244, 246; }
+.theme-custom { --accent-rgb: 255, 255, 255; }
+
+/* ==========================================================================
+   GLASSMORPHISM UTILITIES
+   ========================================================================== */
+
+.modern-glass-panel {
+  background: var(--glass-panel-bg);
+  border: 0;
+  border-radius: var(--glass-panel-radius);
+  backdrop-filter: var(--glass-panel-filter);
+  -webkit-backdrop-filter: var(--glass-panel-filter);
+  box-shadow: var(--glass-panel-shadow);
+}
+
+.modern-glass-panel:focus-within {
+  border: 1px solid rgba(var(--accent-rgb), 0.50);
+  box-shadow:
+    inset 0 0 2px 1px rgba(255, 255, 255, 0.40),
+    0 24px 72px rgba(0, 0, 0, 0.34),
+    0 0 42px rgba(var(--accent-rgb), 0.075);
+}
+
+.modern-glass-card {
+  border: 1px solid color-mix(in srgb, rgba(var(--accent-rgb), 0.10), rgba(255, 255, 255, 0.085));
+  border-radius: 22px;
+  background: linear-gradient(142deg, rgba(18, 21, 26, 0.66), rgba(8, 9, 13, 0.76));
+  box-shadow: 0 20px 64px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.060);
+  backdrop-filter: blur(24px) saturate(1.12);
+  -webkit-backdrop-filter: blur(24px) saturate(1.12);
+  transition: transform 0.22s var(--ease-expo), border-color 0.22s, background 0.22s, box-shadow 0.22s;
+}
+
+.modern-glass-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, rgba(var(--accent-rgb), 0.42), rgba(255, 255, 255, 0.18));
+  background: linear-gradient(142deg, rgba(36, 33, 39, 0.72), rgba(10, 10, 14, 0.84));
+  box-shadow: 0 28px 84px rgba(0, 0, 0, 0.36), 0 0 34px color-mix(in srgb, rgba(var(--accent-rgb), 0.16), transparent);
+}
+
+.modern-glass-btn {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: rgba(255, 255, 255, 0.55);
+  transition: color 0.18s, transform 0.18s, background 0.18s, box-shadow 0.18s;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modern-glass-btn:hover {
+  background: var(--glass-btn-hover-bg);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.14), 0 0 18px rgba(var(--accent-rgb), 0.075), inset 0 1px 0 rgba(255, 255, 255, 0.30);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.modern-glass-btn:active {
+  transform: translateY(0) scale(0.96);
+}
+
+/* ==========================================================================
+   LAYOUT ISOLATION
+   ========================================================================== */
+
+/* 经典布局 — 原生组件显示 */
+.layout-classic .app-sidebar { display: flex; }
+.layout-classic .app-player-bar { display: flex; }
+
+/* 现代布局 — 隐藏原生侧栏和播放栏，调整主体区域 */
+.layout-modern .app-sidebar { display: none; }
+.layout-modern .app-player-bar { display: none; }
+
+.layout-modern .app-container {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  grid-template-areas: "content";
+}
+
+/* ==========================================================================
+   MODERN PLAYER BAR
+   ========================================================================== */
+
+.layout-modern #modern-player-bar {
+  position: fixed;
+  z-index: 100;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1120px, calc(100vw - 72px));
+  padding: 9px 24px 14px;
+  border-radius: 50px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(36px) scale(0.972);
+  transition: opacity 0.34s var(--ease-expo), transform 0.46s var(--ease-expo);
+}
+
+.layout-modern #modern-player-bar.visible {
+  opacity: 0.91;
+  pointer-events: auto;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.layout-modern #modern-player-bar.soft-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) translateY(88px) scale(0.972);
+}
+
+.layout-modern #modern-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+}
+
+.layout-modern .control-cluster {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.layout-modern .control-cluster.modes {
+  justify-content: flex-end;
+}
+
+.layout-modern .control-cover {
+  width: 52px; height: 52px;
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.20);
+  flex-shrink: 0;
+  object-fit: cover;
+  cursor: pointer;
+}
+
+.layout-modern .control-meta {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.layout-modern .control-title {
+  color: var(--modern-ink);
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layout-modern .control-artist {
+  color: var(--modern-muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.layout-modern .ctrl-btn {
+  width: 40px; height: 40px;
+  color: var(--modern-ink-2);
+}
+
+.layout-modern #modern-play-btn {
+  width: 58px; height: 58px;
+  border-radius: 50%;
+  border: 0;
+  background: rgba(0, 0, 0, 0.10);
+  backdrop-filter: blur(12px) saturate(1.8) brightness(1.16);
+  -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(1.16);
+  box-shadow: inset 0 0 2px 1px rgba(255,255,255,0.34), inset 0 0 10px 4px rgba(255,255,255,0.13), 0 10px 30px rgba(0,0,0,0.18);
+  color: rgba(255, 255, 255, 0.96);
+  cursor: pointer;
+  transition: transform 0.20s var(--ease-expo), background 0.20s, box-shadow 0.20s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layout-modern #modern-play-btn:hover {
+  background: rgba(255, 255, 255, 0.055);
+  transform: translateY(-1px) scale(1.012);
+  box-shadow:
+    inset 0 0 2px 1px rgba(255, 255, 255, 0.42),
+    inset 0 0 12px 5px rgba(255, 255, 255, 0.17),
+    0 12px 34px rgba(0, 0, 0, 0.22),
+    0 0 18px rgba(var(--accent-rgb), 0.10);
+}
+
+.layout-modern #modern-time-display {
+  color: var(--modern-muted);
+  font-size: 12px;
+  font-family: monospace;
+  margin-right: 8px;
+}
+
+/* 进度条 */
+.layout-modern #modern-progress-bar {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.095);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: height 0.2s;
+  position: relative;
+}
+
+.layout-modern #modern-progress-bar:hover {
+  height: 5px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.layout-modern #modern-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255,255,255,0.92), rgba(var(--accent-rgb), 0.74));
+  border-radius: 999px;
+  box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.18);
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+/* 进度条拖拽时出现粒子效果 */
+.layout-modern #modern-progress-thumb {
+  position: absolute;
+  top: 50%;
+  width: 13px; height: 13px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #fff 0, #fff 28%, rgba(194,235,255,0.86) 74%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.34), 0 0 18px rgba(178,229,255,0.28);
+  transform: translate(-50%, -50%) scale(0.72);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s, transform 0.16s;
+}
+
+.layout-modern #modern-progress-bar:hover #modern-progress-thumb {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* ==========================================================================
+   MODERN SEARCH AREA
+   ========================================================================== */
+
+.layout-modern #search-area {
+  position: fixed;
+  z-index: 50;
+  top: -92px; /* 默认隐藏在上方 */
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100vw - 56px));
+  transition: top 0.38s var(--ease-expo);
+  pointer-events: none; /* 让它在不可见时不可交互 */
+}
+
+.layout-modern #search-area.peek {
+  top: 24px;
+  pointer-events: auto;
+}
+
+.layout-modern #search-box {
+  height: 58px;
+  border-radius: 22px;
+  padding: 0 20px;
+  color: var(--modern-ink);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.layout-modern #search-box input {
+  background: transparent;
+  border: none;
+  color: var(--modern-ink);
+  font-size: 16px;
+  flex: 1;
+  outline: none;
+}
+
+.layout-modern #search-box input::placeholder {
+  color: var(--modern-muted);
+}
+
+/* ==========================================================================
+   MODERN TOP RIGHT
+   ========================================================================== */
+
+.layout-modern #modern-top-right {
+  position: fixed;
+  z-index: 50;
+  top: 24px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.layout-modern #modern-top-right .icon-btn {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+}
+
+/* ==========================================================================
+   MODERN LIST ITEM CARDS
+   ========================================================================== */
+
+.layout-modern .song-row {
+  border: 1px solid rgba(255, 255, 255, 0.055) !important;
+  border-radius: 11px !important;
+  background: rgba(255, 255, 255, 0.032) !important;
+  backdrop-filter: blur(20px) saturate(1.08) !important;
+  transition: background 0.18s, border-color 0.18s, transform 0.18s !important;
+  margin-bottom: 6px !important;
+  padding: 8px 12px !important;
+  cursor: pointer !important;
+}
+
+.layout-modern .song-row:hover {
+  background: rgba(255, 255, 255, 0.07) !important;
+  border-color: rgba(var(--accent-rgb), 0.30) !important;
+  transform: translateY(-1px) !important;
+}
+
+.layout-modern .song-row.now-playing {
+  border-color: rgba(var(--accent-rgb), 0.36) !important;
+  background: rgba(var(--accent-rgb), 0.075) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+}

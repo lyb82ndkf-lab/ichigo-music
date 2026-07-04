@@ -1,0 +1,74 @@
+{
+  "name": "ichigomusic",
+  "version": "1.0.0",
+  "description": "A beautiful music player with desktop lyrics and particle visualizers.",
+  "author": "Antigravity",
+  "private": true,
+  "type": "module",
+  "main": "main-electron.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "electron:build": "vite build && electron-builder"
+  },
+  "dependencies": {
+    "lucide-react": "^0.400.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@neteasecloudmusicapienhanced/unblockmusic-utils": "^0.3.3",
+    "axios": "^1.18.0",
+    "crypto-js": "^4.2.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-fileupload": "^1.5.2",
+    "gzip": "^0.1.0",
+    "music-metadata": "^11.13.0",
+    "node-forge": "^1.4.0",
+    "pac-proxy-agent": "^7.2.0",
+    "qrcode": "^1.5.4",
+    "safe-decode-uri-component": "^1.2.1",
+    "tunnel": "^0.0.6",
+    "xml2js": "^0.6.2",
+    "yargs": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "vite": "^5.3.1"
+  },
+  "build": {
+    "appId": "com.ichigo.music",
+    "productName": "ICHIGOMusic",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "main-electron.js",
+      "preload-electron.cjs",
+      "package.json",
+      "static/**/*",
+      "server/**/*",
+      "!server/node_modules/**/*",
+      "!server/package-lock.json",
+      "!server/pnpm-lock.yaml"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always"
+    }
+  }
+}
