@@ -2,7 +2,7 @@
 
 > 简洁、美观、功能丰富的第三方网易云音乐桌面播放器
 
-ICHIGOMusic 是一款基于 **Electron + React + Vite** 构建的跨平台桌面音乐播放器，内置 [网易云音乐 API Enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) 服务端，无需额外配置即可畅听音乐。
+ICHIGOMusic 是一款基于 **Electron + React + Vite + Framer Motion** 构建的跨平台桌面音乐播放器，内置 [网易云音乐 API] 服务端，无需额外配置即可畅听音乐。
 
 ---
 
@@ -10,49 +10,43 @@ ICHIGOMusic 是一款基于 **Electron + React + Vite** 构建的跨平台桌面
 
 ### 🎵 音乐播放
 - 完整的网易云音乐曲库访问
-- 高品质试听（支持标准/高品/无损音源选择）
+- 沉浸式的无缝播放体验
 - 播放队列管理、随机播放、单曲循环等播放模式
-- 全局快捷键支持（播放/暂停、上一曲/下一曲、音量调节）
+- 完整的播放控制与系统快捷键支持
 
 ### 🎨 精美界面
 - 现代化毛玻璃（Glassmorphism）设计风格
-- 支持 **多种 UI 布局**：经典布局 / 现代精简布局
-- 动态专辑封面取色，自动匹配主题色调
-- 粒子可视化动画（Visualizer）
-- 专辑封面旋转、模糊背景等视觉效果
+- 动态专辑封面取色，全自动匹配沉浸式全局主题色调
+- 支持 **多种 UI 布局**：现代布局 (Modern) / 经典布局 (Classic)
+- 丰富的微动画过渡体验 (基于 Framer Motion)
 
-### 📝 桌面歌词
-- 独立桌面歌词窗口（可拖拽定位、置顶）
-- **多种歌词主题引擎**：
-  - **Monet 歌词引擎** — 海报布局 / 铁轨滚动 / 单词扫光
-  - **CloudStep 云步歌词** — 逐字高亮
-  - **Streamer 弹幕歌词** — 弹幕风格
-  - **Tilt 倾斜歌词** — 3D 倾斜效果
-- 音频叠加可视化 + 浮动装饰粒子
-- 可自定义字体、字号、颜色、对齐方式等
+### 📝 沉浸式歌词引擎 (Immersive Monet UI)
+提供 6 种完全不同的沉浸式全屏歌词动效，每一帧都是视觉享受：
+- **常规滚动**：经典铁轨式滚动，支持逐字扫光与未播放歌词模糊衰减
+- **气泡模式 (流光)**：类似聊天气泡的左右交错对话流，自然浮动的 Framer Motion 动画
+- **混乱模式 (3D倾诉)**：极具空间感的 3D 倾斜视角，歌词迎面而来
+- **云阶模式 (楼梯)**：以楼梯阶梯的错落感呈现歌词
+- **空间画布 (全屏)**：以屏幕为画布的自由飘散排版
+- **黑胶光碟 (旋转)**：围绕黑胶唱片弧形排列并跟随旋转
 
-### 🔍 发现音乐
-- 个性推荐、新歌速递、热门歌单
-- 排行榜（飙升榜、新歌榜、原创榜、热歌榜等）
-- 歌手详情页（热门歌曲、专辑、MV）
-- 专辑详情页
-- 全局搜索（歌曲/歌手/专辑/歌单/MV）
+> **附带高级设置面板**：支持动态调整时间偏移、歌词对齐位置、歌词字号、行间距、字体 (如Outfit、思源宋体等)、以及主题偏好（自适应暖色/冷色/原色）。
 
-### 🎬 MV 播放
-- 支持 MV 在线播放
-- 相关 MV 推荐
+### 🖼️ 桌面级悬浮歌词
+- 独立于主界面的桌面歌词窗口（支持置顶与穿透点击）
+- **智能解锁交互**：鼠标移动至边框区域自动显示控制面板，非悬停状态下实现完全的纯净无遮挡与鼠标穿透。
+- **底层抗闪烁优化**：针对 Windows DWM 合成器进行了底层透明度混合优化，彻底解决了桌面歌词离奇消失和渲染失效的系统级 Bug。
+- **动态逐字扫光**与多种配色预设（草莓、极光、深海等）
+- 支持动态字号缩放和自定义描边与阴影
 
-### 👤 账号系统
-- 支持手机号登录 / 二维码扫码登录
-- 我喜欢的音乐
-- 最近播放记录
-- 个人歌单管理
+### 🎧 音频可视化与氛围
+- 基于 Web Audio API 的音频可视化频谱（支持 条状 Bars / 环形 Circle）
+- 自动随节奏呼吸的氛围粒子系统 (Particles)
 
-### ⚙️ 深度可定制
-- 丰富的设置面板（播放、界面、歌词、快捷键等）
-- API 服务器自定义代理配置
-- 性能模式切换（GPU 加速开关）
-- 系统托盘常驻，支持托盘快捷操作
+### 🔍 发现与管理
+- 推荐歌单、每日歌曲推荐
+- 歌手详情页与专辑详情
+- 全局搜索功能（歌曲/歌手/专辑）
+- 账号登录集成，实时同步“我喜欢的音乐”
 
 ---
 
@@ -60,37 +54,29 @@ ICHIGOMusic 是一款基于 **Electron + React + Vite** 构建的跨平台桌面
 
 | 技术 | 用途 |
 |------|------|
-| **Electron** | 桌面应用框架，系统托盘、桌面歌词窗口 |
-| **React 18** | 前端 UI 框架 |
-| **Vite 5** | 构建工具，HMR 热更新 |
-| **Lucide React** | 图标库 |
-| **Express** | 内置 API 代理服务端 |
-| **NeteaseCloudMusicApi Enhanced** | 网易云音乐 API 封装 |
-| **electron-builder** | 打包发布（NSIS 安装包） |
+| **Electron** | 桌面应用框架，负责窗口管理与系统 IPC 交互 |
+| **React 18** | 前端核心 UI 框架 |
+| **Vite 5** | 极速构建工具，HMR 热更新 |
+| **Framer Motion** | 复杂的物理动画与布局过渡引擎 |
+| **Express** | 内置网易云 API 代理服务端 |
+| **electron-builder** | 自动化应用打包与发布分发 |
 
 ---
 
 ## 📦 项目结构
 
-```
+```text
 ichigomusic/
 ├── src/                    # React 前端源码
-│   ├── components/         # 通用组件（播放栏、侧边栏、可视化等）
-│   │   └── lyrics/         # 歌词引擎组件（Monet/CloudStep/Streamer/Tilt）
-│   ├── views/              # 页面视图（发现、搜索、歌单、设置等）
-│   ├── context/            # React Context 全局状态管理
-│   ├── hooks/              # 自定义 Hooks
-│   └── utils/              # 工具函数（API 请求、歌词解析、取色等）
-├── server/                 # 网易云音乐 API 服务端
-│   ├── module/             # API 接口模块
-│   ├── util/               # 工具函数（加密、请求等）
-│   └── server.js           # Express 服务入口
+│   ├── components/         # 通用组件
+│   │   └── lyrics/         # 核心！Monet 沉浸式歌词引擎库
+│   ├── views/              # 页面视图（发现、主页、桌面歌词独立窗口等）
+│   ├── context/            # AppContext 全局状态与设置同步
+│   └── index.css           # 全局样式与现代 CSS 变量系统
+├── server/                 # 网易云音乐 API 本地服务端
 ├── main-electron.js        # Electron 主进程
-├── preload-electron.cjs    # Electron 预加载脚本
-├── static/                 # 静态资源
-├── build/                  # 构建图标
-├── dist/                   # Vite 构建输出
-└── vite.config.js          # Vite 配置
+├── preload-electron.cjs    # Electron 预加载安全桥接脚本
+└── vite.config.js          # Vite 构建配置
 ```
 
 ---
@@ -98,59 +84,40 @@ ichigomusic/
 ## 🚀 快速开始
 
 ### 环境要求
-
 - **Node.js** >= 18
 - **npm** >= 9
 
 ### 安装依赖
-
 ```bash
-# 安装前端依赖
+# 1. 安装前端和 Electron 依赖
 npm install
 
-# 安装服务端依赖
+# 2. 安装本地服务端依赖
 cd server && npm install && cd ..
 ```
 
 ### 开发模式
-
 ```bash
-# 启动 Vite 开发服务器（前端）
+# 启动 Vite 开发服务器（前端界面）
 npm run dev
 
-# 另开终端，启动 Electron
+# 另开终端，启动 Electron 主程序
 npm run electron
 ```
 
-### 构建打包
-
+### 构建与打包发布
 ```bash
-# 构建前端 + 打包 Electron 应用
+# 执行前端构建并触发 electron-builder 打包 NSIS 安装程序
 npm run electron:build
 ```
-
-构建产物输出到 `release/` 目录（NSIS 安装包及免安装版）。
+> 构建产物将输出到 `release/` 目录。
 
 ---
 
 ## ⚠️ 免责声明
-
-本项目仅供学习和研究使用，请勿用于商业用途。使用本项目产生的任何后果由使用者自行承担。
-
-音乐版权归网易云音乐及版权方所有，请支持正版音乐。
+本项目仅供前端与 Electron 开发的技术学习和研究使用，请勿用于商业用途。使用本项目产生的任何后果由使用者自行承担。音乐版权归网易云音乐及版权方所有，请支持正版音乐。
 
 ---
 
 ## 📄 License
-
 MIT License
-
----
-
-## 🙏 致谢
-
-- [NeteaseCloudMusicApiEnhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) — 网易云音乐 API 增强版
-- [Electron](https://www.electronjs.org/)
-- [React](https://react.dev/)
-- [Vite](https://vitejs.dev/)
-- [Lucide](https://lucide.dev/) — 精美图标库
