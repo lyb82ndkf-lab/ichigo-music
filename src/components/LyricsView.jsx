@@ -21,13 +21,11 @@ export default function LyricsView({ engineRef, lyrics = [], activeLineIndex = -
     };
 
     const loop = (now) => {
-      if (minFrameMs === 0 || now - lastFrame >= minFrameMs) {
-        tick(now);
-      }
+      tick(now);
       animationId = requestAnimationFrame(loop);
     };
 
-    if (isPlaying && wordRegistry.size > 0) {
+    if (isPlaying) {
       animationId = requestAnimationFrame(loop);
     } else {
       // Push one deterministic frame on pause/seek without keeping a hot loop.
@@ -53,7 +51,6 @@ export default function LyricsView({ engineRef, lyrics = [], activeLineIndex = -
       currentSong={currentSong}
       isPlaying={isPlaying}
       currentTimeRef={timeRef}
-      currentTime={currentTime}
       coverUrl={coverUrl || currentSong?.coverUrl}
       audioAnalyser={audioAnalyser}
       themeColor={immersiveColor}

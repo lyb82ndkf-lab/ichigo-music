@@ -6,6 +6,8 @@ import MonetFloatingDecor from './MonetFloatingDecor';
 import StreamerLyrics from './StreamerLyrics';
 import TiltLyrics from './TiltLyrics';
 import CloudStepLyrics from './CloudStepLyrics';
+import SpatialCanvasLyrics from './SpatialCanvasLyrics';
+import VinylRecordLyrics from './VinylRecordLyrics';
 import { useApp } from '../../context/AppContext';
 
 export default function MonetPosterLayout({ 
@@ -21,9 +23,10 @@ export default function MonetPosterLayout({
   engineRef
 }) {
   const { advancedLyricConfig, seekTo, layoutMode } = useApp();
-  const animMode = advancedLyricConfig?.animationMode || 'regular';
+  const animMode = advancedLyricConfig?.lyricsMode || 'regular';
   const isRegularMode = animMode === 'regular';
   const showCover = advancedLyricConfig?.showCover !== false && isRegularMode;
+  const showSongInfo = advancedLyricConfig?.showSongInfo !== false;
   const enableDecor = advancedLyricConfig?.showDecor === true;
   const fontScale = (advancedLyricConfig?.fontSize || 24) / 24;
   const fontFamilyMap = {
@@ -171,6 +174,7 @@ export default function MonetPosterLayout({
           
           .monet-left-pane {
             flex: ${showCover === false ? '1 1 100%' : '1'};
+            padding: 0 2vw;
             display: flex;
             flex-direction: column;
             min-width: 0;
@@ -275,14 +279,16 @@ export default function MonetPosterLayout({
       <div className="monet-left-pane">
         
         {/* Header Metadata */}
-        <div style={{ display: 'flex', gap: '24px', marginBottom: '4vh', position: 'relative', zIndex: 2 }}>
-          <div className="monet-anim-line" style={{ width: '4px', background: 'var(--primary)', borderRadius: '4px' }} />
-          <div>
-            <div className="monet-anim-artist monet-artist-text">{fallbackSong.artist}</div>
-            <div className="monet-anim-title monet-title-text">{fallbackSong.title}</div>
-            <div className="monet-anim-title monet-album-text">{fallbackSong.album?.name || 'ICHIGOMusic Single'}</div>
+        {showSongInfo && (
+          <div style={{ display: 'flex', gap: '24px', marginBottom: '4vh', position: 'relative', zIndex: 2 }}>
+            <div className="monet-anim-line" style={{ width: '4px', background: 'var(--primary)', borderRadius: '4px' }} />
+            <div>
+              <div className="monet-anim-artist monet-artist-text">{fallbackSong.artist}</div>
+              <div className="monet-anim-title monet-title-text">{fallbackSong.title}</div>
+              <div className="monet-anim-title monet-album-text">{fallbackSong.album?.name || 'ICHIGOMusic Single'}</div>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Lyrics Rail */}
         <div 
@@ -306,21 +312,24 @@ export default function MonetPosterLayout({
               inactiveLyricBlur={advancedLyricConfig?.inactiveLyricBlur}
             />
           ) : (
-            <div style={{ width: '100%' }}>
+            <div style={{ width: '100%', height: '100%' }}>
               {animMode === 'streamer' && (
                 <StreamerLyrics
-                  line={lyrics[activeLineIndex] || { text: 'ICHIGOMusic', time: 0, duration: 5 }}
+                  lyrics={lyrics}
+                  activeLineIndex={activeLineIndex}
                   engineRef={engineRef}
                   fontPx={dimensions.fontPx}
                   fontStack={fontStack}
                   themeColor="var(--primary)"
                   showGlow={advancedLyricConfig?.showGlow === true}
                   globalOffset={advancedLyricConfig?.globalOffset || 0}
+                  alignMode={advancedLyricConfig?.bubbleAlign || 'alternate'}
                 />
               )}
-              {animMode === 'tilt' && (
+              {animMode === 'talk' && (
                 <TiltLyrics
-                  line={lyrics[activeLineIndex] || { text: 'ICHIGOMusic', time: 0, duration: 5 }}
+                  lyrics={lyrics}
+                  activeLineIndex={activeLineIndex}
                   engineRef={engineRef}
                   fontPx={dimensions.fontPx}
                   fontStack={fontStack}
@@ -329,15 +338,39 @@ export default function MonetPosterLayout({
                   globalOffset={advancedLyricConfig?.globalOffset || 0}
                 />
               )}
-              {animMode === 'cloudStep' && (
+              {animMode === 'cloudstep' && (
                 <CloudStepLyrics
-                  line={lyrics[activeLineIndex] || { text: 'ICHIGOMusic', time: 0, duration: 5 }}
+                  lyrics={lyrics}
+                  activeLineIndex={activeLineIndex}
                   engineRef={engineRef}
                   fontPx={dimensions.fontPx}
                   fontStack={fontStack}
                   themeColor="var(--primary)"
                   showGlow={advancedLyricConfig?.showGlow === true}
                   globalOffset={advancedLyricConfig?.globalOffset || 0}
+                  cloudStepSpacing={advancedLyricConfig?.cloudStepSpacing || 1}
+                />
+              )}
+              {animMode === 'spatial' && (
+                <SpatialCanvasLyrics
+                  lyrics={lyrics}
+                  activeLineIndex={activeLineIndex}
+                  fontPx={dimensions.fontPx}
+                  fontStack={fontStack}
+                  themeColor={themeColor}
+                />
+              )}
+              {animMode === 'vinyl' && (
+                <VinylRecordLyrics
+                  lyrics={lyrics}
+                  activeLineIndex={activeLineIndex}
+                  fontPx={dimensions.fontPx}
+                  fontStack={fontStack}
+                  themeColor={themeColor}
+                  coverUrl={coverUrlResized}
+                  isPlaying={isPlaying}
+                  lineSpacing={advancedLyricConfig?.vinylLineSpacing || 1}
+                  tiltAngle={advancedLyricConfig?.vinylTiltAngle || 0}
                 />
               )}
             </div>

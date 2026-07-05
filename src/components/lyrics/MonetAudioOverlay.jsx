@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 
 function resolveCanvasColor(color, fallback = '#ff3366') {
@@ -20,18 +20,24 @@ function normalizeStyle(style) {
 
 export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerStyle = 'bars', isBehindCover = false }) {
   const canvasRef = useRef(null);
-  const { renderingConfig, advancedLyricConfig } = useApp();
+  const { renderingConfig, advancedLyricConfig, coverConfig } = useApp();
+  
   const visualizerFps = renderingConfig?.visualizerFps !== undefined ? Number(renderingConfig.visualizerFps) : 30;
-  const fps = visualizerFps === 0 ? 0 : Math.min(60, Math.max(24, visualizerFps));
+  const fps = visualizerFps === 0 ? 0 : Math.min(120, Math.max(24, visualizerFps));
   const normalizedStyle = useMemo(() => normalizeStyle(visualizerStyle), [visualizerStyle]);
 
   const scaleRef = useRef(1.0);
   const offsetYRef = useRef(0);
+  const showCoverRef = useRef(true);
+
+  // Particles state
+  const particlesRef = useRef([]);
 
   useEffect(() => {
     scaleRef.current = advancedLyricConfig?.visualizerScale ?? 1.0;
     offsetYRef.current = advancedLyricConfig?.visualizerOffsetY ?? 0;
-  }, [advancedLyricConfig?.visualizerScale, advancedLyricConfig?.visualizerOffsetY]);
+    showCoverRef.current = coverConfig?.showCover !== false && advancedLyricConfig?.showCover !== false;
+  }, [advancedLyricConfig, coverConfig]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -44,8 +50,12 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
     let width = 0;
     let height = 0;
     let gradient = null;
+    let glowGradient = null;
     let lastFrame = 0;
-    let time = 0;
+    
+    // Smooth data cache for interpolation
+    let smoothedData = [];
+    
     const minFrameMs = fps === 0 ? 0 : 1000 / fps;
     const resolvedPrimary = resolveCanvasColor(primaryColor || 'var(--primary)');
     const sampleOffset = 4;
@@ -60,9 +70,16 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      
+      // Cyber gradient for mirrored peaks
       gradient = ctx.createLinearGradient(0, height, 0, 0);
       gradient.addColorStop(0, resolvedPrimary);
-      gradient.addColorStop(1, 'rgba(255,255,255,0.78)');
+      gradient.addColorStop(0.5, 'rgba(255,255,255,0.9)');
+      gradient.addColorStop(1, resolvedPrimary);
+
+      glowGradient = ctx.createRadialGradient(width/2, height/2, 0, width/2, height/2, height/2);
+      glowGradient.addColorStop(0, resolvedPrimary);
+      glowGradient.addColorStop(1, 'rgba(0,0,0,0)');
     };
 
     resizeCanvas();
@@ -72,10 +89,15 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
       const analyser = window.ichigoAnalyser;
       let hasRealData = false;
 
+      if (window.ichigoAudioContext && window.ichigoAudioContext.state === 'suspended') {
+        window.ichigoAudioContext.resume().catch(() => {});
+      }
+
       if (analyser) {
         if (analyser.frequencyBinCount !== currentBufferLength) {
           currentBufferLength = analyser.frequencyBinCount;
           dataArray = new Uint8Array(currentBufferLength);
+          smoothedData = new Array(currentBufferLength).fill(0);
         }
         analyser.getByteFrequencyData(dataArray);
         for (let i = 0; i < Math.min(16, dataArray.length); i++) {
@@ -87,55 +109,138 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
         if (currentBufferLength !== 128) {
           currentBufferLength = 128;
           dataArray = new Uint8Array(currentBufferLength);
+          smoothedData = new Array(currentBufferLength).fill(0);
         }
-        if (isPlaying) {
-          time += 0.08;
-          for (let i = 0; i < currentBufferLength; i++) {
-            dataArray[i] = Math.abs(Math.sin(time + i * 0.13)) * 96;
-          }
-        } else {
-          dataArray.fill(0);
+        for (let i = 0; i < currentBufferLength; i++) {
+          dataArray[i] = Math.max(0, (dataArray[i] || 0) * 0.82);
         }
+      }
+      
+      // Smooth data array for less jittery visuals
+      for (let i = 0; i < currentBufferLength; i++) {
+        smoothedData[i] += (dataArray[i] - smoothedData[i]) * 0.3;
       }
     };
 
-    const drawBars = () => {
-      const numBars = width > 900 ? 40 : 32;
-      const gap = 3;
-      const barWidth = Math.max(2, (width - (numBars - 1) * gap) / numBars);
-      const sampleSpan = currentBufferLength * 0.45;
+    // --- High-Energy Particle Emitter System ---
+    const spawnParticles = (intensity) => {
+      if (advancedLyricConfig?.particleSystem === false) return;
+      if (intensity < 200) return; // Only spawn on high peaks
+      
+      const amount = advancedLyricConfig?.particleAmount || 50;
+      const baseSize = advancedLyricConfig?.particleSize || 1.5;
+      
+      // Spawn a burst of particles
+      for (let i = 0; i < (intensity / 255) * (amount / 10); i++) {
+        const cx = isBehindCover ? width / 2 : width / 2 + (Math.random() - 0.5) * width;
+        const cy = isBehindCover ? height / 2 : height * 0.8;
+        
+        particlesRef.current.push({
+          x: cx,
+          y: cy,
+          vx: (Math.random() - 0.5) * 8,
+          vy: (Math.random() - 0.5) * 8 - 2,
+          life: 1.0,
+          size: (Math.random() * 2 + 1) * baseSize,
+          color: Math.random() > 0.5 ? '#ffffff' : resolvedPrimary
+        });
+      }
+    };
+
+    const drawParticles = () => {
+      if (advancedLyricConfig?.particleSystem === false) return;
+      const opacity = advancedLyricConfig?.particleOpacity || 0.8;
+      
+      for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+        const p = particlesRef.current[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.02;
+        p.vy += 0.05; // gravity
+        
+        if (p.life <= 0) {
+          particlesRef.current.splice(i, 1);
+          continue;
+        }
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = p.life * opacity;
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+      }
+    };
+
+    // --- Visualizer Mode 1: Symmetrical Mirrored Peaks (Waveform Replacement) ---
+    const drawMirroredPeaks = () => {
+      const points = width > 900 ? 64 : 48;
+      const sampleSpan = currentBufferLength * 0.5;
       const scale = scaleRef.current;
-      const offsetY = offsetYRef.current;
-      for (let i = 0; i < numBars; i++) {
-        const value = dataArray[sampleOffset + Math.floor((i / numBars) * sampleSpan)] || 0;
-        const envelope = Math.sin((i / (numBars - 1)) * Math.PI);
-        const amplitude = (2 + Math.pow(value / 255, 0.82) * height * 0.9 * envelope) * scale;
-        const x = i * (barWidth + gap);
-        const y = height - amplitude + offsetY;
-        ctx.fillRect(x, y, barWidth, amplitude);
-      }
-    };
-
-    const drawWave = () => {
-      ctx.lineWidth = 2;
+      const offsetY = offsetYRef.current + height / 2; // Center it
+      
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = gradient;
+      ctx.fillStyle = gradient;
+      
       ctx.beginPath();
-      const points = 48;
-      const sampleSpan = currentBufferLength * 0.45;
-      const scale = scaleRef.current;
-      const offsetY = offsetYRef.current;
+      // Draw top half
       for (let i = 0; i < points; i++) {
-        const value = dataArray[sampleOffset + Math.floor((i / points) * sampleSpan)] || 0;
+        const value = smoothedData[sampleOffset + Math.floor((i / points) * sampleSpan)] || 0;
         const x = (i / (points - 1)) * width;
-        const wave = Math.pow(value / 255, 0.82) * height * 0.85 * scale;
-        const y = height * 0.82 - wave * Math.sin((i / (points - 1)) * Math.PI) + offsetY;
+        const wave = Math.pow(value / 255, 1.2) * height * 0.4 * scale;
+        const y = offsetY - wave;
         if (i === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
+        
+        // Spawn particles from peaks
+        if (i % 5 === 0) spawnParticles(value);
       }
+      
+      // Draw bottom half mirrored
+      for (let i = points - 1; i >= 0; i--) {
+        const value = smoothedData[sampleOffset + Math.floor((i / points) * sampleSpan)] || 0;
+        const x = (i / (points - 1)) * width;
+        const wave = Math.pow(value / 255, 1.2) * height * 0.4 * scale;
+        const y = offsetY + wave * 0.5; // Bottom reflection is slightly shorter
+        ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      
+      ctx.globalAlpha = 0.8;
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
       ctx.stroke();
     };
 
+    // --- Visualizer Mode 2: Standard Bars ---
+    const drawBars = () => {
+      const numBars = width > 900 ? 50 : 36;
+      const gap = 4;
+      const barWidth = Math.max(2, (width - (numBars - 1) * gap) / numBars);
+      const sampleSpan = currentBufferLength * 0.5;
+      const scale = scaleRef.current;
+      const offsetY = offsetYRef.current;
+      
+      ctx.fillStyle = gradient;
+      
+      for (let i = 0; i < numBars; i++) {
+        const value = smoothedData[sampleOffset + Math.floor((i / numBars) * sampleSpan)] || 0;
+        const envelope = Math.sin((i / (numBars - 1)) * Math.PI);
+        const amplitude = (2 + Math.pow(value / 255, 1.0) * height * 0.8 * envelope) * scale;
+        const x = i * (barWidth + gap);
+        const y = height - amplitude + offsetY;
+        
+        ctx.beginPath();
+        ctx.roundRect(x, y, barWidth, amplitude, [barWidth/2, barWidth/2, 0, 0]);
+        ctx.fill();
+        
+        if (i % 3 === 0) spawnParticles(value);
+      }
+    };
+
+    // --- Visualizer Mode 3: Circular / Pulsing Energy Orb ---
     const drawCircle = () => {
-      ctx.lineWidth = 2.5;
       const cx = width / 2;
       const scale = scaleRef.current;
       const offsetY = offsetYRef.current;
@@ -152,16 +257,37 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
         maxPulse = Math.min(width, height) * 0.25;
       }
       
-      const bars = 48;
+      const bars = 64;
       const sampleSpan = currentBufferLength * 0.6;
+      let totalEnergy = 0;
+      
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = resolvedPrimary;
+      
       for (let i = 0; i < bars; i++) {
-        const value = dataArray[sampleOffset + Math.floor((i / bars) * sampleSpan)] || 0;
-        const angle = (i / bars) * Math.PI * 2;
-        const outer = inner + (value / 255) * maxPulse * scale;
+        const value = smoothedData[sampleOffset + Math.floor((i / bars) * sampleSpan)] || 0;
+        totalEnergy += value;
+        const angle = (i / bars) * Math.PI * 2 - Math.PI / 2;
+        const outer = inner + Math.pow(value / 255, 1.2) * maxPulse * scale;
+        
         ctx.beginPath();
         ctx.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
         ctx.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
         ctx.stroke();
+      }
+      
+      const avgEnergy = totalEnergy / bars;
+      spawnParticles(avgEnergy * 1.5);
+
+      // If cover is hidden and not behind cover, draw the Pulsing Energy Orb in the center
+      if (!showCoverRef.current && !isBehindCover) {
+         ctx.beginPath();
+         const orbRadius = inner * 0.8 + (avgEnergy / 255) * inner * 0.4;
+         ctx.arc(cx, cy, orbRadius, 0, Math.PI * 2);
+         ctx.fillStyle = glowGradient;
+         ctx.globalAlpha = 0.5 + (avgEnergy / 255) * 0.5;
+         ctx.fill();
+         ctx.globalAlpha = 1.0;
       }
     };
 
@@ -172,11 +298,12 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
 
       prepareData();
       ctx.clearRect(0, 0, width, height);
-      ctx.fillStyle = gradient;
-      ctx.strokeStyle = gradient;
-      ctx.shadowBlur = 0;
 
-      if (normalizedStyle === 'wave') drawWave();
+      // Draw particle system first (background layer)
+      drawParticles();
+
+      // Draw primary visualizer
+      if (normalizedStyle === 'wave') drawMirroredPeaks();
       else if (normalizedStyle === 'circle') drawCircle();
       else drawBars();
     };
@@ -187,14 +314,13 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, visualizerS
       cancelAnimationFrame(animationId);
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [isPlaying, primaryColor, normalizedStyle, fps]);
+  }, [isPlaying, primaryColor, normalizedStyle, fps, advancedLyricConfig, isBehindCover]);
 
-  if (normalizedStyle === 'none') return null;
+  if (normalizedStyle === 'none' && advancedLyricConfig?.particleSystem === false) return null;
 
   return (
     <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '100%', padding: 0, pointerEvents: 'none', zIndex: 10 }}>
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', maxWidth: '800px', opacity: 0.86, margin: '0 auto' }} />
+      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', maxWidth: '1200px', opacity: 0.9, margin: '0 auto', filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))' }} />
     </div>
   );
 }
-

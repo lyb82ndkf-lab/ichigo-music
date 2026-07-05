@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1, ListMusic } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1, ListMusic, Volume2, VolumeX } from 'lucide-react';
 
 export default function ModernPlayerBar({ onToggleLyrics }) {
   const { 
@@ -17,8 +17,20 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
     playMode,
     setPlayMode,
     isQueueOpen,
-    setIsQueueOpen
+    setIsQueueOpen,
+    volume,
+    setVolume
   } = useApp();
+
+  const [prevVolume, setPrevVolume] = useState(0.8);
+  const handleVolumeToggle = () => {
+    if (volume > 0) {
+      setPrevVolume(volume);
+      setVolume(0);
+    } else {
+      setVolume(prevVolume);
+    }
+  };
 
   const progressRef = useRef(null);
 
@@ -87,6 +99,28 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
             <button className={`ctrl-btn ${isQueueOpen ? 'active' : ''}`} onClick={() => setIsQueueOpen(!isQueueOpen)}>
               <ListMusic size={18} />
             </button>
+            <div className="volume-control-wrapper" style={{ position: 'relative' }}>
+              <button className="ctrl-btn" onClick={handleVolumeToggle} title="音量 / 静音">
+                {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+              </button>
+              <div className="volume-popover" style={{ bottom: '40px', left: '50%', transform: 'translateX(-50%)' }}>
+                <div className="volume-value-bubble">
+                  {Math.round(volume * 100)}%
+                </div>
+                <input 
+                  type="range" 
+                  className="volume-slider"
+                  min="0" 
+                  max="1" 
+                  step="0.01" 
+                  value={volume}
+                  onChange={(e) => setVolume(parseFloat(e.target.value))}
+                  style={{
+                    background: `linear-gradient(to top, var(--primary) ${volume * 100}%, rgba(255, 255, 255, 0.1) ${volume * 100}%)`
+                  }}
+                />
+              </div>
+            </div>
           </div>
         </div>
 

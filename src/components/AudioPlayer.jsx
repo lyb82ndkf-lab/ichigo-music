@@ -24,6 +24,9 @@ export default function AudioPlayer() {
   const audioContextRef = useRef(null);
   const sourceNodeRef = useRef(null);
   const analyserNodeRef = useRef(null);
+  const playRequestIdRef = useRef(0);
+  const lastLoadedKeyRef = useRef('');
+  const zeroTimeRecoveryRef = useRef({ key: '', attempts: 0 });
 
   // Clean up global window references on unmount
   useEffect(() => {
@@ -38,6 +41,26 @@ export default function AudioPlayer() {
     };
   }, []);
 
+  const safePlay = () => {
+    const audio = audioRef.current;
+    if (!audio || !audioSource) return;
+
+    const requestId = ++playRequestIdRef.current;
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        // load()/src changes legitimately abort older play() calls during song
+        // switches. Treat only the latest non-abort failure as a real playback
+        // failure. This prevents the app from flipping to a stuck paused/0.00
+        // state during normal source replacement.
+        if (requestId !== playRequestIdRef.current) return;
+        if (error?.name === 'AbortError') return;
+        console.warn('Playback prevented or error occurred:', error);
+        setIsPlaying(false);
+      });
+    }
+  };
+
   // Sync volume
   useEffect(() => {
     if (audioRef.current) {
@@ -45,56 +68,82 @@ export default function AudioPlayer() {
     }
   }, [volume]);
 
-  // Sync play/pause
+  // Sync source loading and play/pause from one place, after React has
+  // committed the <audio src/crossOrigin> attributes.
   useEffect(() => {
-    if (!audioRef.current || !audioSource) return;
+    const audio = audioRef.current;
+    if (!audio || !audioSource) return;
+
+    const loadKey = `${audioSource}|${crossOriginMode ?? 'no-cors'}`;
+    if (lastLoadedKeyRef.current !== loadKey) {
+      lastLoadedKeyRef.current = loadKey;
+      playRequestIdRef.current += 1; // invalidate play() promises aborted by load()
+      audio.load();
+    }
 
     if (isPlaying) {
-      const playPromise = audioRef.current.play();
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.warn("Playback prevented or error occurred:", error);
-          // If the play request was interrupted by a new load, ignore AbortError
-          if (error.name !== 'AbortError') {
-            setIsPlaying(false);
-          }
-        });
-      }
+      safePlay();
     } else {
-      audioRef.current.pause();
+      audio.pause();
     }
-  }, [isPlaying, audioSource]);
+  }, [isPlaying, audioSource, crossOriginMode]);
 
   // Handle song change
   useEffect(() => {
     if (currentSong && currentSong.url) {
       setProgress(0);
       setDuration(0);
+      zeroTimeRecoveryRef.current = { key: currentSong.url, attempts: 0 };
       setAudioSource(currentSong.url);
       setCrossOriginMode('anonymous');
-
-      // Explicitly load the new source immediately
-      if (audioRef.current) {
-        audioRef.current.load();
-      }
     } else {
       setAudioSource('');
     }
   }, [currentSong]);
 
-  // Handle crossOriginMode changes
+  // Recovery for the intermittent 0.00s startup stall: if a source is
+  // requested to play but the media clock never starts, retry once without CORS
+  // analysis and then once with a reload.
   useEffect(() => {
-    if (audioRef.current && audioSource) {
-      audioRef.current.load();
-      if (isPlaying) {
-        audioRef.current.play().catch(err => {
-          if (err.name !== 'AbortError') {
-            setIsPlaying(false);
-          }
-        });
+    if (!isPlaying || !audioSource) return undefined;
+
+    const timerId = window.setTimeout(() => {
+      const audio = audioRef.current;
+      if (!audio || !isPlaying) return;
+      const stuckAtStart = (audio.currentTime || 0) < 0.05;
+      const stillLoading = audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA;
+      if (!stuckAtStart) return;
+      if (stillLoading && !audio.error) return;
+
+      const key = `${audioSource}|${crossOriginMode ?? 'no-cors'}`;
+      const recovery = zeroTimeRecoveryRef.current;
+      if (recovery.key !== key) {
+        recovery.key = key;
+        recovery.attempts = 0;
       }
-    }
-  }, [crossOriginMode]);
+
+      if (audio.paused) {
+        safePlay();
+        return;
+      }
+
+      if (recovery.attempts === 0 && crossOriginMode === 'anonymous') {
+        recovery.attempts += 1;
+        window.ichigoAnalyser = null;
+        setCrossOriginMode(null);
+        return;
+      }
+
+      if (recovery.attempts < 2) {
+        recovery.attempts += 1;
+        playRequestIdRef.current += 1;
+        audio.load();
+        safePlay();
+      }
+    }, 3200);
+
+    return () => window.clearTimeout(timerId);
+  }, [isPlaying, audioSource, crossOriginMode]);
 
   // Expose audio element to global context
   useEffect(() => {
@@ -118,12 +167,7 @@ export default function AudioPlayer() {
 
       // Resume context if suspended
       if (audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-
-      // If source node is already created for this audio element, reuse it
-      if (sourceNodeRef.current) {
-        return;
+        audioCtx.resume().catch(() => {});
       }
 
       let analyser = analyserNodeRef.current;
@@ -131,7 +175,15 @@ export default function AudioPlayer() {
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
         analyserNodeRef.current = analyser;
-        window.ichigoAnalyser = analyser;
+      }
+      window.ichigoAnalyser = analyser;
+      window.ichigoAudioContext = audioCtx;
+
+      // If source node is already created for this audio element, reuse it, but
+      // still restore the global analyser refs. Last-session playback can reuse
+      // the media element before immersive mode mounts.
+      if (sourceNodeRef.current) {
+        return;
       }
 
       // Create Media Element Source node only once
@@ -144,6 +196,12 @@ export default function AudioPlayer() {
       console.warn("Web Audio API analyser setup failed:", e);
     }
   };
+
+  useEffect(() => {
+    if (!isPlaying || !audioSource || crossOriginMode === null) return;
+    const id = window.setTimeout(() => setupWebAudio(), 0);
+    return () => window.clearTimeout(id);
+  }, [isPlaying, audioSource, crossOriginMode]);
 
   // When play starts, setup audio analyser
   const handlePlay = () => {
@@ -163,9 +221,16 @@ export default function AudioPlayer() {
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
-      setDuration(audioRef.current.duration);
+      const mediaDuration = Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : 0;
+      setDuration(mediaDuration);
       if (resumeTime !== null) {
-        audioRef.current.currentTime = resumeTime;
+        const requestedResume = Number(resumeTime) || 0;
+        const clampedResume = mediaDuration > 0
+          ? Math.max(0, Math.min(requestedResume, Math.max(0, mediaDuration - 0.25)))
+          : Math.max(0, requestedResume);
+        if (clampedResume > 0.05) {
+          audioRef.current.currentTime = clampedResume;
+        }
         setResumeTime(null);
       }
     }
@@ -178,20 +243,10 @@ export default function AudioPlayer() {
     
     if (crossOriginMode === 'anonymous' && (code === 4 || code === 2 || code === 3)) {
       console.warn("CORS issue detected. Retrying playback without Web Audio API analysis...");
-      setCrossOriginMode(null); // Disable crossOrigin
-      
-      // Force reload the source
-      setTimeout(() => {
-        if (audioRef.current) {
-          audioRef.current.load();
-          if (isPlaying) {
-            audioRef.current.play().catch(err => console.error("Retry play failed:", err));
-          }
-        }
-      }, 100);
-      
-      // Clean up analyser since CORS prevents drawing anyway
+      // Disable CORS analysis; the unified source effect will reload and
+      // continue playback after React removes the crossOrigin attribute.
       window.ichigoAnalyser = null;
+      setCrossOriginMode(null);
     } else if (code) {
       console.error(`Fatal audio error code ${code}. Skipping to next song in 1.5 seconds...`);
       setIsPlaying(false);
@@ -205,7 +260,7 @@ export default function AudioPlayer() {
     if (playMode === 'single') {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(() => setIsPlaying(false));
+        safePlay();
       }
     } else {
       playNext();
@@ -222,6 +277,7 @@ export default function AudioPlayer() {
       onPause={handlePause}
       onTimeUpdate={handleTimeUpdate}
       onLoadedMetadata={handleLoadedMetadata}
+      onCanPlay={() => { if (isPlaying) { setupWebAudio(); safePlay(); } }}
       onError={handleAudioError}
       onEnded={handleEnded}
       preload="auto"

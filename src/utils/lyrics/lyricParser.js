@@ -148,10 +148,20 @@ export function computeLineDurations(lines) {
   const rawLines = lines.map((line, idx) => {
     const current = { ...line };
     const next = lines[idx + 1];
-    if (next) {
-      current.duration = next.time - current.time;
+    
+    if (!current.isYrc) {
+      let duration = next ? next.time - current.time : 5;
+      const estimatedReadingTime = (current.text || '').length * 0.5;
+      if (duration > estimatedReadingTime + 2 && duration > 5) {
+        duration = Math.min(duration, estimatedReadingTime + 2);
+      }
+      current.duration = duration;
     } else {
-      current.duration = 8.0; // fallback default
+      if (next) {
+        current.duration = next.time - current.time;
+      } else {
+        current.duration = 8.0; // fallback default
+      }
     }
     return current;
   });
@@ -180,6 +190,7 @@ export function computeLineDurations(lines) {
       // Check if there is a gap to the next line
       const gap = next.time - currentEndTime;
       if (gap > 3.0) {
+        current.duration = currentEndTime - current.time;
         processed.push(createInterlude(currentEndTime + 0.05, next.time - 0.05));
       }
     }

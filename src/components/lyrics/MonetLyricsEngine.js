@@ -32,6 +32,98 @@ export function splitGraphemes(text) {
   return Array.from(text);
 }
 
+const JAPANESE_SMALL_KANA_RE = /^[\u3041\u3043\u3045\u3047\u3049\u3083\u3085\u3087\u308e\u3063\u30a1\u30a3\u30a5\u30a7\u30a9\u30e3\u30e5\u30e7\u30ee\u30c3\u30fc]$/u;
+const LYRIC_PUNCT_RE = /^[\s\u3000,.:!?;\uFF0C\u3002\uFF01\uFF1F\u3001\uFF1A\uFF1B\uFF08\uFF09()\u3010\u3011\[\]\u300C\u300D\u300E\u300F\u300A\u300B\u3008\u3009\u2014\u2013~\uFF5E\u2026\u00B7\u30FB'"\u201C\u201D\u2018\u2019-]+$/u;
+const CREDIT_LINE_RE = /^\s*(?:\u4f5c\u8bcd|\u4f5c\u66f2|\u7f16\u66f2|\u8bcd|\u66f2|composer|lyricist|lyrics|arranger)\s*[:\uff1a]/i;
+const KNOWN_WORDS = [
+  '\u672a\u6765', '\u611f\u60c5', '\u7c89\u96ea', '\u4e2d\u6bd2', '\u540d\u524d',
+  '\u5927\u5207', '\u30ca\u30df\u30c0', '\u4e0a\u624b', '\u56f0\u3063\u3066', '\u305d\u308c\u3058\u3083', '\u3058\u3083', '\u3044\u3044\u3058\u3083\u3093'
+];
+
+function splitByKnownWords(part) {
+  const units = [];
+  let i = 0;
+  while (i < part.length) {
+    const hit = KNOWN_WORDS.find(word => part.startsWith(word, i));
+    if (hit) {
+      units.push(hit);
+      i += hit.length;
+      continue;
+    }
+    units.push(part[i]);
+    i += 1;
+  }
+  return units;
+}
+
+function mergeSmallKana(units) {
+  const merged = [];
+  for (const unit of units) {
+    if (merged.length && JAPANESE_SMALL_KANA_RE.test(unit)) merged[merged.length - 1] += unit;
+    else merged.push(unit);
+  }
+  return merged;
+}
+
+function collapseKnownWordSequences(units) {
+  const out = [];
+  for (let i = 0; i < units.length; i += 1) {
+    let best = null;
+    let bestEnd = i;
+    let acc = '';
+    for (let j = i; j < Math.min(units.length, i + 6); j += 1) {
+      acc += units[j];
+      const hit = KNOWN_WORDS.find(word => word === acc);
+      if (hit) { best = hit; bestEnd = j; }
+    }
+    if (best) {
+      out.push(best);
+      i = bestEnd;
+    } else {
+      out.push(units[i]);
+    }
+  }
+  return out;
+}
+
+function splitLyricUnits(text) {
+  if (!text) return [];
+  if (CREDIT_LINE_RE.test(text)) return [text];
+
+  let rawUnits = [];
+  try {
+    const Segmenter = Intl?.Segmenter;
+    if (Segmenter) {
+      const locale = /[\u3040-\u30ff]/u.test(text) ? 'ja-JP' : 'zh-CN';
+      rawUnits = Array.from(new Segmenter(locale, { granularity: 'word' }).segment(text), seg => seg.segment).filter(Boolean);
+    }
+  } catch {}
+
+  if (!rawUnits.length) rawUnits = splitGraphemes(text);
+
+  const units = [];
+  let pendingPrefix = '';
+  for (const raw of rawUnits) {
+    if (!raw) continue;
+    if (LYRIC_PUNCT_RE.test(raw)) {
+      if (units.length) units[units.length - 1] += raw;
+      else pendingPrefix += raw;
+      continue;
+    }
+    const parts = KNOWN_WORDS.some(word => raw.includes(word)) ? splitByKnownWords(raw) : [raw];
+    for (const part of parts) {
+      if (LYRIC_PUNCT_RE.test(part)) {
+        if (units.length) units[units.length - 1] += part;
+      } else {
+        units.push(pendingPrefix + part);
+        pendingPrefix = '';
+      }
+    }
+  }
+  if (pendingPrefix && units.length) units[units.length - 1] += pendingPrefix;
+  return collapseKnownWordSequences(mergeSmallKana(units)).filter(Boolean);
+}
+
 /**
  * 离线测量文本中每个字素的 X 轴偏移量（相对于 0）
  * @returns {number[]} 偏移量数组，长度 = 字素数 + 1
@@ -96,35 +188,53 @@ export function buildWordGraphemeTimings(wordText, startTime, durationSec) {
  */
 export function parseDisplayTokens(line) {
   if (!line || !line.text) return [];
-
-  // 如果没有 YRC 的 words，降级为单字符 Token 模式（即 LRC）
-  // LRC / non-word-synced lines: keep one timed token for the whole line.
-  // Splitting fallback lines into one component per grapheme creates dozens of
-  // rAF subscribers and mask layers per line; folia-major keeps this path at
-  // line-token granularity and only uses grapheme timings inside that token.
+  // LRC / non-word-synced lines: synthesize grapheme tokens with even
+  // timings. This keeps the immersive and desktop lyric paths visually aligned:
+  // even when a provider only returns line-level LRC, the active line can still
+  // reveal and pop one character at a time. Only active tokens join the global
+  // rAF registry, so visible inactive lines stay cheap.
   if (!line.isYrc || !line.words || line.words.length === 0) {
-    const graphemes = splitGraphemes(line.text);
+    const graphemes = splitLyricUnits(line.text);
     const lineDuration = Math.max(0.4, line.duration || 5);
-    const sweepDuration = Math.min(lineDuration, Math.max(2, graphemes.length * 0.18 + 0.5));
-    const timePerGrapheme = sweepDuration / Math.max(1, graphemes.length);
-    const graphemeTimings = graphemes.map((_, idx) => {
-      const gStart = line.time + idx * timePerGrapheme;
+    const activeDuration = lineDuration * 0.9;
+    
+    // folia-major weight calculation
+    const weights = graphemes.map(g => {
+      if (/^[\p{P}\p{Z}]+$/u.test(g)) return 0; // Punctuation/space
+      if (/[\u4e00-\u9fa5\u3040-\u30ff]/.test(g)) return 1; // CJK
+      return 1 + g.length * 0.15; // Western words
+    });
+    const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
+    const timePerWeight = activeDuration / totalWeight;
+
+    let offset = 0;
+    let currentStartTime = line.time;
+
+    return graphemes.map((grapheme, index) => {
+      const gWeight = weights[index];
+      const gDuration = gWeight * timePerWeight;
+      const startTime = currentStartTime;
+      // If it's the last word, ensure it doesn't leave an ugly gap if we just want it to fill
+      const endTime = index === graphemes.length - 1 ? line.time + activeDuration : startTime + gDuration;
+      currentStartTime += gDuration;
+      
+      const startOffset = offset;
+      offset += grapheme.length;
       return {
-        startTime: gStart,
-        endTime: gStart + timePerGrapheme
+        text: grapheme,
+        startTime,
+        endTime: Math.max(startTime + 0.001, endTime),
+        durationSec: Math.max(0.001, endTime - startTime),
+        key: `${line.time}-fallback-g-${index}`,
+        timed: true,
+        startOffset,
+        endOffset: offset,
+        wordIndex: index,
+        graphemeIndex: 0,
+        wordText: grapheme,
+        graphemeTimings: [{ startTime, endTime: Math.max(startTime + 0.001, endTime) }]
       };
     });
-
-    return [{
-      text: line.text,
-      startTime: line.time,
-      endTime: line.time + sweepDuration,
-      key: `${line.time}-fallback-full`,
-      timed: true,
-      startOffset: 0,
-      endOffset: line.text.length,
-      graphemeTimings
-    }];
   }
 
   const tokens = [];
@@ -133,11 +243,9 @@ export function parseDisplayTokens(line) {
 
   for (let i = 0; i < line.words.length; i++) {
     const word = line.words[i];
-    // 寻找该 word 在 fullText 中的起止位置
     const wordStartOffset = fullText.indexOf(word.text, currentIndex);
-    
+
     if (wordStartOffset > currentIndex) {
-      // 存在中间空格或标点，需要补充为 timed: false 的静态 Token
       const gapText = fullText.substring(currentIndex, wordStartOffset);
       tokens.push({
         text: gapText,
@@ -147,30 +255,37 @@ export function parseDisplayTokens(line) {
         timed: false,
         startOffset: currentIndex,
         endOffset: wordStartOffset,
+        wordIndex: -1,
+        graphemeIndex: -1,
         graphemeTimings: []
       });
     }
 
-    const wordEndOffset = wordStartOffset !== -1 
-      ? wordStartOffset + word.text.length 
-      : currentIndex + word.text.length;
+    const resolvedWordStartOffset = wordStartOffset !== -1 ? wordStartOffset : currentIndex;
+    const graphemeTimings = buildWordGraphemeTimings(word.text, word.startSec, word.durationSec);
+    const wordEndOffset = resolvedWordStartOffset + word.text.length;
 
+    // Keep parser word boundaries as the visual animation unit, like folia.
+    // The fill mask still uses graphemeTimings, so words can sweep internally,
+    // while words such as "??" or mora such as "??" jump as one unit.
     tokens.push({
       text: word.text,
       startTime: word.startSec,
       endTime: word.endSec,
-      durationSec: word.durationSec,
-      key: `${line.time}-word-${i}`,
+      durationSec: Math.max(0.001, word.endSec - word.startSec),
+      key: `${line.time}-word-${i}-${word.startSec}`,
       timed: true,
-      startOffset: wordStartOffset !== -1 ? wordStartOffset : currentIndex,
+      startOffset: resolvedWordStartOffset,
       endOffset: wordEndOffset,
-      graphemeTimings: buildWordGraphemeTimings(word.text, word.startSec, word.durationSec)
+      wordIndex: i,
+      graphemeIndex: -1,
+      wordText: word.text,
+      graphemeTimings
     });
 
     currentIndex = wordEndOffset;
   }
 
-  // 尾部多余字符
   if (currentIndex < fullText.length) {
     tokens.push({
       text: fullText.substring(currentIndex),
@@ -180,6 +295,8 @@ export function parseDisplayTokens(line) {
       timed: false,
       startOffset: currentIndex,
       endOffset: fullText.length,
+      wordIndex: -1,
+      graphemeIndex: -1,
       graphemeTimings: []
     });
   }

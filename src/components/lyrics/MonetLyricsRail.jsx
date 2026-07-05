@@ -9,6 +9,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
   const { line, status, offset, layout } = entry;
   
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
+  const tokenRows = useMemo(() => [tokens], [tokens]);
   const isChorus = line.isChorus || false;
 
   // 根据 status 设置不同样式
@@ -53,8 +54,8 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
         opacity: opacity,
         filter: blur > 0 ? `blur(${blur}px)` : 'none',
         transformOrigin: 'left center',
-        transition: 'transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.4s ease, filter 0.4s ease',
-        willChange: status === 'active' || Math.abs(offset) <= 1 ? 'transform, opacity' : 'auto',
+        transition: 'transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease, filter 0.6s ease, color 0.6s ease',
+        willChange: 'transform, opacity, filter',
         display: 'flex',
         flexDirection: 'column',
         gap: `${fontPx * 0.2}px`,
@@ -71,21 +72,37 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
           fontWeight: fontWeight,
           color: color,
           lineHeight: 1.18,
-          display: 'block', // display block 能够包裹内部 inline-block 字符，防止包裹溢出
+          display: 'block',
           wordBreak: 'break-word',
+          whiteSpace: 'normal',
         }}
       >
-        {tokens.map((token) => (
-          <MonetWordSweep
-            key={token.key}
-            token={token}
-            fontPx={fontPx}
-            fontStack={fontStack}
-            isChorus={isChorus}
-            lineRenderEndTime={lineEndTime}
-            status={status}
-            showGlow={showGlow}
-          />
+        {tokenRows.map((row, rowIndex) => (
+          <span
+            key={`row-${rowIndex}`}
+            className="monet-line-row"
+            style={{
+              display: 'inline-block',
+              whiteSpace: 'normal',
+              wordBreak: 'break-word',
+              minHeight: `${fontPx * 1.18}px`,
+              marginTop: rowIndex === 0 ? 0 : `${fontPx * 0.04}px`
+            }}
+          >
+            {row.map((token) => (
+              <MonetWordSweep
+                key={token.key}
+                token={token}
+                fontPx={fontPx}
+                fontStack={fontStack}
+                isChorus={isChorus}
+                lineRenderEndTime={lineEndTime}
+                status={status}
+                showGlow={showGlow}
+                animationStyle="regular"
+              />
+            ))}
+          </span>
         ))}
       </div>
       

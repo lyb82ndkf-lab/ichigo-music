@@ -76,6 +76,16 @@ export const api = {
   getSongUrls: (ids, level = 'exhigh') => request(`/song/url/v1?id=${ids}&level=${level}&timestamp=${Date.now()}`),
   getSongDetails: (ids) => request(`/song/detail?ids=${ids}`),
   getLyrics: (id) => request(`/lyric?id=${id}`),
+  getMatchedLyrics: ({ id, title, artist, album, durationMs, sources = 'amll,qq,kugou' }) => {
+    const params = new URLSearchParams();
+    if (id !== undefined && id !== null) params.set('id', id);
+    if (title) params.set('title', title);
+    if (artist) params.set('artist', artist);
+    if (album) params.set('album', album);
+    if (durationMs) params.set('durationMs', durationMs);
+    if (sources) params.set('sources', sources);
+    return request(`/lyric/match?${params.toString()}`, { timeout: 12000 });
+  },
   likeSong: (id, like = true) => request(`/like?id=${id}&like=${like}&timestamp=${Date.now()}`),
   getLikedList: (uid) => request(`/likelist?uid=${uid}&timestamp=${Date.now()}`),
 

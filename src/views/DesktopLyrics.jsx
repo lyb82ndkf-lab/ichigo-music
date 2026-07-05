@@ -1,11 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { parseDisplayTokens } from '../components/lyrics/MonetLyricsEngine';
 
 const t = {
-  locked: '已锁定',
-  unlocked: '已解锁',
-  clickUnlock: '点击解锁',
-  clickLock: '点击锁定',
-  dragHint: '解锁后可拖动移动，并调整大小'
+  locked: 'Locked',
+  unlocked: 'Unlocked',
+  clickUnlock: 'Click to unlock',
+  clickLock: 'Click to lock',
+  dragHint: 'Unlock to drag and resize'
 };
 
 export default function DesktopLyrics() {
@@ -47,6 +48,7 @@ export default function DesktopLyrics() {
   const sweepContainerRefs = useRef([]);
   const activeLineRef = useRef(null);
   const innerRef = useRef(null);
+  const activeTokensRef = useRef([]);
 
   const colorPresets = {
     strawberry: { played: '#ff3366', unplayed: '#ffffff', stroke: '#4a0e1c' },
@@ -90,46 +92,42 @@ export default function DesktopLyrics() {
   const isHoveredRef = useRef(false);
   isHoveredRef.current = isHovered;
 
-  // Track absolute mouse coordinates relative to the inner bounding box
+  // Track absolute mouse coordinates relative to the inner bounding box purely for visual hover state
   const handleGlobalMouseMove = (e) => {
     if (!innerRef.current) return;
     const rect = innerRef.current.getBoundingClientRect();
     const isInside = (
       e.clientX >= rect.left &&
       e.clientX <= rect.right &&
-      e.clientY >= rect.top &&
+      e.clientY >= (rect.top - 30) && // Expand hover area to include the absolute positioned top button
       e.clientY <= rect.bottom
     );
     
     if (isInside) {
-      if (!isHoveredRef.current) {
-        setIsHovered(true);
-        window.electronAPI?.setDesktopLyricsLock?.(false);
-      }
+      if (!isHoveredRef.current) setIsHovered(true);
     } else {
-      if (isHoveredRef.current) {
-        setIsHovered(false);
-        if (config.locked) {
-          window.electronAPI?.setDesktopLyricsLock?.(true);
-        }
-      }
+      if (isHoveredRef.current) setIsHovered(false);
     }
   };
 
-  // Reset hover state and lock mouse when cursor leaves the window boundary or window loses focus
+  // Reset hover state when cursor leaves the window boundary or window loses focus
   useEffect(() => {
-    const handleMouseLeaveWindow = () => {
-      setIsHovered(false);
-      if (config.locked) {
-        window.electronAPI?.setDesktopLyricsLock?.(true);
-      }
-    };
+    const handleMouseLeaveWindow = () => setIsHovered(false);
     document.addEventListener('mouseleave', handleMouseLeaveWindow);
     window.addEventListener('blur', handleMouseLeaveWindow);
     return () => {
       document.removeEventListener('mouseleave', handleMouseLeaveWindow);
       window.removeEventListener('blur', handleMouseLeaveWindow);
     };
+  }, []);
+
+  // Sync actual window lock state with config.locked
+  useEffect(() => {
+    if (config.locked) {
+      window.electronAPI?.setDesktopLyricsLock?.(true);
+    } else {
+      window.electronAPI?.setDesktopLyricsLock?.(false);
+    }
   }, [config.locked]);
 
   useEffect(() => {
@@ -150,31 +148,42 @@ export default function DesktopLyrics() {
       });
       if (typeof cleanup === 'function') cleanupFns.push(cleanup);
     }
-    document.body.style.background = 'transparent';
-    document.documentElement.style.background = 'transparent';
+    document.body.style.background = 'rgba(0,0,0,0.01)'; // Prevent Windows DWM from un-compositing the transparent click-through window
+    document.documentElement.style.background = 'rgba(0,0,0,0.01)';
     return () => cleanupFns.forEach((cleanup) => cleanup());
   }, []);
 
+  const visibleLineCount = Number(config.lineCount ?? 3);
+  const requiredWindowHeight = Math.ceil((config.fontSize || 36) * (visibleLineCount === 3 ? 4.8 : visibleLineCount === 2 ? 3.7 : 2.7) + (config.showTranslation !== false ? (config.translationSize || 22) * 1.2 : 0) + 120);
+  const effectiveWindowHeight = Math.max(windowSize.height, requiredWindowHeight);
   useEffect(() => {
-    window.electronAPI?.resizeDesktopLyrics?.(windowSize);
-  }, [windowSize]);
+    window.electronAPI?.resizeDesktopLyrics?.({ ...windowSize, height: effectiveWindowHeight });
+  }, [windowSize, effectiveWindowHeight]);
 
   // Dynamically calculate constrained viewport height based on window height
-  const viewportHeight = Math.max(60, windowSize.height - 56);
+  const viewportHeight = Math.max(60, effectiveWindowHeight - 100);
 
-  // Center active lyric scroll rail
-  useEffect(() => {
+  // Center active lyric scroll rail synchronously before paint to prevent 1-frame jump
+  React.useLayoutEffect(() => {
     // Clear YRC word refs to prevent stale elements from previous lines
     wordsRefs.current = [];
     
-    if (activeLineRef.current) {
+    if (activeLineRef.current && innerRef.current) {
       const offsetTop = activeLineRef.current.offsetTop;
       const height = activeLineRef.current.offsetHeight;
+      const parentH = innerRef.current.clientHeight;
       setRailY(-offsetTop + (viewportHeight / 2) - (height / 2));
     }
-  }, [syncData.activeIndex, viewportHeight, syncData.lines]);
+  }, [syncData.activeIndex, viewportHeight, syncData.lines, config.lineCount]);
 
-  // Syllable-level YRC & line-level LRC sweep animation loop
+  useEffect(() => {
+    const activeLine = syncData.lines?.[syncData.activeIndex];
+    activeTokensRef.current = activeLine ? parseDisplayTokens(activeLine) : [];
+  }, [syncData.lines, syncData.activeIndex]);
+
+  // Shared token-level sweep animation loop. It uses the same display-token
+  // model as immersive lyrics, so YRC/QRC/KRC and fallback LRC all reveal on the
+  // same per-grapheme timing path.
   useEffect(() => {
     let rafId;
     const loop = () => {
@@ -184,27 +193,25 @@ export default function DesktopLyrics() {
           virtualTime += (Date.now() - syncData.systemTime) / 1000;
         }
         const adjustedTime = virtualTime + syncData.globalOffset;
-        const localActiveIdx = syncData.activeIndex;
-        const activeLine = syncData.lines[localActiveIdx];
-
+        const activeLine = syncData.lines[syncData.activeIndex];
         if (activeLine) {
-          if (activeLine.isYrc && activeLine.words) {
-            for (let i = 0; i < activeLine.words.length; i++) {
-              const el = wordsRefs.current[i];
-              if (!el) continue;
-              const w = activeLine.words[i];
-              let wordProgress = 0;
-              if (adjustedTime >= w.endSec) wordProgress = 100;
-              else if (adjustedTime < w.startSec) wordProgress = 0;
-              else wordProgress = ((adjustedTime - w.startSec) / w.durationSec) * 100;
-              el.style.clipPath = `inset(0 ${100 - wordProgress}% 0 0)`;
+          const activeTokens = activeTokensRef.current;
+          for (let i = 0; i < activeTokens.length; i += 1) {
+            const token = activeTokens[i];
+            const el = wordsRefs.current[i];
+            if (!el) continue;
+            
+            let progress = 1; // Untimed gap tokens (like spaces) are always fully revealed to preserve width
+            if (token.timed) {
+              const duration = Math.max(0.001, token.endTime - token.startTime);
+              if (adjustedTime >= token.endTime) progress = 1;
+              else if (adjustedTime > token.startTime) progress = (adjustedTime - token.startTime) / duration;
+              else progress = 0;
             }
-          } else if (activeLine.duration) {
-            const container = sweepContainerRefs.current[localActiveIdx];
-            if (container) {
-              const sweepProgress = Math.min(100, Math.max(0, ((adjustedTime - activeLine.time) / activeLine.duration) * 100));
-              container.style.clipPath = `inset(0 ${100 - sweepProgress}% 0 0)`;
-            }
+            
+            const pct = Math.max(0, Math.min(1, progress));
+            el.style.clipPath = `inset(0 ${100 - pct * 100}% 0 0)`;
+            el.style.transform = 'none';
           }
         }
       }
@@ -212,18 +219,13 @@ export default function DesktopLyrics() {
     };
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, [syncData]);
+  }, [syncData, config.fontSize]);
 
   useEffect(() => {
     if (window.electronAPI?.onDesktopLyricsConfig) {
       const cleanup = window.electronAPI.onDesktopLyricsConfig((data) => {
         setConfig(prev => {
           const next = { ...prev, ...data };
-          if (next.locked === false) {
-            window.electronAPI?.setDesktopLyricsLock?.(false);
-          } else if (next.locked === true && !isHoveredRef.current) {
-            window.electronAPI?.setDesktopLyricsLock?.(true);
-          }
           return next;
         });
       });
@@ -242,7 +244,7 @@ export default function DesktopLyrics() {
         top: -24,
         left: '50%',
         transform: 'translateX(-50%)',
-        display: (isHovered || !config.locked) ? 'flex' : 'none',
+        display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         padding: '7px 14px',
@@ -253,11 +255,23 @@ export default function DesktopLyrics() {
         boxShadow: '0 10px 30px rgba(0,0,0,0.5)',
         backdropFilter: 'blur(16px)',
         zIndex: 1000,
-        WebkitAppRegion: 'no-drag'
+        WebkitAppRegion: 'no-drag',
+        pointerEvents: isHovered ? 'auto' : 'none',
+        opacity: isHovered ? 1 : 0,
+        transition: 'opacity 0.2s ease'
       }}
     >
       <button
-        onClick={(e) => { e.stopPropagation(); pushConfig({ locked: !config.locked }); }}
+        onMouseEnter={() => {
+          if (config.locked) window.electronAPI?.setDesktopLyricsLock?.(false);
+        }}
+        onMouseLeave={() => {
+          if (config.locked) window.electronAPI?.setDesktopLyricsLock?.(true);
+        }}
+        onClick={(e) => { 
+          e.stopPropagation(); 
+          pushConfig({ locked: !config.locked }); 
+        }}
         style={{
           border: 'none',
           borderRadius: 999,
@@ -270,7 +284,7 @@ export default function DesktopLyrics() {
           whiteSpace: 'nowrap'
         }}
       >
-        {config.locked ? '🔓 解锁' : '🔒 锁定'}
+        {config.locked ? '\uD83D\uDD12 \u89e3\u9501' : '\uD83D\uDD13 \u4e0a\u9501'}
       </button>
     </div>
   ), [isHovered, config.locked, activeAccent]);
@@ -287,12 +301,13 @@ export default function DesktopLyrics() {
         justifyContent: 'center',
         WebkitAppRegion: config.locked ? 'no-drag' : 'drag',
         overflow: 'hidden',
-        background: 'transparent',
+        background: 'rgba(0, 0, 0, 0.01)', // Must not be purely transparent to avoid Electron bug
         boxSizing: 'border-box',
         padding: '30px 48px',
         position: 'relative',
         userSelect: 'none',
-        WebkitUserSelect: 'none'
+        WebkitUserSelect: 'none',
+        pointerEvents: config.locked ? 'none' : 'auto'
       }}
     >
       <div
@@ -310,7 +325,7 @@ export default function DesktopLyrics() {
           height: 'fit-content',
           borderRadius: 12,
           border: (!config.locked || isHovered) ? `2px dashed ${activeAccent}` : '2px solid transparent',
-          background: (!config.locked && isHovered) ? 'rgba(0, 0, 0, 0.28)' : (isHovered ? 'rgba(0, 0, 0, 0.15)' : 'transparent'),
+          background: (!config.locked && isHovered) ? 'rgba(0, 0, 0, 0.28)' : (isHovered ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.01)'),
           transition: 'all 0.25s ease',
           boxSizing: 'border-box',
           padding: '16px 28px',
@@ -398,29 +413,37 @@ export default function DesktopLyrics() {
                       textShadow: `${shadow}${glow}`,
                       WebkitTextStroke: stroke
                     }}>
-                      {isYrc ? (
+                      {(() => {
+                        const displayTokens = parseDisplayTokens(line);
+                        const rows = [displayTokens];
+                        let tokenCounter = 0;
+                        return (
                         <div style={{ position: 'relative' }}>
                           <div style={{ position: 'relative', zIndex: 1 }}>
-                            {line.words.map((w, wIdx) => <span key={`bg-${wIdx}`} style={{ marginRight: '0.25em' }}>{w.text}</span>)}
+                            {rows.map((row, rowIdx) => (
+                              <span key={`bg-row-${rowIdx}`} style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap' }}>
+                                {row.map((token) => <span key={`bg-${token.key}`} style={{ marginRight: token.text === ' ' ? '0.25em' : '0.02em', opacity: isActive ? (token.timed ? 0.12 : 0.5) : 1, color: !isActive && idx < localActiveIdx ? activeAccent : unplayedColor }}>{token.text}</span>)}
+                              </span>
+                            ))}
                           </div>
-                          <div style={{ position: 'absolute', inset: 0, zIndex: 2, display: 'flex', pointerEvents: 'none' }}>
-                            {line.words.map((w, wIdx) => (
-                              <span key={`fg-${wIdx}`} ref={el => { if (isActive) wordsRefs.current[wIdx] = el; }}
-                                style={{ marginRight: '0.25em', color: activeAccent, textShadow: `${shadow}${glow}, 0 0 12px ${activeAccent}88`, clipPath: isActive ? 'inset(0 100% 0 0)' : (idx < localActiveIdx ? 'inset(0 0 0 0)' : 'inset(0 100% 0 0)'), whiteSpace: 'nowrap' }}>
-                                {w.text}
+                          <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none', display: isActive ? 'block' : 'none' }}>
+                            {rows.map((row, rowIdx) => (
+                              <span key={`fg-row-${rowIdx}`} style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap' }}>
+                                {row.map((token) => {
+                                  const currentIdx = tokenCounter++;
+                                  return (
+                                  <span key={`fg-${token.key}`} ref={el => { if (isActive) wordsRefs.current[currentIdx] = el; }}
+                                    style={{ marginRight: token.text === ' ' ? '0.25em' : '0.02em', color: activeAccent, textShadow: `${shadow}${glow}, 0 0 12px ${activeAccent}88`, clipPath: isActive ? 'inset(0 100% 0 0)' : (idx < localActiveIdx ? 'inset(0 0 0 0)' : 'inset(0 100% 0 0)'), whiteSpace: 'nowrap', display: 'inline-block', transformOrigin: 'center bottom' }}>
+                                    {token.text}
+                                  </span>
+                                  );
+                                })}
                               </span>
                             ))}
                           </div>
                         </div>
-                      ) : (
-                        <div style={{ position: 'relative' }}>
-                          <div style={{ position: 'relative', zIndex: 1 }}>{line.text}</div>
-                          <div ref={el => { if (isActive) sweepContainerRefs.current[idx] = el; }}
-                            style={{ position: 'absolute', inset: 0, zIndex: 2, color: activeAccent, textShadow: `${shadow}${glow}, 0 0 12px ${activeAccent}88`, clipPath: isActive ? 'inset(0 100% 0 0)' : (idx < localActiveIdx ? 'inset(0 0 0 0)' : 'inset(0 100% 0 0)'), whiteSpace: 'nowrap' }}>
-                            {line.text}
-                          </div>
-                        </div>
-                      )}
+                        );
+                      })()}
                     </div>
                     {/* Render translations for the active line ONLY to prevent vertical overflow clipping */}
                     {isActive && config.showTranslation !== false && line.translation && (
@@ -450,3 +473,4 @@ export default function DesktopLyrics() {
     </div>
   );
 }
+

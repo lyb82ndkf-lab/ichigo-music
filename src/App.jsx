@@ -452,9 +452,11 @@ function AppContent() {
             >
               <X size={20} />
             </button>
+          </div>
+        )}
 
-            {isImmersiveSettingsOpen && (
-              <div className="immersive-settings-panel immersive-settings-panel-wide" style={{ maxHeight: 'calc(100vh - 160px)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)', display: 'flex', flexDirection: 'column' }}>
+        {isLyricsOpen && isImmersiveSettingsOpen && (
+          <div className="immersive-settings-panel immersive-settings-panel-wide" style={{ maxHeight: 'calc(100vh - 160px)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 9999 }}>
                 <div className="immersive-settings-header">
                   <h3>沉浸式歌词设置</h3>
                   <button
@@ -499,12 +501,14 @@ function AppContent() {
                     <div className="immersive-settings-section">
                       <label className="setting-row-inline">
                         <span>动画模式</span>
-                        <select className="setting-select" value={advancedLyricConfig.animationMode || 'regular'}
-                          onChange={(e) => updateAdvancedLyricConfig({ animationMode: e.target.value })}>
+                        <select className="setting-select" value={advancedLyricConfig.lyricsMode || 'talk'}
+                          onChange={(e) => updateAdvancedLyricConfig({ lyricsMode: e.target.value })}>
+                          <option value="talk">混乱模式 (3D倾诉)</option>
                           <option value="regular">常规滚动</option>
-                          <option value="streamer">流光模式</option>
-                          <option value="tilt">倾诉模式</option>
-                          <option value="cloudStep">云阶模式</option>
+                          <option value="streamer">气泡模式 (流光)</option>
+                          <option value="cloudstep">云阶模式 (楼梯)</option>
+                          <option value="spatial">空间画布 (全屏)</option>
+                          <option value="vinyl">黑胶光碟 (旋转)</option>
                         </select>
                       </label>
                       <label className="setting-row-inline">
@@ -531,10 +535,54 @@ function AppContent() {
                         <input type="range" min="20" max="70" value={advancedLyricConfig.lyricsPositionY || 42}
                           onChange={(e) => updateAdvancedLyricConfig({ lyricsPositionY: Number(e.target.value) })} />
                       </label>
+                      {advancedLyricConfig.lyricsMode === 'streamer' && (
+                        <label className="setting-row-inline">
+                          <span>气泡对齐方式</span>
+                          <select className="setting-select" value={advancedLyricConfig.bubbleAlign || 'alternate'}
+                            onChange={(e) => updateAdvancedLyricConfig({ bubbleAlign: e.target.value })}>
+                            <option value="alternate">交替对话</option>
+                            <option value="left">全左对齐</option>
+                            <option value="right">全右对齐</option>
+                          </select>
+                        </label>
+                      )}
+                      {advancedLyricConfig.lyricsMode === 'cloudstep' && (
+                        <label className="setting-row-inline">
+                          <span>云阶行间距：{(advancedLyricConfig.cloudStepSpacing || 1).toFixed(1)}</span>
+                          <input type="range" min="0.5" max="3" step="0.1" value={advancedLyricConfig.cloudStepSpacing || 1}
+                            onChange={(e) => updateAdvancedLyricConfig({ cloudStepSpacing: Number(e.target.value) })} />
+                        </label>
+                      )}
+                      {advancedLyricConfig.lyricsMode === 'vinyl' && (
+                        <>
+                          <label className="setting-row-inline">
+                            <span>黑胶倾斜角度：{advancedLyricConfig.vinylTiltAngle || 0}°</span>
+                            <input type="range" min="0" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle || 0}
+                              onChange={(e) => updateAdvancedLyricConfig({ vinylTiltAngle: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>黑胶行间距：{(advancedLyricConfig.vinylLineSpacing || 1).toFixed(1)}</span>
+                            <input type="range" min="0.5" max="2.5" step="0.1" value={advancedLyricConfig.vinylLineSpacing || 1}
+                              onChange={(e) => updateAdvancedLyricConfig({ vinylLineSpacing: Number(e.target.value) })} />
+                          </label>
+                        </>
+                      )}
                       <label className="setting-row-inline">
                         <span>歌词时间偏移：{Number(advancedLyricConfig.globalOffset || 0).toFixed(2)} 秒</span>
-                        <input type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0}
-                          onChange={(e) => updateAdvancedLyricConfig({ globalOffset: Number(e.target.value) })} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button 
+                            className="modern-glass-btn" 
+                            style={{ padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}
+                            onClick={() => updateAdvancedLyricConfig({ globalOffset: (Number(advancedLyricConfig.globalOffset) || 0) - 0.5 })}
+                          >-0.5s</button>
+                          <input type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0}
+                            onChange={(e) => updateAdvancedLyricConfig({ globalOffset: Number(e.target.value) })} style={{ width: '100px' }} />
+                          <button 
+                            className="modern-glass-btn" 
+                            style={{ padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}
+                            onClick={() => updateAdvancedLyricConfig({ globalOffset: (Number(advancedLyricConfig.globalOffset) || 0) + 0.5 })}
+                          >+0.5s</button>
+                        </div>
                       </label>
                       <label className="setting-row-inline">
                         <span>顶部标题字体</span>
@@ -633,8 +681,6 @@ function AppContent() {
                 </div>
               </div>
             )}
-          </div>
-        )}
       </div>
     </div>
   );

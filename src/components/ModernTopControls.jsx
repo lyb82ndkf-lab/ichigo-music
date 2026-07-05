@@ -39,7 +39,7 @@ export default function ModernTopControls() {
           <Settings size={18} />
         </button>
         
-        <button className="modern-glass-btn icon-btn user-btn" title={user ? user.nickname : '登录'} onClick={() => navigateTo('settings')}>
+        <button className="modern-glass-btn icon-btn user-btn" title={user ? user.nickname : '登录'} onClick={() => navigateTo('settings', { tab: 'account' })}>
           {user ? (
             <img src={user.avatarUrl} alt="avatar" style={{ width: 22, height: 22, borderRadius: '50%', objectFit: 'cover' }} />
           ) : (

@@ -5,10 +5,13 @@ import { buildGraphemeOffsets, computeFillWidth } from './MonetLyricsEngine';
 // 由顶级 rAF loop 统一调用，彻底绕过 React render
 export const wordRegistry = new Set();
 
-const setWordVisualState = (el, fillWidth, glowStr = 'none') => {
+const setWordVisualState = (el, fillWidth, glowStr = 'none', reveal = 1, scale = 1, y = 0) => {
   if (!el) return;
   el.style.setProperty('--fill-width-px', `${fillWidth}px`);
   el.style.setProperty('--word-glow', glowStr);
+  el.style.setProperty('--word-reveal', `${reveal}`);
+  el.style.setProperty('--word-scale', `${scale}`);
+  el.style.setProperty('--word-y', `${y}px`);
 };
 
 function computeGlow(currentTime, startTime, endTime, lineRenderEndTime, fontPx, isChorus) {
@@ -45,7 +48,8 @@ export default function MonetWordSweep({
   isChorus, 
   lineRenderEndTime,
   status,
-  showGlow = false
+  showGlow = false,
+  animationStyle = 'pop'
 }) {
   const spanRef = useRef(null);
   
@@ -65,36 +69,78 @@ export default function MonetWordSweep({
     // sweep. Waiting and passed lines are static, avoiding N visible lines * M
     // words worth of per-frame DOM writes.
     if (status === 'passed') {
-      setWordVisualState(spanRef.current, fullWidth, 'none');
+      setWordVisualState(spanRef.current, fullWidth, 'none', 1, 1, 0);
       return;
     }
 
     if (status !== 'active') {
-      setWordVisualState(spanRef.current, 0, 'none');
+      setWordVisualState(spanRef.current, 0, 'none', 0.08, 1, 0);
       return;
     }
 
-    const lastValueRef = { fillWidth: -1, glowStr: '' };
+    const lastValueRef = { fillWidth: -1, glowStr: '', timingIndex: 0, reveal: -1, scale: -1, y: -999 };
+
+    const computeFillWidthFast = (currentTime) => {
+      if (currentTime <= token.startTime) {
+        lastValueRef.timingIndex = 0;
+        return 0;
+      }
+      if (currentTime >= token.endTime) return fullWidth;
+
+      const timings = token.graphemeTimings || [];
+      let i = Math.min(lastValueRef.timingIndex, Math.max(0, timings.length - 1));
+
+      while (i > 0 && currentTime < timings[i].startTime) i -= 1;
+      while (i < timings.length - 1 && currentTime > timings[i].endTime) i += 1;
+      lastValueRef.timingIndex = i;
+
+      const timing = timings[i];
+      if (!timing) {
+        return computeFillWidth(currentTime, token.startTime, token.endTime, timings, graphemeOffsets);
+      }
+
+      if (currentTime < timing.startTime) return graphemeOffsets[i] || 0;
+      if (currentTime <= timing.endTime) {
+        const duration = Math.max(0.001, timing.endTime - timing.startTime);
+        const progress = (currentTime - timing.startTime) / duration;
+        const startWidth = graphemeOffsets[i] || 0;
+        const endWidth = graphemeOffsets[i + 1] ?? startWidth;
+        return startWidth + (endWidth - startWidth) * progress;
+      }
+
+      return graphemeOffsets[Math.min(i + 1, graphemeOffsets.length - 1)] || fullWidth;
+    };
 
     const wordUpdater = (currentTime) => {
       if (!spanRef.current) return;
       const el = spanRef.current;
 
-      const fillWidth = computeFillWidth(
-        currentTime,
-        token.startTime,
-        token.endTime,
-        token.graphemeTimings,
-        graphemeOffsets
-      );
+      const fillWidth = computeFillWidthFast(currentTime);
 
       const glowStr = showGlow
         ? computeGlow(currentTime, token.startTime, token.endTime, lineRenderEndTime, fontPx, isChorus)
         : 'none';
 
-      // Quantize tiny sub-pixel changes so 60fps doesn't force style recalcs for
-      // imperceptible deltas.
-      const roundedFillWidth = Math.round(fillWidth * 10) / 10;
+      // Pass exact float values to CSS. Browsers GPU-accelerate subpixel
+      // clip paths perfectly, while JS-side quantization causes micro-stuttering.
+      const roundedFillWidth = fillWidth;
+      let reveal = animationStyle === 'regular' ? 1 : 0.08;
+      let popScale = 1;
+      let popY = 0;
+
+      if (animationStyle === 'regular') {
+        reveal = 1;
+      } else if (currentTime >= token.endTime) {
+        reveal = 1;
+      } else if (currentTime >= token.startTime) {
+        const progress = Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)));
+        const pulse = Math.sin(progress * Math.PI);
+        reveal = 1;
+        popScale = 1 + pulse * 0.18;
+        popY = -fontPx * 0.12 * pulse;
+      } else if (currentTime >= token.startTime - 0.18) {
+        reveal = 0.42;
+      }
 
       if (roundedFillWidth !== lastValueRef.fillWidth) {
         el.style.setProperty('--fill-width-px', `${roundedFillWidth}px`);
@@ -105,6 +151,19 @@ export default function MonetWordSweep({
         el.style.setProperty('--word-glow', glowStr);
         lastValueRef.glowStr = glowStr;
       }
+
+      if (reveal !== lastValueRef.reveal) {
+        el.style.setProperty('--word-reveal', `${reveal}`);
+        lastValueRef.reveal = reveal;
+      }
+      if (popScale !== lastValueRef.scale) {
+        el.style.setProperty('--word-scale', `${popScale}`);
+        lastValueRef.scale = popScale;
+      }
+      if (popY !== lastValueRef.y) {
+        el.style.setProperty('--word-y', `${popY}px`);
+        lastValueRef.y = popY;
+      }
     };
 
     wordUpdater(token.startTime);
@@ -113,7 +172,7 @@ export default function MonetWordSweep({
     return () => {
       wordRegistry.delete(wordUpdater);
     };
-  }, [token, graphemeOffsets, fontPx, isChorus, lineRenderEndTime, status, showGlow]);
+  }, [token, graphemeOffsets, fontPx, isChorus, lineRenderEndTime, status, showGlow, animationStyle]);
 
   if (!token.timed) {
     // 标点、空格、没有时轴信息的普通字符
@@ -132,9 +191,17 @@ export default function MonetWordSweep({
     <span 
       ref={spanRef} 
       className="monet-word-sweep" 
-      style={{ position: 'relative', display: 'inline-block', whiteSpace: 'pre-wrap' }}
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        whiteSpace: 'pre-wrap',
+        opacity: animationStyle === 'regular' ? 1 : 'var(--word-reveal, 0.34)',
+        transform: 'translate3d(0, var(--word-y, 0px), 0) scale(var(--word-scale, 1))',
+        transformOrigin: 'center bottom',
+        willChange: status === 'active' && animationStyle !== 'regular' ? 'transform, opacity' : 'auto'
+      }}
     >
-      <span className="monet-word-base" style={{ opacity: 0.35, textShadow: showGlow ? 'var(--word-glow, none)' : 'none' }}>
+      <span className="monet-word-base" style={{ opacity: status === 'active' ? (animationStyle === 'regular' ? 0.42 : 0.28) : 0.35, textShadow: showGlow ? 'var(--word-glow, none)' : 'none' }}>
         {token.text}
       </span>
       <span 

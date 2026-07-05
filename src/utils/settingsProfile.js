@@ -140,6 +140,7 @@ export const DEFAULT_PROFILE = {
     inactiveLyricBlur: 0.8,
     showDecor: false,
     wordSweepFps: 60,
+    lyricSources: 'amll,qq,kugou',
     boldFirstLine: true,
     rubySize: 14,
     wordAnimation: 'float',

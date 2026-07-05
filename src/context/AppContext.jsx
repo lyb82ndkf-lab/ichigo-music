@@ -428,6 +428,11 @@ export function AppProvider({ children }) {
 
       if (resumeProgress !== null) {
         persistResumeTime(resumeProgress);
+      } else {
+        // A normal song selection must not inherit a stale resumeTime from the
+        // previous track/session; that can seek the new media into an invalid
+        // startup state and leave it stuck at 0.00.
+        persistResumeTime(null);
       }
 
       if (newQueue) {

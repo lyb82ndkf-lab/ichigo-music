@@ -38,7 +38,7 @@ function GlassPlaylistTile({ playlist }) {
 
 export default function ModernHome() {
   const { currentSong, isPlaying, togglePlay, navigateTo, recentlyPlayed, audioElement, userPlaylists } = useApp();
-  const { lyrics, activeLineIndex } = useLyricEngine(currentSong?.id, audioElement);
+  const { lyrics, activeLineIndex } = useLyricEngine(currentSong?.id, audioElement, currentSong);
 
   const openSearch = () => {
     navigateTo('search');
