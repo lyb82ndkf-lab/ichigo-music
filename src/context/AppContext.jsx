@@ -5,6 +5,21 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
+export const APP_VERSION = 'v1.2.0';
+
+export function isVersionLessThan(current, latest) {
+  const parse = (v) => v.replace(/^v/, '').split('.').map(Number);
+  const c = parse(current);
+  const l = parse(latest);
+  for (let i = 0; i < Math.max(c.length, l.length); i++) {
+    const cNum = c[i] || 0;
+    const lNum = l[i] || 0;
+    if (cNum < lNum) return true;
+    if (cNum > lNum) return false;
+  }
+  return false;
+}
+
 export function AppProvider({ children }) {
   const [profile, setProfile] = useState(() => loadProfile());
 
@@ -293,6 +308,42 @@ export function AppProvider({ children }) {
   const savePlaybackConfig = useCallback((cfg) => updateProfile({ playback: cfg }), [updateProfile]);
   const saveRenderingConfig = useCallback((cfg) => updateProfile({ rendering: cfg }), [updateProfile]);
   const saveShortcuts = useCallback((cfg) => updateProfile({ shortcuts: cfg }), [updateProfile]);
+
+  const [updateInfo, setUpdateInfo] = useState({ show: false, latestVersion: '' });
+
+  const checkForUpdates = useCallback(async (isManual = false) => {
+    try {
+      const res = await fetch('https://api.github.com/repos/lyb82ndkf-lab/ichigo-music/releases/latest');
+      if (!res.ok) throw new Error('API request failed');
+      const data = await res.json();
+      const latestTag = data.tag_name;
+      if (latestTag && isVersionLessThan(APP_VERSION, latestTag)) {
+        setUpdateInfo({ show: true, latestVersion: latestTag });
+        return { hasUpdate: true, latestVersion: latestTag };
+      } else {
+        if (isManual) {
+          alert('当前已是最新版本！');
+        }
+        return { hasUpdate: false, latestVersion: latestTag || APP_VERSION };
+      }
+    } catch (err) {
+      console.error('Failed to check for updates:', err);
+      if (isManual) {
+        alert('检查更新失败，请稍后重试。');
+      }
+      return { error: true };
+    }
+  }, []);
+
+  useEffect(() => {
+    const sessionChecked = sessionStorage.getItem('ichigo_startup_update_checked');
+    if (!sessionChecked) {
+      sessionStorage.setItem('ichigo_startup_update_checked', 'true');
+      setTimeout(() => {
+        checkForUpdates(false);
+      }, 3000);
+    }
+  }, [checkForUpdates]);
 
   const persistDesktopLyricsConfig = useCallback((updater, options = {}) => {
     const { notifyElectron = false } = options;
@@ -669,7 +720,10 @@ export function AppProvider({ children }) {
     audioElement,
     setAudioElement,
     extractedColors,
-    immersiveColor
+    immersiveColor,
+    updateInfo,
+    setUpdateInfo,
+    checkForUpdates
   }), [
     profile, updateProfile, currentView, viewData, historyIndex, viewHistory.length, user, likedSongIds,
     likedPlaylistId, currentSong, playlist, playlistIndex, isPlaying, volume, progress, duration, playMode,
@@ -683,7 +737,7 @@ export function AppProvider({ children }) {
     saveAdvancedLyricConfig, saveVisualizerConfig, saveDesktopLyricsConfig, mergeDesktopLyricsConfigFromIpc,
     saveAudioConfig, savePlaybackConfig, saveRenderingConfig, saveShortcuts, persistResumeTime,
     navigateTo, goBack, goForward, checkUserLogin, toggleLike, playSong, togglePlay, playNext, playPrev, setAudioQuality, addToRecent, logout,
-    extractedColors, immersiveColor
+    extractedColors, immersiveColor, updateInfo, checkForUpdates
   ]);
 
   return (

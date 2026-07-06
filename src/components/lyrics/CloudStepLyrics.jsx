@@ -13,15 +13,11 @@ function buildWordTimings(line) {
       });
     }
   } else {
-    const words = line.text.split(/(\s+)/);
-    const duration = line.duration || 4;
-    let accumulatedTextLen = 0;
-    const totalChars = line.text.length;
-    words.forEach(w => {
-      const wDur = (w.length / totalChars) * duration;
-      const wStart = line.time + (accumulatedTextLen / totalChars) * duration;
-      timings.push({ text: w, startTime: wStart, endTime: wStart + wDur });
-      accumulatedTextLen += w.length;
+    // Fallback: entire line as a single timing block
+    timings.push({
+      text: line.text,
+      startTime: line.time,
+      endTime: line.time
     });
   }
   return timings;

@@ -209,6 +209,15 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
           bestLines = [];
         }
 
+        if (bestLines.length === 0) {
+          bestLines = [{
+            time: 0,
+            duration: durationSec > 0 ? durationSec : 999999,
+            text: '暂时没有获取对应歌词',
+            isYrc: false
+          }];
+        }
+
         if (isMounted) {
           setLyrics(bestLines);
           engineRef.current.lyrics = bestLines;

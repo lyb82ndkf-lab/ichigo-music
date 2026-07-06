@@ -1,5 +1,5 @@
 // main-electron.js - Electron main desktop application process
-import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import net from 'net';
@@ -461,6 +461,10 @@ function createWindow() {
       console.error('Failed to write profile via IPC:', e);
       event.returnValue = false;
     }
+  });
+
+  ipcMain.on('open-external', (event, url) => {
+    shell.openExternal(url);
   });
 
   // Load local Vite dev server or production build

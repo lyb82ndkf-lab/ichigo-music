@@ -194,47 +194,20 @@ export function parseDisplayTokens(line) {
   // reveal and pop one character at a time. Only active tokens join the global
   // rAF registry, so visible inactive lines stay cheap.
   if (!line.isYrc || !line.words || line.words.length === 0) {
-    const graphemes = splitLyricUnits(line.text);
-    const lineDuration = Math.max(0.4, line.duration || 5);
-    const activeDuration = lineDuration * 0.9;
-    
-    // folia-major weight calculation
-    const weights = graphemes.map(g => {
-      if (/^[\p{P}\p{Z}]+$/u.test(g)) return 0; // Punctuation/space
-      if (/[\u4e00-\u9fa5\u3040-\u30ff]/.test(g)) return 1; // CJK
-      return 1 + g.length * 0.15; // Western words
-    });
-    const totalWeight = weights.reduce((a, b) => a + b, 0) || 1;
-    const timePerWeight = activeDuration / totalWeight;
-
-    let offset = 0;
-    let currentStartTime = line.time;
-
-    return graphemes.map((grapheme, index) => {
-      const gWeight = weights[index];
-      const gDuration = gWeight * timePerWeight;
-      const startTime = currentStartTime;
-      // If it's the last word, ensure it doesn't leave an ugly gap if we just want it to fill
-      const endTime = index === graphemes.length - 1 ? line.time + activeDuration : startTime + gDuration;
-      currentStartTime += gDuration;
-      
-      const startOffset = offset;
-      offset += grapheme.length;
-      return {
-        text: grapheme,
-        startTime,
-        endTime: Math.max(startTime + 0.001, endTime),
-        durationSec: Math.max(0.001, endTime - startTime),
-        key: `${line.time}-fallback-g-${index}`,
-        timed: true,
-        startOffset,
-        endOffset: offset,
-        wordIndex: index,
-        graphemeIndex: 0,
-        wordText: grapheme,
-        graphemeTimings: [{ startTime, endTime: Math.max(startTime + 0.001, endTime) }]
-      };
-    });
+    return [{
+      text: line.text,
+      startTime: line.time,
+      endTime: line.time + Math.max(0.4, line.duration || 5),
+      durationSec: 0, // 0 duration ensures it highlights instantly instead of sweeping
+      key: `${line.time}-fallback`,
+      timed: false,
+      startOffset: 0,
+      endOffset: line.text.length,
+      wordIndex: 0,
+      graphemeIndex: 0,
+      wordText: line.text,
+      graphemeTimings: [{ startTime: line.time, endTime: line.time }]
+    }];
   }
 
   const tokens = [];

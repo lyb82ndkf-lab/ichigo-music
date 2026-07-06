@@ -37,4 +37,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Profile Storage IPC
   readProfile: () => ipcRenderer.sendSync('read-profile'),
   writeProfile: (data) => ipcRenderer.sendSync('write-profile', data),
+  openExternal: (url) => ipcRenderer.send('open-external', url),
 });

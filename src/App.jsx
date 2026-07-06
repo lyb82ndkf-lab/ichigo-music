@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { AppProvider, useApp } from './context/AppContext';
+import { AppProvider, useApp, APP_VERSION } from './context/AppContext';
+import { AnimatePresence } from 'framer-motion';
+import ClosePromptModal from './components/ClosePromptModal';
+import UpdatePromptModal from './components/UpdatePromptModal';
 import Sidebar from './components/Sidebar';
 import PlayerBar from './components/PlayerBar';
 import AudioPlayer from './components/AudioPlayer';
@@ -60,7 +63,9 @@ function AppContent() {
     isQueueOpen,
     setIsQueueOpen,
     navigateTo,
-    immersiveColor
+    immersiveColor,
+    updateInfo,
+    setUpdateInfo
   } = useApp();
 
   const { engineRef, lyrics, activeLineIndex } = useLyricEngine(currentSong?.id, audioElement);
@@ -942,6 +947,20 @@ function AppContent() {
                 </div>
               </div>
             )}
+        <ClosePromptModal />
+        <AnimatePresence>
+          {updateInfo?.show && (
+            <UpdatePromptModal
+              currentVersion={APP_VERSION}
+              latestVersion={updateInfo.latestVersion}
+              onClose={() => setUpdateInfo({ show: false, latestVersion: '' })}
+              onUpdate={() => {
+                window.electronAPI?.openExternal?.('https://github.com/lyb82ndkf-lab/ichigo-music/releases');
+                setUpdateInfo({ show: false, latestVersion: '' });
+              }}
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

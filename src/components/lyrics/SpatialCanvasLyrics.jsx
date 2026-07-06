@@ -56,6 +56,11 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
     return list;
   }, [advancedLyricConfig?.spatialParticleCount]);
 
+  const configRef = useRef(advancedLyricConfig);
+  useEffect(() => {
+    configRef.current = advancedLyricConfig;
+  }, [advancedLyricConfig]);
+
   // Audio visualizer loop: updates CSS properties on the parent container to animate elements in 3D
   useEffect(() => {
     let animId;
@@ -94,9 +99,9 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
       }
 
       // Configured scaling ranges
-      const spreadX = advancedLyricConfig?.spatialSpreadX ?? 1.0;
-      const spreadY = advancedLyricConfig?.spatialSpreadY ?? 1.0;
-      const spreadZ = advancedLyricConfig?.spatialSpreadZ ?? 1.0;
+      const spreadX = configRef.current?.spatialSpreadX ?? 1.0;
+      const spreadY = configRef.current?.spatialSpreadY ?? 1.0;
+      const spreadZ = configRef.current?.spatialSpreadZ ?? 1.0;
 
       const targetPulseX = 1.0 + (bass / 255) * 0.45 * spreadX;    
       const targetPulseY = 1.0 + (mid / 255) * 0.45 * spreadY;     
@@ -113,7 +118,7 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
 
     tick();
     return () => cancelAnimationFrame(animId);
-  }, [advancedLyricConfig]);
+  }, []);
 
   const activePos = linePositions[Math.max(0, activeLineIndex)] || { x: 0, y: 0, z: 0, rot: 0 };
   

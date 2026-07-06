@@ -32,35 +32,11 @@ function buildFlatTimings(line) {
       }
     }
   } else {
-    // Fallback
-    const words = line.text.split(/(\s+)/);
-    const duration = line.duration || 4;
-    let accumulatedTextLen = 0;
-    const totalChars = line.text.length;
-    
-    words.forEach(w => {
-      if (!w) return;
-      const wDur = (w.length / totalChars) * duration;
-      const wStart = line.time + (accumulatedTextLen / totalChars) * duration;
-      
-      if (isWholeWord(w) || w.trim() === '') {
-        timings.push({
-          text: w,
-          startTime: wStart,
-          endTime: wStart + wDur
-        });
-      } else {
-        const graphemes = splitGraphemes(w);
-        const timePerGrapheme = wDur / Math.max(1, graphemes.length);
-        graphemes.forEach((g, idx) => {
-          timings.push({
-            text: g,
-            startTime: wStart + idx * timePerGrapheme,
-            endTime: wStart + (idx + 1) * timePerGrapheme
-          });
-        });
-      }
-      accumulatedTextLen += w.length;
+    // Fallback: entire line as a single timing block
+    timings.push({
+      text: line.text,
+      startTime: line.time,
+      endTime: line.time
     });
   }
   return timings;
