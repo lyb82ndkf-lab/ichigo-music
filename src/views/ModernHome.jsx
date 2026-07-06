@@ -79,7 +79,7 @@ export default function ModernHome() {
             </div>
             
             {activeLyric && (
-              <div className="hero-lyric" style={{ marginTop: '-12px', marginBottom: '20px', fontSize: '15px', color: 'rgba(255,255,255,0.8)', fontStyle: 'italic', height: '22px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div className="hero-lyric" style={{ marginTop: '-12px', marginBottom: '20px', fontSize: '15px', fontStyle: 'italic', height: '22px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 ♪ {activeLyric}
               </div>
             )}

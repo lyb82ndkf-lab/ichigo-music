@@ -521,8 +521,8 @@ function AppContent() {
                         </select>
                       </label>
                       <label className="setting-row-inline">
-                        <span>歌词字号：{advancedLyricConfig.fontSize || 24}px</span>
-                        <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 24}
+                        <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
+                        <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
                           onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
                       </label>
                       <label className="setting-row-inline">
@@ -531,8 +531,8 @@ function AppContent() {
                           onChange={(e) => updateAdvancedLyricConfig({ visibleLines: Number(e.target.value) })} />
                       </label>
                       <label className="setting-row-inline">
-                        <span>歌词纵向位置：{advancedLyricConfig.lyricsPositionY || 42}%</span>
-                        <input type="range" min="20" max="70" value={advancedLyricConfig.lyricsPositionY || 42}
+                        <span>歌词纵向位置：{advancedLyricConfig.lyricsPositionY || 40}%</span>
+                        <input type="range" min="20" max="70" value={advancedLyricConfig.lyricsPositionY || 40}
                           onChange={(e) => updateAdvancedLyricConfig({ lyricsPositionY: Number(e.target.value) })} />
                       </label>
                       {advancedLyricConfig.lyricsMode === 'streamer' && (
@@ -556,13 +556,13 @@ function AppContent() {
                       {advancedLyricConfig.lyricsMode === 'vinyl' && (
                         <>
                           <label className="setting-row-inline">
-                            <span>黑胶倾斜角度：{advancedLyricConfig.vinylTiltAngle || 0}°</span>
-                            <input type="range" min="0" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle || 0}
+                            <span>黑胶倾斜角度：{advancedLyricConfig.vinylTiltAngle ?? 0}°</span>
+                            <input type="range" min="0" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle ?? 0}
                               onChange={(e) => updateAdvancedLyricConfig({ vinylTiltAngle: Number(e.target.value) })} />
                           </label>
                           <label className="setting-row-inline">
-                            <span>黑胶行间距：{(advancedLyricConfig.vinylLineSpacing || 1).toFixed(1)}</span>
-                            <input type="range" min="0.5" max="2.5" step="0.1" value={advancedLyricConfig.vinylLineSpacing || 1}
+                            <span>黑胶行间距：{(advancedLyricConfig.vinylLineSpacing ?? 0.7).toFixed(1)}</span>
+                            <input type="range" min="0.5" max="2.5" step="0.1" value={advancedLyricConfig.vinylLineSpacing ?? 0.7}
                               onChange={(e) => updateAdvancedLyricConfig({ vinylLineSpacing: Number(e.target.value) })} />
                           </label>
                         </>
@@ -622,8 +622,8 @@ function AppContent() {
                           onChange={(e) => updateAdvancedLyricConfig({ showDecor: e.target.checked })} />
                       </label>
                       <label className="setting-row-inline">
-                        <span>非活动歌词模糊度：{(advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.8).toFixed(1)}</span>
-                        <input type="range" min="0" max="3.0" step="0.2" value={advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.8}
+                        <span>非活动歌词模糊度：{(advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4).toFixed(1)}</span>
+                        <input type="range" min="0" max="3.0" step="0.2" value={advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4}
                           onChange={(e) => updateAdvancedLyricConfig({ inactiveLyricBlur: Number(e.target.value) })} />
                       </label>
                     </div>
@@ -655,7 +655,7 @@ function AppContent() {
                   )}
 
                   {immersiveSettingsTab === 'visualizer' && (
-                    <div className="immersive-settings-section">
+                    <div className="immersive-settings-section" style={{ overflowY: 'auto', maxHeight: '350px', paddingRight: '4px' }}>
                       <label className="setting-row-inline">
                         <span>波形样式</span>
                         <select className="setting-select" value={advancedLyricConfig.visualizerStyle || 'bars'}
@@ -676,6 +676,267 @@ function AppContent() {
                         <input type="range" min="0.2" max="3.0" step="0.05" value={advancedLyricConfig.visualizerScale || 1.0}
                           onChange={(e) => updateAdvancedLyricConfig({ visualizerScale: Number(e.target.value) })} />
                       </label>
+
+                      {/* ================= 常规滚动模式 (regular) 可视化参数 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'regular' && (
+                        <>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>环形频谱参数 (常规模式)</div>
+                          <label className="setting-row-inline">
+                            <span>环形样式</span>
+                            <select className="setting-select" value={advancedLyricConfig.ringStyle || 'radial'}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringStyle: e.target.value })}>
+                              <option value="radial">辐射线条</option>
+                              <option value="particle">发光粒子</option>
+                              <option value="wave">连续波环</option>
+                            </select>
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>采样精度：{advancedLyricConfig.ringBarCount ?? 180}</span>
+                            <input type="range" min="60" max="360" step="10" value={advancedLyricConfig.ringBarCount ?? 180}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringBarCount: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>最大延伸振幅：{advancedLyricConfig.ringMaxAmplitude ?? 80}px</span>
+                            <input type="range" min="20" max="200" step="5" value={advancedLyricConfig.ringMaxAmplitude ?? 80}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringMaxAmplitude: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>边缘间距偏差：{advancedLyricConfig.ringInnerOffset ?? 5}px</span>
+                            <input type="range" min="-50" max="100" step="1" value={advancedLyricConfig.ringInnerOffset ?? 5}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringInnerOffset: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>画笔/粒子线宽：{(advancedLyricConfig.ringLineWidth ?? 2.5).toFixed(1)}px</span>
+                            <input type="range" min="1.0" max="8.0" step="0.5" value={advancedLyricConfig.ringLineWidth ?? 2.5}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringLineWidth: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>配色方案</span>
+                            <select className="setting-select" value={advancedLyricConfig.ringColorMode || 'adaptive'}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringColorMode: e.target.value })}>
+                              <option value="adaptive">封面自适应</option>
+                              <option value="theme">主题单色</option>
+                              <option value="custom">双色渐变</option>
+                            </select>
+                          </label>
+                          {advancedLyricConfig.ringColorMode === 'custom' && (
+                            <label className="setting-row-inline">
+                              <span>渐变双色</span>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <input type="color" value={advancedLyricConfig.ringCustomColor1 || '#17f700'} onChange={(e) => updateAdvancedLyricConfig({ ringCustomColor1: e.target.value })} style={{ width: '32px', height: '24px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                                <input type="color" value={advancedLyricConfig.ringCustomColor2 || '#00d4ff'} onChange={(e) => updateAdvancedLyricConfig({ ringCustomColor2: e.target.value })} style={{ width: '32px', height: '24px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                              </div>
+                            </label>
+                          )}
+                          <label className="setting-row-inline">
+                            <span>自转速度：{advancedLyricConfig.ringRotationSpeed ?? 15}°/分</span>
+                            <input type="range" min="0" max="120" step="5" value={advancedLyricConfig.ringRotationSpeed ?? 15}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringRotationSpeed: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline compact-toggle">
+                            <span>随声浪脉冲加速自转</span>
+                            <input type="checkbox" checked={advancedLyricConfig.ringRotationBeatSync === true}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringRotationBeatSync: e.target.checked })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>发光辉光强度：{(advancedLyricConfig.ringGlowIntensity ?? 0.6).toFixed(1)}</span>
+                            <input type="range" min="0.0" max="1.5" step="0.1" value={advancedLyricConfig.ringGlowIntensity ?? 0.6}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringGlowIntensity: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline compact-toggle">
+                            <span>发光伴随节奏闪烁</span>
+                            <input type="checkbox" checked={advancedLyricConfig.ringGlowPulse !== false}
+                              onChange={(e) => updateAdvancedLyricConfig({ ringGlowPulse: e.target.checked })} />
+                          </label>
+                        </>
+                      )}
+
+                      {/* ================= 气泡模式 (streamer) 可视化参数 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'streamer' && (
+                        <>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>底部流光氛围参数 (气泡模式)</div>
+                          <label className="setting-row-inline">
+                            <span>灯带基础高度：{advancedLyricConfig.streamerBarHeight ?? 16}px</span>
+                            <input type="range" min="5" max="80" step="1" value={advancedLyricConfig.streamerBarHeight ?? 16}
+                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarHeight: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>脉冲波动高度：{advancedLyricConfig.streamerBarMaxHeight ?? 80}px</span>
+                            <input type="range" min="20" max="250" step="2" value={advancedLyricConfig.streamerBarMaxHeight ?? 80}
+                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarMaxHeight: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>不透明度：{(advancedLyricConfig.streamerBarOpacity ?? 0.75).toFixed(2)}</span>
+                            <input type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.streamerBarOpacity ?? 0.75}
+                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarOpacity: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>辉光扩散半径：{advancedLyricConfig.streamerBarGlowSpread ?? 20}px</span>
+                            <input type="range" min="0" max="50" step="2" value={advancedLyricConfig.streamerBarGlowSpread ?? 20}
+                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarGlowSpread: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>流光游动速度：{(advancedLyricConfig.streamerBarFlowSpeed ?? 1.0).toFixed(1)}x</span>
+                            <input type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.streamerBarFlowSpeed ?? 1.0}
+                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarFlowSpeed: Number(e.target.value) })} />
+                          </label>
+                        </>
+                      )}
+
+                      {/* ================= 混乱模式 (talk) 可视化参数 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'talk' && (
+                        <>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>视差粒子参数 (混乱模式)</div>
+                          <label className="setting-row-inline">
+                            <span>常驻粒子数：{advancedLyricConfig.talkParticleCount ?? 80}</span>
+                            <input type="range" min="20" max="200" step="10" value={advancedLyricConfig.talkParticleCount ?? 80}
+                              onChange={(e) => updateAdvancedLyricConfig({ talkParticleCount: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>粒子发光半径：{(advancedLyricConfig.talkParticleSize ?? 1.0).toFixed(1)}</span>
+                            <input type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.talkParticleSize ?? 1.0}
+                              onChange={(e) => updateAdvancedLyricConfig({ talkParticleSize: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>粒子不透明度：{(advancedLyricConfig.talkParticleOpacity ?? 0.7).toFixed(2)}</span>
+                            <input type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.talkParticleOpacity ?? 0.7}
+                              onChange={(e) => updateAdvancedLyricConfig({ talkParticleOpacity: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>粒子形状</span>
+                            <select className="setting-select" value={advancedLyricConfig.talkParticleShape || 'triangle'}
+                              onChange={(e) => updateAdvancedLyricConfig({ talkParticleShape: e.target.value })}>
+                              <option value="triangle">经典三角</option>
+                              <option value="diamond">华丽菱形</option>
+                              <option value="dot">圆点星辰</option>
+                              <option value="line">律动短线</option>
+                            </select>
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>冲击爆发阈值：{advancedLyricConfig.talkBurstThreshold ?? 200}</span>
+                            <input type="range" min="100" max="250" step="5" value={advancedLyricConfig.talkBurstThreshold ?? 200}
+                              onChange={(e) => updateAdvancedLyricConfig({ talkBurstThreshold: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>喷涌爆发强度：{(advancedLyricConfig.talkBurstIntensity ?? 1.0).toFixed(1)}</span>
+                            <input type="range" min="0.3" max="2.0" step="0.1" value={advancedLyricConfig.talkBurstIntensity ?? 1.0}
+                              onChange={(e) => updateAdvancedLyricConfig({ talkBurstIntensity: Number(e.target.value) })} />
+                          </label>
+                        </>
+                      )}
+
+                      {/* ================= 云阶模式 (cloudstep) 可视化参数 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'cloudstep' && (
+                        <>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>层叠雾波参数 (云阶模式)</div>
+                          <label className="setting-row-inline">
+                            <span>雾化模糊半径：{advancedLyricConfig.cloudWaveBlur ?? 23}px</span>
+                            <input type="range" min="5" max="60" step="1" value={advancedLyricConfig.cloudWaveBlur ?? 23}
+                              onChange={(e) => updateAdvancedLyricConfig({ cloudWaveBlur: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>最大起伏高度：{advancedLyricConfig.cloudWaveHeight ?? 30}px</span>
+                            <input type="range" min="10" max="80" step="2" value={advancedLyricConfig.cloudWaveHeight ?? 30}
+                              onChange={(e) => updateAdvancedLyricConfig({ cloudWaveHeight: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>雾波不透明度：{(advancedLyricConfig.cloudWaveOpacity ?? 0.39).toFixed(2)}</span>
+                            <input type="range" min="0.02" max="0.5" step="0.01" value={advancedLyricConfig.cloudWaveOpacity ?? 0.39}
+                              onChange={(e) => updateAdvancedLyricConfig({ cloudWaveOpacity: Number(e.target.value) })} />
+                          </label>
+                        </>
+                      )}
+
+                      {/* ================= 空间画布 (spatial) 可视化参数 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'spatial' && (
+                        <>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>3D 空间星图参数 (空间模式)</div>
+                          <label className="setting-row-inline">
+                            <span>粒子数量：{advancedLyricConfig.spatialParticleCount ?? 200}</span>
+                            <input type="range" min="50" max="500" step="10" value={advancedLyricConfig.spatialParticleCount ?? 200}
+                              onChange={(e) => updateAdvancedLyricConfig({ spatialParticleCount: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>虚化模糊系数：{(advancedLyricConfig.spatialDepthBlur ?? 0.5).toFixed(1)}</span>
+                            <input type="range" min="0" max="2.0" step="0.1" value={advancedLyricConfig.spatialDepthBlur ?? 0.5}
+                              onChange={(e) => updateAdvancedLyricConfig({ spatialDepthBlur: Number(e.target.value) })} />
+                          </label>
+                        </>
+                      )}
+
+                      {/* ================= 黑胶光碟 (vinyl) 可视化参数 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'vinyl' && (
+                        <>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>唱片刻槽与唱针参数 (黑胶模式)</div>
+                          <label className="setting-row-inline">
+                            <span>盘面频谱刻槽：{advancedLyricConfig.vinylGrooveCount ?? 12}圈</span>
+                            <input type="range" min="4" max="30" step="1" value={advancedLyricConfig.vinylGrooveCount ?? 12}
+                              onChange={(e) => updateAdvancedLyricConfig({ vinylGrooveCount: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>刻槽基础宽度：{(advancedLyricConfig.vinylGrooveWidth ?? 1.0).toFixed(1)}</span>
+                            <input type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.vinylGrooveWidth ?? 1.0}
+                              onChange={(e) => updateAdvancedLyricConfig({ vinylGrooveWidth: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>共鸣最大振幅：{(advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0).toFixed(1)}</span>
+                            <input type="range" min="1.5" max="10.0" step="0.5" value={advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0}
+                              onChange={(e) => updateAdvancedLyricConfig({ vinylGrooveMaxWidth: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>唱针光晕强度：{(advancedLyricConfig.vinylStylusGlowStrength ?? 0.7).toFixed(1)}</span>
+                            <input type="range" min="0" max="1.5" step="0.1" value={advancedLyricConfig.vinylStylusGlowStrength ?? 0.7}
+                              onChange={(e) => updateAdvancedLyricConfig({ vinylStylusGlowStrength: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>唱针光晕大小：{advancedLyricConfig.vinylStylusGlowSize ?? 20}px</span>
+                            <input type="range" min="8" max="50" step="1" value={advancedLyricConfig.vinylStylusGlowSize ?? 20}
+                              onChange={(e) => updateAdvancedLyricConfig({ vinylStylusGlowSize: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline compact-toggle">
+                            <span>边缘高反光偏振</span>
+                            <input type="checkbox" checked={advancedLyricConfig.vinylEdgeReflection !== false}
+                              onChange={(e) => updateAdvancedLyricConfig({ vinylEdgeReflection: e.target.checked })} />
+                          </label>
+                        </>
+                      )}
+
+                      {/* ================= FLOATING DECOR SECTION ================= */}
+                      <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '16px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>背景悬浮粒子 (Floating Decor)</div>
+                      <label className="setting-row-inline compact-toggle">
+                        <span>启用背景悬浮粒子</span>
+                        <input type="checkbox" checked={advancedLyricConfig.showDecor === true}
+                          onChange={(e) => updateAdvancedLyricConfig({ showDecor: e.target.checked })} />
+                      </label>
+                      {advancedLyricConfig.showDecor === true && (
+                        <>
+                          <label className="setting-row-inline">
+                            <span>浮动粒子数量：{advancedLyricConfig.decorParticleAmount ?? 40}</span>
+                            <input type="range" min="10" max="150" step="5" value={advancedLyricConfig.decorParticleAmount ?? 40}
+                              onChange={(e) => updateAdvancedLyricConfig({ decorParticleAmount: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>粒子漂游速度：{(advancedLyricConfig.decorSpeed ?? 1.0).toFixed(1)}x</span>
+                            <input type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.decorSpeed ?? 1.0}
+                              onChange={(e) => updateAdvancedLyricConfig({ decorSpeed: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>粒子发光尺寸：{(advancedLyricConfig.decorSize ?? 1.0).toFixed(1)}x</span>
+                            <input type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.decorSize ?? 1.0}
+                              onChange={(e) => updateAdvancedLyricConfig({ decorSize: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>基础不透明度：{(advancedLyricConfig.decorOpacity ?? 0.6).toFixed(2)}</span>
+                            <input type="range" min="0.1" max="1.0" step="0.05" value={advancedLyricConfig.decorOpacity ?? 0.6}
+                              onChange={(e) => updateAdvancedLyricConfig({ decorOpacity: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline compact-toggle">
+                            <span>随音乐节奏闪烁喷涌</span>
+                            <input type="checkbox" checked={advancedLyricConfig.decorTwinkle === true}
+                              onChange={(e) => updateAdvancedLyricConfig({ decorTwinkle: e.target.checked })} />
+                          </label>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

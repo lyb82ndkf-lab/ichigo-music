@@ -755,6 +755,23 @@ body {
   opacity: 0;
   user-select: none;
   -webkit-user-select: none;
+
+  /* Force dark mode variables for immersive view */
+  --bg-gradient-start: #09090b;
+  --bg-gradient-end: #09090b;
+  --text-main: #f3f4f6;
+  --text-muted: rgba(255, 255, 255, 0.55);
+  --text-active: #ffffff;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-bg-hover: rgba(255, 255, 255, 0.12);
+  --glass-bg-strong: rgba(255, 255, 255, 0.18);
+  --surface-bg: rgba(255, 255, 255, 0.03);
+  --surface-border: rgba(255, 255, 255, 0.06);
+  --divider-color: rgba(255, 255, 255, 0.08);
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
 }
 
 .lyrics-overlay-bg {
@@ -1587,6 +1604,24 @@ body {
   flex-direction: column;
   animation: floatIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   overflow: hidden;
+
+  /* Force dark mode variables for immersive settings panel */
+  --bg-gradient-start: #09090b;
+  --bg-gradient-end: #09090b;
+  --text-main: #f3f4f6;
+  --text-muted: rgba(255, 255, 255, 0.55);
+  --text-active: #ffffff;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-bg-hover: rgba(255, 255, 255, 0.12);
+  --glass-bg-strong: rgba(255, 255, 255, 0.18);
+  --surface-bg: rgba(255, 255, 255, 0.03);
+  --surface-border: rgba(255, 255, 255, 0.06);
+  --divider-color: rgba(255, 255, 255, 0.08);
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.08);
+  --overlay-bg: rgba(15, 12, 27, 0.92);
+  color: var(--text-main);
 }
 
 @keyframes floatIn {
@@ -2747,6 +2782,62 @@ body {
   color: rgba(255,255,255,0.3); font-size: 13px;
 }
 
+/* ========= Modern Player Bar – Light Mode Overrides ========= */
+.mode-light.layout-modern #player-bar {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(24px) saturate(1.6);
+  -webkit-backdrop-filter: blur(24px) saturate(1.6);
+  box-shadow:
+    inset 0 0 2px 1px rgba(0, 0, 0, 0.04),
+    inset 0 0 10px 4px rgba(0, 0, 0, 0.02),
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.06);
+}
+
+.mode-light.layout-modern .play-btn {
+  background: rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--text-main, #111827);
+  box-shadow:
+    inset 0 0 2px 1px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.08);
+}
+.mode-light.layout-modern .play-btn:hover {
+  background: rgba(0, 0, 0, 0.10);
+  box-shadow:
+    inset 0 0 2px 1px rgba(0, 0, 0, 0.08),
+    0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.mode-light.layout-modern .ctrl-btn {
+  color: rgba(0, 0, 0, 0.55);
+}
+.mode-light.layout-modern .ctrl-btn:hover,
+.mode-light.layout-modern .ctrl-btn.active {
+  color: var(--text-main, #111827);
+  background: rgba(0, 0, 0, 0.06);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.mode-light.layout-modern #progress-bar {
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 1px rgba(0, 0, 0, 0.06);
+}
+.mode-light.layout-modern #progress-bar:hover {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.mode-light.layout-modern #progress-fill {
+  background: linear-gradient(90deg, var(--primary, #ff4081), var(--primary, #ff4081));
+}
+
+.mode-light.layout-modern .empty-player-placeholder {
+  color: rgba(0, 0, 0, 0.3);
+}
 
 /* Right-side Queue Sidebar */
 .layout-modern .modern-queue-overlay {
@@ -3183,3 +3274,221 @@ body {
 }
 
 @keyframes monet-breathing-halo { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.15); opacity: 1; } }
+
+/* ========= Modern Layout – Light Mode General Overrides ========= */
+.mode-light.layout-modern {
+  color: var(--text-main);
+}
+
+/* 1. Glass Hero Banner */
+.mode-light.layout-modern .glass-hero {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.40)) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(35px) saturate(1.8) !important;
+  -webkit-backdrop-filter: blur(35px) saturate(1.8) !important;
+}
+
+.mode-light.layout-modern .home-title {
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .home-sub {
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .hero-lyric {
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .home-chip {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .home-chip:hover {
+  background: rgba(0, 0, 0, 0.09) !important;
+}
+
+.mode-light.layout-modern .home-accent-chip {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.mode-light.layout-modern .home-accent-chip:hover {
+  background: var(--primary-hover) !important;
+}
+
+/* 2. Glass Navigation Cards */
+.mode-light.layout-modern .glass-nav-card {
+  background: linear-gradient(142deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.40)) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 15px 45px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(28px) saturate(1.6) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.6) !important;
+}
+
+.mode-light.layout-modern .glass-nav-card:hover {
+  background: linear-gradient(142deg, rgba(255, 255, 255, 0.80), rgba(255, 255, 255, 0.55)) !important;
+  border-color: color-mix(in srgb, var(--primary) 30%, rgba(0, 0, 0, 0.15)) !important;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.mode-light.layout-modern .glass-nav-card .card-title {
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .glass-nav-card .card-sub {
+  color: var(--text-muted) !important;
+}
+
+/* 3. Section Titles */
+.mode-light.layout-modern .home-section-title {
+  color: var(--text-main) !important;
+}
+
+/* 4. Glass Tiles */
+.mode-light.layout-modern .home-glass-tile {
+  background: rgba(255, 255, 255, 0.50) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
+}
+
+.mode-light.layout-modern .home-glass-tile:hover {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06) !important;
+}
+
+.mode-light.layout-modern .tile-name {
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .tile-artist {
+  color: var(--text-muted) !important;
+}
+
+/* 5. Topbar Controls & Window Buttons */
+.mode-light.layout-modern #modern-unified-topbar {
+  background: linear-gradient(180deg, rgba(255,255,255,0.45) 0%, transparent 100%) !important;
+}
+
+.mode-light.layout-modern .desktop-app-title {
+  color: var(--text-main) !important;
+  opacity: 0.85;
+}
+
+.mode-light.layout-modern #unified-search-box {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern #unified-search-box:focus-within {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-color: var(--primary) !important;
+}
+
+.mode-light.layout-modern .unified-search-input {
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .modern-glass-btn {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .modern-glass-btn:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .desktop-window-btn {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .desktop-window-btn:hover {
+  background: rgba(0, 0, 0, 0.09) !important;
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .desktop-window-btn.close:hover {
+  background: #ff5664 !important;
+  color: #ffffff !important;
+}
+
+/* 6. Modern Player Bar tweaks (ensure high readability) */
+.mode-light.layout-modern #player-bar {
+  background: rgba(255, 255, 255, 0.90) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 15px 45px rgba(0, 0, 0, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(35px) saturate(1.8) !important;
+  -webkit-backdrop-filter: blur(35px) saturate(1.8) !important;
+}
+
+.mode-light.layout-modern .ctrl-btn {
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .ctrl-btn:hover,
+.mode-light.layout-modern .ctrl-btn.active {
+  color: var(--text-main) !important;
+  background: rgba(0, 0, 0, 0.06) !important;
+  box-shadow: none !important;
+}
+
+/* ========= Immersive Lyrics Player Bar Auto-Hide & Hover Pop-Up ========= */
+
+/* Sensor area at the bottom of the screen to detect hover */
+.lyrics-open .lyrics-immersive-hover-sensor {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px; /* 60px sensor zone */
+  z-index: 1290; /* below player bars but above fullscreen lyrics-overlay (z-index: 1200) */
+  background: transparent;
+  pointer-events: auto;
+}
+
+/* 1. Classic Layout Player Bar Auto-Hide */
+.lyrics-open .app-player-bar {
+  transform: translateY(calc(100% + 20px));
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  z-index: 1300 !important; /* ensure it is above full screen overlay when it slides up */
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Show classic player bar on sensor hover or bar hover */
+.lyrics-open .lyrics-immersive-hover-sensor:hover ~ .app-player-bar,
+.lyrics-open .app-player-bar:hover {
+  transform: translateY(0) !important;
+}
+
+/* 2. Modern Layout Player Bar Auto-Hide */
+.lyrics-open #player-bar {
+  transform: translateX(-50%) translateY(calc(100% + 36px)) scale(0.96) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease !important;
+}
+
+/* Show modern player bar on sensor hover or bar hover */
+.lyrics-open .lyrics-immersive-hover-sensor:hover ~ #player-bar,
+.lyrics-open #player-bar:hover {
+  transform: translateX(-50%) translateY(0) scale(1) !important;
+  opacity: 0.95 !important;
+  pointer-events: auto !important;
+}

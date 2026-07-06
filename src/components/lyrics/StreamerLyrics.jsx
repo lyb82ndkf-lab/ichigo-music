@@ -54,16 +54,14 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
         }
 
         if (currentTime < token.startTime) {
-          // Hide it so the bubble collapses to fit
-          if (el.style.display !== 'none') {
-            el.style.display = 'none';
-            el.style.opacity = 0;
+          if (el.style.opacity !== '0') {
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(10px)';
           }
         } else {
-          // Show it! The bubble will natively expand.
-          if (el.style.display !== 'inline-block') {
-            el.style.display = 'inline-block';
-            el.style.opacity = 1;
+          if (el.style.opacity !== '1') {
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0px)';
           }
         }
       });
@@ -149,10 +147,13 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
               key={token.key}
               ref={el => { wordsRefs.current[idx] = el; }}
               style={{
-                display: isPassed ? 'inline-block' : 'none',
+                display: 'inline-block',
                 whiteSpace: 'pre',
                 opacity: isPassed ? 1 : 0,
-                textShadow: `0 0 ${fontPx * 0.2}px rgba(255,255,255,0.5)`
+                transform: isPassed ? 'translateY(0px)' : 'translateY(10px)',
+                transition: 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                textShadow: `0 0 ${fontPx * 0.2}px rgba(255,255,255,0.5)`,
+                willChange: 'opacity, transform'
               }}
             >
               {token.text}

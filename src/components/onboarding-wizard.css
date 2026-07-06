@@ -1,0 +1,319 @@
+.onboarding-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.onboarding-modal {
+  width: 680px;
+  max-width: 90vw;
+  height: 520px;
+  max-height: 90vh;
+  background: var(--bg-main, #ffffff); /* Ensure solid background */
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+  /* Add subtle glow matching theme */
+  box-shadow: 0 0 80px -20px var(--primary-glow, var(--primary));
+}
+
+.mode-dark .onboarding-modal {
+  background: #1e1e1e;
+}
+
+.onboarding-header {
+  padding: 24px 32px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-title {
+  font-size: 28px;
+  font-weight: 800;
+  font-family: var(--font-title, 'Outfit', sans-serif);
+  color: var(--text-main);
+  margin: 0;
+  background: linear-gradient(135deg, var(--text-main) 0%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.onboarding-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.onboarding-content {
+  flex: 1;
+  padding: 0 32px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Step 1: Welcome */
+.onboarding-welcome {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  gap: 32px;
+}
+
+.onboarding-welcome-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 20px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary, #8a2be2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Cards for Layout and Theme */
+.onboarding-cards-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 10px;
+}
+
+.selection-card {
+  background: var(--surface-hover);
+  border: 2px solid transparent;
+  border-radius: 16px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  overflow: hidden;
+}
+
+.selection-card:hover {
+  transform: translateY(-4px);
+  background: var(--surface-active, rgba(255, 255, 255, 0.05));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.selection-card.active {
+  border-color: var(--primary);
+  background: var(--surface-active, rgba(255, 255, 255, 0.08));
+  box-shadow: 0 8px 32px var(--primary-glow, rgba(255, 64, 129, 0.2));
+}
+
+.selection-card-preview {
+  height: 120px;
+  border-radius: 12px;
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Abstract UI pieces for Layout */
+.preview-classic {
+  display: grid;
+  grid-template-columns: 25% 1fr;
+  grid-template-rows: 15% 1fr 20%;
+  width: 100%;
+  height: 100%;
+  gap: 4px;
+  padding: 8px;
+  background: var(--surface);
+  border-radius: 8px;
+}
+.preview-classic-header {
+  grid-column: 1 / 3;
+  background: var(--border);
+  border-radius: 4px;
+}
+.preview-classic-sidebar {
+  grid-row: 2 / 3;
+  grid-column: 1 / 2;
+  background: var(--surface-hover);
+  border-radius: 4px;
+}
+.preview-classic-main {
+  grid-row: 2 / 3;
+  grid-column: 2 / 3;
+  background: var(--surface-hover);
+  border-radius: 4px;
+}
+.preview-classic-footer {
+  grid-column: 1 / 3;
+  grid-row: 3 / 4;
+  background: var(--border);
+  border-radius: 4px;
+}
+
+.preview-modern {
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  display: flex;
+  background: linear-gradient(135deg, var(--primary-glow, #ff408133) 0%, var(--surface) 100%);
+  border-radius: 8px;
+  position: relative;
+}
+.preview-modern-sidebar {
+  width: 25%;
+  background: rgba(255,255,255,0.1);
+  border-radius: 12px;
+  height: 100%;
+  backdrop-filter: blur(8px);
+}
+.preview-modern-main {
+  flex: 1;
+  margin-left: 8px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 12px;
+  height: 100%;
+  backdrop-filter: blur(8px);
+}
+.preview-modern-player {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 60%;
+  height: 25%;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(12px);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.selection-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-main);
+  text-align: center;
+}
+
+.selection-card-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 24px;
+  height: 24px;
+  background: var(--primary);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.selection-card.active .selection-card-check {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Step 3: Shortcuts */
+.onboarding-shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 24px;
+}
+
+/* Footer Actions */
+.onboarding-footer {
+  padding: 20px 32px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+}
+
+.onboarding-btn {
+  padding: 10px 24px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.onboarding-btn-primary {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 4px 12px var(--primary-glow, rgba(255, 64, 129, 0.3));
+}
+
+.onboarding-btn-primary:hover {
+  filter: brightness(1.1);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px var(--primary-glow, rgba(255, 64, 129, 0.4));
+}
+
+.onboarding-btn-secondary {
+  background: var(--surface-hover);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+}
+
+.onboarding-btn-secondary:hover {
+  background: var(--surface-active);
+}
+
+.onboarding-btn-text {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.onboarding-btn-text:hover {
+  color: var(--text-main);
+}
+
+.onboarding-step-indicator {
+  display: flex;
+  gap: 6px;
+}
+
+.step-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: all 0.3s ease;
+}
+
+.step-dot.active {
+  background: var(--primary);
+  width: 24px;
+  border-radius: 4px;
+}

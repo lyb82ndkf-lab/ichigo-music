@@ -77,9 +77,15 @@ export default function MonetPosterLayout({
   });
 
   const railContainerRef = useRef(null);
+  const coverPaneRef = useRef(null);
+  // Dynamic anchor: track where the album cover center sits relative to the lyrics rail
+  const [coverAlignedRatio, setCoverAlignedRatio] = useState(0.42);
 
   useEffect(() => {
-    const handleResize = () => {
+    const el = railContainerRef.current;
+    if (!el) return;
+
+    const measureAndUpdate = () => {
       const w = window.innerWidth;
       let fPx = 36;
       let tPx = 18;
@@ -88,25 +94,35 @@ export default function MonetPosterLayout({
       else if (w > 800) { fPx = 28; tPx = 15; }
       else { fPx = 24; tPx = 14; }
 
-      let maxWidth = 600;
-      let railH = 500;
-      if (railContainerRef.current) {
-        const rect = railContainerRef.current.getBoundingClientRect();
-        maxWidth = rect.width * 0.95;
-        railH = rect.height;
-      }
+      const rect = el.getBoundingClientRect();
+      const maxWidth = rect.width * 0.95;
+      const railH = rect.height;
 
       setDimensions({
         fontPx: fPx * fontScale,
         transPx: tPx * fontScale,
-        maxWidthPx: maxWidth,
-        railHeight: railH
+        maxWidthPx: maxWidth || 600,
+        railHeight: railH || 500
       });
+
+      // Compute where the album cover center is relative to this rail container
+      const coverPane = coverPaneRef.current;
+      if (coverPane && railH > 0) {
+        const coverRect = coverPane.getBoundingClientRect();
+        const coverCenterY = coverRect.top + coverRect.height / 2;
+        const railTop = rect.top;
+        const rawRatio = (coverCenterY - railTop) / railH;
+        // Clamp to a sensible range
+        setCoverAlignedRatio(Math.max(0.2, Math.min(0.85, rawRatio)));
+      }
     };
 
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    const observer = new ResizeObserver(measureAndUpdate);
+    observer.observe(el);
+    // Also observe the cover pane
+    if (coverPaneRef.current) observer.observe(coverPaneRef.current);
+    measureAndUpdate();
+    return () => observer.disconnect();
   }, [fontScale]);
 
   const visibleLines = useMemo(() => {
@@ -165,7 +181,7 @@ export default function MonetPosterLayout({
           .monet-poster-layout {
             display: flex;
             flex-direction: row;
-            padding: 5vh 4vw 80px 4vw;
+            padding: 5vh 4vw 4vh 4vw;
             box-sizing: border-box;
             gap: 4vw;
             align-items: stretch;
@@ -306,7 +322,22 @@ export default function MonetPosterLayout({
               maxWidthPx={dimensions.maxWidthPx}
               showTranslation={advancedLyricConfig?.showTranslation !== false}
               showGlow={advancedLyricConfig?.showGlow === true}
-              activeAnchorRatio={(advancedLyricConfig?.lyricsPositionY || 50) / 100}
+              activeAnchorRatio={(() => {
+                if (showCover) {
+                  // coverAlignedRatio places the active line exactly at the cover center.
+                  // But the rail starts BELOW the song-info block, so lines ABOVE the
+                  // active line get clipped by the rail's top edge.
+                  // We push the anchor down by ~2 line-heights worth of rail space
+                  // so there is room for 2 previous lines above the active line.
+                  const approxLineH = dimensions.fontPx * 1.4 * 2 + 28; // ~2 wrapped rows + gap
+                  const lineCorrection = approxLineH / Math.max(dimensions.railHeight, 1);
+                  // lyricsPositionY slider: default 50 = no extra offset; >50 = push down more
+                  const userExtraOffset = ((advancedLyricConfig?.lyricsPositionY ?? 50) - 50) / 100;
+                  return Math.min(0.82, Math.max(0.25, coverAlignedRatio + lineCorrection + userExtraOffset));
+                } else {
+                  return (advancedLyricConfig?.lyricsPositionY ?? 50) / 100;
+                }
+              })()}
               onWheel={handleWheel}
               onLyricClick={handleLyricClick}
               inactiveLyricBlur={advancedLyricConfig?.inactiveLyricBlur}
@@ -369,8 +400,8 @@ export default function MonetPosterLayout({
                   themeColor={themeColor}
                   coverUrl={coverUrlResized}
                   isPlaying={isPlaying}
-                  lineSpacing={advancedLyricConfig?.vinylLineSpacing || 1}
-                  tiltAngle={advancedLyricConfig?.vinylTiltAngle || 0}
+                  lineSpacing={advancedLyricConfig?.vinylLineSpacing ?? 0.7}
+                  tiltAngle={advancedLyricConfig?.vinylTiltAngle ?? 0}
                 />
               )}
             </div>
@@ -380,12 +411,12 @@ export default function MonetPosterLayout({
 
       {/* RIGHT: Cover Art */}
       {showCover && (
-      <div className="monet-right-pane">
+      <div className="monet-right-pane" ref={coverPaneRef}>
         <div className="monet-anim-cover-wrapper">
-          {/* Render circular visualizer behind the cover image if style is circle/circular */}
-          {['circle', 'circular'].includes(advancedLyricConfig?.visualizerStyle) && (
+          {/* Render circular visualizer behind the cover image in regular mode */}
+          {animMode === 'regular' && (
             <div style={{ position: 'absolute', inset: '-100px', zIndex: 1, pointerEvents: 'none' }}>
-              <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} visualizerStyle="circle" isBehindCover={true} />
+              <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode="regular" isBehindCover={true} />
             </div>
           )}
           <img 
@@ -399,20 +430,11 @@ export default function MonetPosterLayout({
       </div>
       )}
 
-      {/* BOTTOM: Audio Visualizer */}
-      {!['off', 'none', 'circle', 'circular'].includes(advancedLyricConfig?.visualizerStyle) && (
-      <div className="monet-anim-rail" style={{ 
-        animationDelay: '0.9s', 
-        position: 'absolute', 
-        bottom: layoutMode === 'classic' ? '88px' : '12px', 
-        left: 0, 
-        right: 0, 
-        height: '80px', 
-        zIndex: 10, 
-        pointerEvents: 'none' 
-      }}>
-        <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} visualizerStyle={advancedLyricConfig?.visualizerStyle || 'bars'} />
-      </div>
+      {/* BACKGROUND/BOTTOM layer for streamer, talk, and cloudstep visualizers */}
+      {['streamer', 'talk', 'cloudstep'].includes(animMode) && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}>
+          <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode={animMode} isBehindCover={false} />
+        </div>
       )}
     </div>
   );

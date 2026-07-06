@@ -40,7 +40,8 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen }) {
     toggleLike,
     navigateTo,
     audioQuality,
-    setAudioQuality
+    setAudioQuality,
+    desktopLyricsConfig
   } = useApp();
 
   const [showQueue, setShowQueue] = useState(false);
@@ -300,8 +301,22 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen }) {
         
         {/* Desktop Lyrics Toggle */}
         <button 
-          className="control-btn"
-          style={{ fontSize: '11px', fontWeight: 600 }}
+          className={`control-btn ${desktopLyricsConfig?.show ? 'active' : ''}`}
+          style={{ 
+            fontSize: '11px', 
+            fontWeight: 600,
+            width: '24px',
+            height: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            border: desktopLyricsConfig?.show ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.2)',
+            borderRadius: '6px',
+            color: desktopLyricsConfig?.show ? 'var(--primary)' : 'inherit',
+            background: desktopLyricsConfig?.show ? 'var(--primary-subtle)' : 'transparent',
+            boxShadow: desktopLyricsConfig?.show ? '0 0 8px var(--primary-glow)' : 'none',
+            transition: 'all 0.2s ease'
+          }}
           onClick={() => {
             if (window.electronAPI) {
               window.electronAPI.toggleDesktopLyrics();

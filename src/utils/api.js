@@ -1,8 +1,16 @@
 // api.js - NetEase Cloud Music API service interface
 const BASE_URL = '/api';
 
-const cache = new Map();
+export const apiCache = new Map();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export function getCachedData(endpoint) {
+  const cached = apiCache.get(endpoint);
+  if (cached && Date.now() - cached.time < CACHE_TTL_MS) {
+    return cached.data;
+  }
+  return null;
+}
 
 // Helper for fetch requests
 async function request(endpoint, options = {}) {
@@ -12,10 +20,8 @@ async function request(endpoint, options = {}) {
                       !endpoint.includes('timestamp=');
 
   if (isCacheable) {
-    const cached = cache.get(endpoint);
-    if (cached && Date.now() - cached.time < CACHE_TTL_MS) {
-      return cached.data;
-    }
+    const data = getCachedData(endpoint);
+    if (data) return data;
   }
 
   const url = `${BASE_URL}${endpoint}`;
@@ -45,10 +51,10 @@ async function request(endpoint, options = {}) {
     const data = await response.json();
     
     if (isCacheable) {
-      cache.set(endpoint, { data, time: Date.now() });
-      if (cache.size > 200) {
-        const firstKey = cache.keys().next().value;
-        cache.delete(firstKey);
+      apiCache.set(endpoint, { data, time: Date.now() });
+      if (apiCache.size > 200) {
+        const firstKey = apiCache.keys().next().value;
+        apiCache.delete(firstKey);
       }
     }
     
@@ -116,4 +122,8 @@ export const api = {
   search: (keywords, type = 1, limit = 30, offset = 0) => 
     request(`/search?keywords=${encodeURIComponent(keywords)}&type=${type}&limit=${limit}&offset=${offset}`),
   getHotSearch: () => request('/search/hot/detail'),
+
+  // Discover Features
+  getBanners: () => request('/banner'),
+  getPersonalized: (limit = 12) => request(`/personalized?limit=${limit}`),
 };

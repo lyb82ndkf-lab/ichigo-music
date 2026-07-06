@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   minimize: () => ipcRenderer.send('window-minimize'),
   maximize: () => ipcRenderer.send('window-maximize'),
   close: () => ipcRenderer.send('window-close'),
+  hide: () => ipcRenderer.send('window-hide'),
+  onWindowCloseRequested: (callback) => subscribe('window-close-requested', callback),
   setHardwareAcceleration: (enabled) => ipcRenderer.send('set-hardware-acceleration', enabled),
   
   // Desktop Lyrics IPC
@@ -31,4 +33,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMediaTogglePlay: (callback) => subscribe('media-toggle-play', callback),
   updatePlaybackState: (isPlaying) => ipcRenderer.send('update-playback-state', isPlaying),
   initMediaIcons: (icons) => ipcRenderer.send('init-media-icons', icons),
+  
+  // Profile Storage IPC
+  readProfile: () => ipcRenderer.sendSync('read-profile'),
+  writeProfile: (data) => ipcRenderer.sendSync('write-profile', data),
 });

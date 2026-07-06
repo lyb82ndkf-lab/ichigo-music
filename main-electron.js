@@ -366,7 +366,11 @@ function createWindow() {
       mainWindow.maximize();
     }
   });
-  ipcMain.on('window-close', () => mainWindow.close());
+  ipcMain.on('window-close', () => {
+    app.isQuitting = true;
+    mainWindow.close();
+  });
+  ipcMain.on('window-hide', () => mainWindow.hide());
 
   // Desktop lyrics IPC
   ipcMain.on('toggle-desktop-lyrics', () => toggleDesktopLyrics());
@@ -434,6 +438,31 @@ function createWindow() {
     updateMediaControls(isPlaying);
   });
 
+  // Profile Storage IPC
+  ipcMain.on('read-profile', (event) => {
+    try {
+      const p = path.join(app.getPath('userData'), 'ichigomusic-profile.json');
+      if (fs.existsSync(p)) {
+        event.returnValue = fs.readFileSync(p, 'utf8');
+        return;
+      }
+    } catch (e) {
+      console.error('Failed to read profile via IPC:', e);
+    }
+    event.returnValue = null;
+  });
+
+  ipcMain.on('write-profile', (event, data) => {
+    try {
+      const p = path.join(app.getPath('userData'), 'ichigomusic-profile.json');
+      fs.writeFileSync(p, data, 'utf8');
+      event.returnValue = true;
+    } catch (e) {
+      console.error('Failed to write profile via IPC:', e);
+      event.returnValue = false;
+    }
+  });
+
   // Load local Vite dev server or production build
   if (app.isPackaged) {
     mainWindow.loadURL(`http://localhost:${apiPort}`);
@@ -457,6 +486,13 @@ function createWindow() {
   });
 
   // Handle window close
+  mainWindow.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      mainWindow.webContents.send('window-close-requested');
+    }
+  });
+
   mainWindow.on('closed', () => {
     mainWindow = null;
     if (desktopLyricsWindow) {

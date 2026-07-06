@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { LogOut, LogIn, Maximize2, Minimize2, X } from 'lucide-react';
 
 export default function TopBar() {
-  const { user, navigateTo, logout } = useApp();
+  const { user, navigateTo, logout, requestAppClose } = useApp();
 
   return (
     <div className="title-bar" style={{
@@ -72,7 +72,7 @@ export default function TopBar() {
           <button className="window-btn" onClick={() => window.electronAPI?.maximize()} title="最大化">
             <svg width="12" height="12" viewBox="0 0 12 12"><rect width="9" height="9" x="1.5" y="1.5" fill="none" stroke="currentColor"></rect></svg>
           </button>
-          <button className="window-btn close-btn" onClick={() => window.electronAPI?.close()} title="关闭">
+          <button className="window-btn close-btn" onClick={requestAppClose} title="关闭">
             <svg width="12" height="12" viewBox="0 0 12 12"><polygon fill="currentColor" fillRule="evenodd" points="11 1.576 6.583 6 11 10.424 10.424 11 6 6.583 1.576 11 1 10.424 5.417 6 1 1.576 1.576 1 6 5.417 10.424 1"></polygon></svg>
           </button>
         </div>

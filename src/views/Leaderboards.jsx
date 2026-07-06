@@ -1,17 +1,29 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { api } from '../utils/api';
+import { api, getCachedData } from '../utils/api';
 import { Play } from 'lucide-react';
 
 export default function Leaderboards() {
   const { navigateTo, playSong } = useApp();
-  const [officialLists, setOfficialLists] = useState([]);
-  const [globalLists, setGlobalLists] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  const initData = () => {
+    const cached = getCachedData('/toplist');
+    if (cached && cached.list) {
+      const official = cached.list.filter(item => item.tracks && item.tracks.length > 0);
+      const global = cached.list.filter(item => !item.tracks || item.tracks.length === 0);
+      return { official: official.slice(0, 4), global };
+    }
+    return { official: [], global: [] };
+  };
+
+  const initial = initData();
+  const [officialLists, setOfficialLists] = useState(initial.official);
+  const [globalLists, setGlobalLists] = useState(initial.global);
+  const [loading, setLoading] = useState(officialLists.length === 0);
 
   useEffect(() => {
     const fetchTopLists = async () => {
-      setLoading(true);
+      if (officialLists.length === 0) setLoading(true);
       try {
         const res = await api.getLeaderboards();
         if (res.list) {

@@ -56,6 +56,8 @@ function isCorruptedText(value) {
 export const DEFAULT_PROFILE = {
   version: PROFILE_VERSION,
 
+  isFirstTimeSetupComplete: false,
+
   theme: 'strawberry',
   colorMode: 'dark',
   layoutMode: 'classic',
@@ -90,7 +92,8 @@ export const DEFAULT_PROFILE = {
     textShadow: true,
     textGlow: true,
     autoHideBottomBar: false,
-    progressBarBottom: false
+    progressBarBottom: false,
+    closeBehavior: 'prompt'
   },
 
   desktopLyrics: {
@@ -120,7 +123,7 @@ export const DEFAULT_PROFILE = {
 
   immersiveLyrics: {
     alignment: 'center',
-    fontSize: 28,
+    fontSize: 25,
     translationSize: 18,
     visibleLines: 5,
     position: 'center',
@@ -137,8 +140,8 @@ export const DEFAULT_PROFILE = {
     backgroundDarken: 50,
     visualizerStyle: 'bars',
     globalOffset: 0,
-    inactiveLyricBlur: 0.8,
-    showDecor: false,
+    inactiveLyricBlur: 0.4,
+    showDecor: true,
     wordSweepFps: 60,
     lyricSources: 'amll,qq,kugou',
     boldFirstLine: true,
@@ -147,10 +150,93 @@ export const DEFAULT_PROFILE = {
     staggeredScroll: true,
     fontFamily: 'Inter',
     titleFontFamily: 'Outfit',
-    lyricsPositionY: 42,
+    lyricsPositionY: 40,
     showTranslation: true,
-    animationMode: 'regular',
-    colorPreference: 'warm'
+    lyricsMode: 'regular',
+    colorPreference: 'warm',
+    
+    // Regular Mode Circular Visualizer
+    ringStyle: 'radial',
+    ringBarCount: 180,
+    ringMaxAmplitude: 80,
+    ringInnerOffset: 5,
+    ringLineWidth: 2.5,
+    ringColorMode: 'adaptive',
+    ringCustomColor1: '#17f700',
+    ringCustomColor2: '#00d4ff',
+    ringRotationSpeed: 15,
+    ringRotationBeatSync: false,
+    ringGlowIntensity: 0.6,
+    ringGlowPulse: true,
+    ringSmoothing: 0.25,
+    ringTrailDecay: 0.85,
+    ringOpacity: 0.85,
+
+    // Streamer Mode Visualizer
+    streamerBarHeight: 16,
+    streamerBarMaxHeight: 80,
+    streamerBarOpacity: 0.75,
+    streamerBarGlowSpread: 20,
+    streamerBarFlowSpeed: 1.0,
+    streamerBarColorMode: 'theme',
+    streamerBarCustomColor: '#ff4081',
+    streamerBarSmoothing: 0.35,
+
+    // Talk Mode Visualizer
+    talkParticleCount: 80,
+    talkParticleSize: 1.0,
+    talkParticleOpacity: 0.7,
+    talkParticleShape: 'triangle',
+    talkBurstThreshold: 200,
+    talkBurstIntensity: 1.0,
+    talkDriftSpeed: 1.0,
+    talkColorMode: 'adaptive',
+    talkCustomColor: '#ff4081',
+    talkGravity: 0.05,
+
+    // CloudStep Mode Visualizer
+    cloudWaveBlur: 23,
+    cloudWaveHeight: 30,
+    cloudWaveOpacity: 0.39,
+    cloudWaveSmoothing: 0.4,
+    cloudWaveColorMode: 'theme',
+    cloudWaveCustomColor: '#ff4081',
+    cloudWaveVerticalSpread: 1.0,
+    cloudWaveSyncToLines: true,
+
+    // Spatial Mode Visualizer
+    spatialParticleCount: 200,
+    spatialParticleSize: 1.0,
+    spatialParticleOpacity: 0.7,
+    spatialSpreadX: 1.0,
+    spatialSpreadY: 1.0,
+    spatialSpreadZ: 1.0,
+    spatialConnectLines: true,
+    spatialConnectOpacity: 0.3,
+    spatialColorMode: 'adaptive',
+    spatialCustomColor: '#ff4081',
+    spatialDepthBlur: 0.5,
+
+    // Vinyl Mode Visualizer
+    vinylGrooveCount: 12,
+    vinylGrooveWidth: 1.0,
+    vinylGrooveMaxWidth: 4.0,
+    vinylGrooveOpacity: 0.6,
+    vinylGrooveColorMode: 'theme',
+    vinylStylusGlowStrength: 0.7,
+    vinylStylusGlowSize: 20,
+    vinylEdgeReflection: true,
+    vinylEdgeReflectionIntensity: 0.5,
+    vinylSmoothing: 0.25,
+    vinylTiltAngle: 0,
+    vinylLineSpacing: 0.7,
+
+    // Floating Decor Particles Customizable Parameters
+    decorParticleAmount: 40,
+    decorSpeed: 1.0,
+    decorSize: 1.0,
+    decorOpacity: 0.6,
+    decorTwinkle: false
   },
 
   cover: {
@@ -282,7 +368,22 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+let cachedProfileStr = null;
+let writeTimeout = null;
+
 function readLegacyValue(key, fallback = null) {
+  if (key === PROFILE_KEY && cachedProfileStr !== null) {
+    return cachedProfileStr;
+  }
+  if (typeof window !== 'undefined' && window.electronAPI?.readProfile) {
+    if (key === PROFILE_KEY) {
+      const data = window.electronAPI.readProfile();
+      if (data) {
+        cachedProfileStr = data;
+        return data;
+      }
+    }
+  }
   if (!hasStorage()) return fallback;
   const raw = window.localStorage.getItem(key);
   return raw === null ? fallback : raw;
@@ -364,6 +465,20 @@ function cleanupLegacyKeys() {
 }
 
 function normalizeProfile(profile) {
+  // Migrate old defaults to new user-specified defaults
+  if (profile && profile.immersiveLyrics) {
+    const im = profile.immersiveLyrics;
+    if (im.fontSize === 28 || im.fontSize === 36) im.fontSize = 25;
+    if (im.lyricsPositionY === 50 || im.lyricsPositionY === 60 || im.lyricsPositionY === 42) im.lyricsPositionY = 40;
+    if (im.inactiveLyricBlur === 0.8) im.inactiveLyricBlur = 0.4;
+    if (im.cloudWaveBlur === 20) im.cloudWaveBlur = 23;
+    if (im.cloudWaveOpacity === 0.07 || im.cloudWaveOpacity === 0.15) im.cloudWaveOpacity = 0.39;
+    if (im.vinylLineSpacing === 1 || im.vinylLineSpacing === 1.0) im.vinylLineSpacing = 0.7;
+    if (im.showTranslation === undefined) im.showTranslation = true;
+    if (im.showGlow === undefined) im.showGlow = false;
+    if (im.decorTwinkle === undefined) im.decorTwinkle = false;
+  }
+
   const normalized = deepMerge(clone(DEFAULT_PROFILE), profile || {});
   normalized.version = PROFILE_VERSION;
 
@@ -404,14 +519,34 @@ function migrateProfile(stored, fromVersion = 1) {
   return normalizeProfile(migrated);
 }
 
+
+function writeValue(key, value) {
+  if (key === PROFILE_KEY) {
+    cachedProfileStr = value;
+  }
+  if (typeof window !== 'undefined' && window.electronAPI?.writeProfile) {
+    if (key === PROFILE_KEY) {
+      if (writeTimeout) clearTimeout(writeTimeout);
+      writeTimeout = setTimeout(() => {
+        window.electronAPI.writeProfile(value);
+        if (hasStorage()) window.localStorage.setItem(key, value);
+      }, 300);
+      return;
+    }
+  }
+  if (hasStorage()) {
+    window.localStorage.setItem(key, value);
+  }
+}
+
 export function loadProfile() {
   if (!hasStorage()) return clone(DEFAULT_PROFILE);
 
   try {
-    const raw = window.localStorage.getItem(PROFILE_KEY);
+    const raw = readLegacyValue(PROFILE_KEY, null);
     if (!raw) {
       const migrated = migrateLegacyLocalStorage();
-      window.localStorage.setItem(PROFILE_KEY, JSON.stringify(migrated));
+      writeValue(PROFILE_KEY, JSON.stringify(migrated));
       cleanupLegacyKeys();
       return migrated;
     }
@@ -421,7 +556,7 @@ export function loadProfile() {
       ? migrateProfile(stored, stored.version, PROFILE_VERSION)
       : normalizeProfile(stored);
 
-    window.localStorage.setItem(PROFILE_KEY, JSON.stringify(loaded));
+    writeValue(PROFILE_KEY, JSON.stringify(loaded));
     cleanupLegacyKeys();
     return loaded;
   } catch (error) {
@@ -435,7 +570,7 @@ export function saveProfile(partialOrProfile) {
 
   const current = loadProfile();
   const merged = normalizeProfile(deepMerge(current, partialOrProfile || {}));
-  window.localStorage.setItem(PROFILE_KEY, JSON.stringify(merged));
+  writeValue(PROFILE_KEY, JSON.stringify(merged));
   cleanupLegacyKeys();
   return merged;
 }
@@ -443,7 +578,7 @@ export function saveProfile(partialOrProfile) {
 export function writeProfile(profile) {
   if (!hasStorage()) return normalizeProfile(profile);
   const normalized = normalizeProfile(profile);
-  window.localStorage.setItem(PROFILE_KEY, JSON.stringify(normalized));
+  writeValue(PROFILE_KEY, JSON.stringify(normalized));
   cleanupLegacyKeys();
   return normalized;
 }
@@ -474,10 +609,12 @@ export function importProfile(jsonStr) {
 
 export function resetProfile() {
   if (!hasStorage()) return clone(DEFAULT_PROFILE);
-  window.localStorage.removeItem(PROFILE_KEY);
+  if (hasStorage()) {
+    window.localStorage.removeItem(PROFILE_KEY);
+  }
   cleanupLegacyKeys();
   const defaults = clone(DEFAULT_PROFILE);
-  window.localStorage.setItem(PROFILE_KEY, JSON.stringify(defaults));
+  writeValue(PROFILE_KEY, JSON.stringify(defaults));
   return defaults;
 }
 

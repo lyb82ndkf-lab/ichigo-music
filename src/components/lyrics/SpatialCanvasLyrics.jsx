@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
+import { useApp } from '../../context/AppContext';
 
 // Pre-compute seeded random positions so they stay stable during resizing
 function seededRandom(seed) {
@@ -8,6 +9,8 @@ function seededRandom(seed) {
 
 export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 36, fontStack, themeColor }) {
   const containerRef = useRef(null);
+  const parentRef = useRef(null);
+  const { advancedLyricConfig } = useApp();
   const [viewportSize, setViewportSize] = useState({ w: 800, h: 600 });
 
   useEffect(() => {
@@ -38,12 +41,93 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
     });
   }, [lyrics]);
 
+  // Generate stable particle points
+  const particles = useMemo(() => {
+    const list = [];
+    const count = advancedLyricConfig?.spatialParticleCount ?? 200;
+    for (let i = 0; i < count; i++) {
+      const angle = seededRandom(i * 123.45) * Math.PI * 2;
+      const radius = 150 + seededRandom(i * 543.21) * 1000;
+      const px = Math.cos(angle) * radius;
+      const py = Math.sin(angle) * radius;
+      const pz = (seededRandom(i * 99.9) - 0.5) * 1800;
+      list.push({ x: px, y: py, z: pz, id: i });
+    }
+    return list;
+  }, [advancedLyricConfig?.spatialParticleCount]);
+
+  // Audio visualizer loop: updates CSS properties on the parent container to animate elements in 3D
+  useEffect(() => {
+    let animId;
+    const parent = parentRef.current;
+    if (!parent) return;
+
+    let pulseX = 1.0;
+    let pulseY = 1.0;
+    let pulseZ = 1.0;
+
+    const tick = () => {
+      animId = requestAnimationFrame(tick);
+      
+      const analyser = window.ichigoAnalyser;
+      let dataArray = null;
+      let bufferLength = 128;
+      if (analyser) {
+        bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+        analyser.getByteFrequencyData(dataArray);
+      }
+
+      let bass = 0;
+      let mid = 0;
+      let treble = 0;
+
+      if (dataArray) {
+        const bandSize = Math.floor(bufferLength / 3);
+        for (let i = 0; i < bandSize; i++) bass += dataArray[i] || 0;
+        for (let i = bandSize; i < bandSize * 2; i++) mid += dataArray[i] || 0;
+        for (let i = bandSize * 2; i < bufferLength; i++) treble += dataArray[i] || 0;
+
+        bass = bass / bandSize;
+        mid = mid / bandSize;
+        treble = treble / (bufferLength - bandSize * 2);
+      }
+
+      // Configured scaling ranges
+      const spreadX = advancedLyricConfig?.spatialSpreadX ?? 1.0;
+      const spreadY = advancedLyricConfig?.spatialSpreadY ?? 1.0;
+      const spreadZ = advancedLyricConfig?.spatialSpreadZ ?? 1.0;
+
+      const targetPulseX = 1.0 + (bass / 255) * 0.45 * spreadX;    
+      const targetPulseY = 1.0 + (mid / 255) * 0.45 * spreadY;     
+      const targetPulseZ = 1.0 + (treble / 255) * 0.8 * spreadZ;    
+
+      pulseX += (targetPulseX - pulseX) * 0.15;
+      pulseY += (targetPulseY - pulseY) * 0.15;
+      pulseZ += (targetPulseZ - pulseZ) * 0.15;
+
+      parent.style.setProperty('--pulse-x', pulseX.toFixed(3));
+      parent.style.setProperty('--pulse-y', pulseY.toFixed(3));
+      parent.style.setProperty('--pulse-z', pulseZ.toFixed(3));
+    };
+
+    tick();
+    return () => cancelAnimationFrame(animId);
+  }, [advancedLyricConfig]);
+
   const activePos = linePositions[Math.max(0, activeLineIndex)] || { x: 0, y: 0, z: 0, rot: 0 };
   
   const camX = -activePos.x;
   const camY = -activePos.y;
   const camZ = -activePos.z + 150; // Pull back slightly from the active text
   const camRot = -activePos.rot * 0.5;
+
+  const particleSize = advancedLyricConfig?.spatialParticleSize ?? 1.0;
+  const particleOpacity = advancedLyricConfig?.spatialParticleOpacity ?? 0.7;
+  const colorMode = advancedLyricConfig?.spatialColorMode || 'adaptive';
+  const resolvedParticleColor = colorMode === 'custom' 
+    ? (advancedLyricConfig?.spatialCustomColor || '#ff4081') 
+    : themeColor || '#ffffff';
   
   return (
     <div 
@@ -57,6 +141,7 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
       }}
     >
       <div 
+        ref={parentRef}
         style={{
           position: 'absolute',
           top: '50%',
@@ -68,13 +153,40 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
           transform: `translate3d(${camX}px, ${camY}px, ${camZ}px) rotateZ(${camRot}deg)`
         }}
       >
+        {/* Render 3D dynamic visualizer particles */}
+        {particles.map((p) => {
+          const depthBlur = advancedLyricConfig?.spatialDepthBlur ?? 0.5;
+          // Apply basic depth-blur simulation using CSS filter based on particle base coordinate
+          const blurFactor = Math.max(0, Math.min(6, (Math.abs(p.z) / 900) * 4.5 * depthBlur));
+          
+          return (
+            <div
+              key={`sp-${p.id}`}
+              style={{
+                position: 'absolute',
+                width: `${3 * particleSize}px`,
+                height: `${3 * particleSize}px`,
+                backgroundColor: resolvedParticleColor,
+                borderRadius: '50%',
+                opacity: particleOpacity,
+                // Scale coordinate multipliers driven by CSS variables on the parent element
+                transform: `translate3d(calc(${p.x}px * var(--pulse-x, 1)), calc(${p.y}px * var(--pulse-y, 1)), calc(${p.z}px * var(--pulse-z, 1)))`,
+                filter: blurFactor > 0.5 ? `blur(${blurFactor}px)` : 'none',
+                pointerEvents: 'none',
+                boxShadow: `0 0 ${8 * particleSize}px ${resolvedParticleColor}`
+              }}
+            />
+          );
+        })}
+
+        {/* Spatial Lyrics Lines */}
         {lyrics.map((line, i) => {
           const pos = linePositions[i];
           const isActive = i === activeLineIndex;
           const isPassed = i < activeLineIndex;
           const distToActive = Math.abs(i - activeLineIndex);
           
-          if (distToActive > 25) return null; // Increased cull range due to density
+          if (distToActive > 25) return null; 
           
           return (
             <div

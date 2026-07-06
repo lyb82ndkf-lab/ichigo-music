@@ -1,4 +1,5 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
+import { useApp } from '../../context/AppContext';
 
 export default function VinylRecordLyrics({ 
   lyrics = [], 
@@ -8,14 +9,135 @@ export default function VinylRecordLyrics({
   themeColor, 
   coverUrl, 
   isPlaying,
-  lineSpacing = 1,
+  lineSpacing = 0.7,
   tiltAngle = 0
 }) {
   const containerRef = useRef(null);
+  const grooveCanvasRef = useRef(null);
+  const { advancedLyricConfig } = useApp();
 
   // Center of rotation logic
   // The disc is on the left, so we set transformOrigin far to the left.
   const rotationRadius = 60; // vw
+
+  // Render pulsing concentric groove lines and stylus contact points on vinyl disc
+  useEffect(() => {
+    const canvas = grooveCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animId;
+    let smoothedData = [];
+
+    const draw = () => {
+      animId = requestAnimationFrame(draw);
+      
+      const analyser = window.ichigoAnalyser;
+      let dataArray = null;
+      let bufferLength = 128;
+      if (analyser) {
+        bufferLength = analyser.frequencyBinCount;
+        dataArray = new Uint8Array(bufferLength);
+        analyser.getByteFrequencyData(dataArray);
+      } else {
+        dataArray = new Uint8Array(bufferLength);
+      }
+
+      if (smoothedData.length !== bufferLength) {
+        smoothedData = new Array(bufferLength).fill(0);
+      }
+
+      const upSmooth = 1 - (advancedLyricConfig?.vinylSmoothing ?? 0.25);
+      for (let i = 0; i < bufferLength; i++) {
+        smoothedData[i] += ((dataArray[i] || 0) - smoothedData[i]) * upSmooth;
+      }
+
+      const width = canvas.offsetWidth;
+      const height = canvas.offsetHeight;
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      ctx.clearRect(0, 0, width, height);
+
+      const cx = width / 2;
+      const cy = height / 2;
+      const discRadius = width / 2;
+
+      const grooveCount = advancedLyricConfig?.vinylGrooveCount ?? 12;
+      const baseWidth = advancedLyricConfig?.vinylGrooveWidth ?? 1.0;
+      const maxWidth = advancedLyricConfig?.vinylGrooveMaxWidth ?? 4.0;
+      const opacity = advancedLyricConfig?.vinylGrooveOpacity ?? 0.6;
+      const colorMode = advancedLyricConfig?.vinylGrooveColorMode || 'theme';
+      const resolvedColor = colorMode === 'theme' ? themeColor : 'rgba(255, 255, 255, 0.4)';
+
+      ctx.globalAlpha = opacity;
+      ctx.strokeStyle = resolvedColor;
+      
+      // Draw concentric groove rings
+      const sampleSpan = bufferLength / grooveCount;
+      for (let i = 0; i < grooveCount; i++) {
+        const val = smoothedData[Math.floor(i * sampleSpan)] || 0;
+        const startRad = discRadius * 0.23;
+        const endRad = discRadius * 0.92;
+        const ringRad = startRad + (i / (grooveCount - 1)) * (endRad - startRad);
+        
+        ctx.lineWidth = baseWidth + (val / 255) * (maxWidth - baseWidth);
+        ctx.beginPath();
+        ctx.arc(cx, cy, ringRad, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      // Draw reflective highlights if configured
+      if (advancedLyricConfig?.vinylEdgeReflection !== false) {
+        const reflectionVal = advancedLyricConfig?.vinylEdgeReflectionIntensity ?? 0.5;
+        const highVal = smoothedData[Math.floor(bufferLength * 0.85)] || 0;
+        
+        const grad = ctx.createConicGradient(Math.PI / 4, cx, cy);
+        grad.addColorStop(0, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.2, `rgba(255,255,255,${0.08 * reflectionVal * (1 + highVal / 255)})`);
+        grad.addColorStop(0.4, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.5, 'rgba(255,255,255,0)');
+        grad.addColorStop(0.7, `rgba(255,255,255,${0.08 * reflectionVal * (1 + highVal / 255)})`);
+        grad.addColorStop(0.9, 'rgba(255,255,255,0)');
+        
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(cx, cy, discRadius * 0.95, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Stylus touch-point glow
+      const stylusGlow = advancedLyricConfig?.vinylStylusGlowStrength ?? 0.7;
+      if (stylusGlow > 0) {
+        const stylusSize = advancedLyricConfig?.vinylStylusGlowSize ?? 20;
+        const stylusAngle = -Math.PI / 4; 
+        const stylusRad = discRadius * 0.82;
+        const sx = cx + Math.cos(stylusAngle) * stylusRad;
+        const sy = cy + Math.sin(stylusAngle) * stylusRad;
+        
+        const highVal = smoothedData[Math.floor(bufferLength * 0.7)] || 0;
+        const currentSize = stylusSize * (0.65 + (highVal / 255) * 0.8);
+        
+        const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, currentSize);
+        grad.addColorStop(0, themeColor || '#ff3366');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        
+        ctx.save();
+        ctx.globalAlpha = stylusGlow * (0.55 + (highVal / 255) * 0.45);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(sx, sy, currentSize, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      
+      ctx.globalAlpha = 1.0;
+    };
+
+    draw();
+
+    return () => cancelAnimationFrame(animId);
+  }, [isPlaying, themeColor, advancedLyricConfig]);
 
   return (
     <div 
@@ -151,6 +273,7 @@ export default function VinylRecordLyrics({
       <div className="vinyl-wrapper">
         <div className="vinyl-disc">
           <div className="vinyl-grooves" />
+          <canvas ref={grooveCanvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', borderRadius: '50%', pointerEvents: 'none', zIndex: 2 }} />
           <div className="vinyl-label">
             <img src={coverUrl} alt="Album Art" />
           </div>
@@ -167,14 +290,9 @@ export default function VinylRecordLyrics({
             const isPassed = i < activeLineIndex;
             const dist = i - activeLineIndex;
             
-            // Limit render to avoid off-screen elements
             if (Math.abs(dist) > 12) return null;
             
-            // Calculate arc rotation. 
-            // Dist 0 = 0 deg
-            // Dist -1 = -10 deg (rotates up and left)
-            // Dist +1 = +10 deg (rotates down and left)
-            const anglePerLine = 12 * lineSpacing; // Adjustable via settings
+            const anglePerLine = 12 * lineSpacing; 
             const rotation = dist * anglePerLine;
             
             return (
@@ -183,14 +301,13 @@ export default function VinylRecordLyrics({
                 style={{
                   position: 'absolute',
                   top: '50%',
-                  left: '10%', // Base distance from the disc
+                  left: '10%', 
                   width: '100%',
                   fontFamily: '"Georgia", "Times New Roman", serif, "Noto Sans SC"',
                   fontSize: `${fontPx * (isActive ? 1.1 : 0.85)}px`,
                   fontWeight: isActive ? 700 : 400,
                   color: isActive ? themeColor : 'var(--text-main)',
                   opacity: isActive ? 1 : (isPassed ? 0.3 : 0.5),
-                  // Transform origin is set far to the left to simulate revolving around the record
                   transformOrigin: `-${rotationRadius}vw center`,
                   transform: `translateY(-50%) rotate(${rotation}deg) scale(${isActive ? 1 : 0.95})`,
                   transition: 'transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.7s ease, color 0.7s ease, font-size 0.7s ease',

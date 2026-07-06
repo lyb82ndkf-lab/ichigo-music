@@ -55,7 +55,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
         filter: blur > 0 ? `blur(${blur}px)` : 'none',
         transformOrigin: 'left center',
         transition: 'transform 0.6s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.6s ease, filter 0.6s ease, color 0.6s ease',
-        willChange: 'transform, opacity, filter',
+        willChange: 'transform, opacity',
         display: 'flex',
         flexDirection: 'column',
         gap: `${fontPx * 0.2}px`,
@@ -176,8 +176,8 @@ export default function MonetLyricsRail({ visibleLines, fontPx, translationFontP
         width: '100%',
         height: '100%',
         overflow: 'hidden',
-        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 11%, black 88%, transparent 100%)',
-        maskImage: 'linear-gradient(to bottom, transparent 0%, black 11%, black 88%, transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 5%, black 90%, transparent 100%)',
+        maskImage: 'linear-gradient(to bottom, transparent 0%, black 5%, black 90%, transparent 100%)',
         contain: 'layout paint style'
       }}
     >

@@ -1,38 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { api } from '../utils/api';
+import { api, getCachedData } from '../utils/api';
 import { Play } from 'lucide-react';
 
 export default function Discover() {
   const { navigateTo, playSong } = useApp();
-  const [banners, setBanners] = useState([]);
-  const [recommendPlaylists, setRecommendPlaylists] = useState([]);
-  const [loading, setLoading] = useState(true);
+  
+  const initBanners = () => getCachedData('/banner')?.banners?.slice(0, 6) || [];
+  const initPlaylists = () => {
+    const personal = getCachedData('/personalized?limit=12');
+    if (personal?.result && personal.result.length > 0) return personal.result;
+    return getCachedData('/search?keywords=%3F%3F&type=1000&limit=12&offset=0')?.result?.playlists || [];
+  };
+
+  const [banners, setBanners] = useState(initBanners);
+  const [recommendPlaylists, setRecommendPlaylists] = useState(initPlaylists);
+  // If we already have both from cache, skip the loading spinner
+  const [loading, setLoading] = useState(banners.length === 0 || recommendPlaylists.length === 0);
   const [activeBannerIdx, setActiveBannerIdx] = useState(0);
 
   useEffect(() => {
     const controller = new AbortController();
 
-    const fetchJson = async (url, fallback, timeout = 8000) => {
-      const timer = setTimeout(() => controller.abort(), timeout);
-      try {
-        const res = await fetch(url, { signal: controller.signal, credentials: 'include' });
-        if (!res.ok) return fallback;
-        return await res.json();
-      } catch (err) {
-        if (err?.name !== 'AbortError') console.warn('Discover request failed:', url, err);
-        return fallback;
-      } finally {
-        clearTimeout(timer);
-      }
-    };
+    // Removed local fetchJson, use api.js instead
 
     const fetchData = async () => {
       try {
         const [bannerResult, playlistResult, personalResult] = await Promise.allSettled([
-          fetchJson('/api/banner', { banners: [] }),
+          api.getBanners(),
           api.search('??', 1000, 12, 0).catch(() => ({ result: { playlists: [] } })),
-          fetchJson('/api/personalized?limit=12', { result: [] })
+          api.getPersonalized(12)
         ]);
 
         const bannerRes = bannerResult.status === 'fulfilled' ? bannerResult.value : { banners: [] };

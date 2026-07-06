@@ -19,7 +19,8 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
     isQueueOpen,
     setIsQueueOpen,
     volume,
-    setVolume
+    setVolume,
+    desktopLyricsConfig
   } = useApp();
 
   const [prevVolume, setPrevVolume] = useState(0.8);
@@ -65,10 +66,10 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
             <div className="control-cover" style={{ backgroundImage: `url(${coverUrl})`, cursor: 'pointer' }} onClick={() => { setIsQueueOpen(false); onToggleLyrics?.(); }} title="\u70b9\u51fb\u8fdb\u5165\u6c89\u6d78\u6a21\u5f0f" />
             <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'rgba(255,255,255,0.96)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {currentSong?.name || '未播放'}
               </span>
-              <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.45)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {currentSong?.ar?.[0]?.name || '未知艺术家'}
               </span>
             </div>
@@ -87,7 +88,7 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
-            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)', marginRight: '8px', fontVariantNumeric: 'tabular-nums' }}>
+            <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '8px', fontVariantNumeric: 'tabular-nums' }}>
               {formatTime(progress)} / {formatTime(duration)}
             </span>
             <button className="ctrl-btn" onClick={handlePlayMode} title="播放模式">
@@ -98,6 +99,35 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
             </button>
             <button className={`ctrl-btn ${isQueueOpen ? 'active' : ''}`} onClick={() => setIsQueueOpen(!isQueueOpen)}>
               <ListMusic size={18} />
+            </button>
+            <button 
+              className={`ctrl-btn ${desktopLyricsConfig?.show ? 'active' : ''}`}
+              style={{ 
+                fontSize: '11px', 
+                fontWeight: 600,
+                width: '22px',
+                height: '22px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: desktopLyricsConfig?.show ? '1px solid var(--primary)' : '1px solid var(--border, rgba(255,255,255,0.2))',
+                borderRadius: '6px',
+                color: desktopLyricsConfig?.show ? 'var(--primary)' : 'var(--text-muted)',
+                background: desktopLyricsConfig?.show ? 'var(--primary-subtle)' : 'transparent',
+                boxShadow: desktopLyricsConfig?.show ? '0 0 8px var(--primary-glow)' : 'none',
+                transition: 'all 0.2s ease',
+                padding: 0
+              }}
+              onClick={() => {
+                if (window.electronAPI) {
+                  window.electronAPI.toggleDesktopLyrics();
+                } else {
+                  alert("桌面歌词功能仅在桌面客户端可用");
+                }
+              }}
+              title="桌面歌词"
+            >
+              词
             </button>
             <div className="volume-control-wrapper" style={{ position: 'relative' }}>
               <button className="ctrl-btn" onClick={handleVolumeToggle} title="音量 / 静音">

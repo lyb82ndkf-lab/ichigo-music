@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Home, Settings, User as UserIcon, Search, Minus, Square, X } from 'lucide-react';
 
 export default function ModernTopControls() {
-  const { navigateTo, user } = useApp();
+  const { navigateTo, user, requestAppClose } = useApp();
   const searchInputRef = useRef(null);
 
   const handleSearch = (e) => {
@@ -25,7 +25,7 @@ export default function ModernTopControls() {
         </button>
         
         <div id="unified-search-box">
-          <Search size={16} color="rgba(255,255,255,0.4)" style={{ marginLeft: 14 }} />
+          <Search size={16} color="currentColor" style={{ marginLeft: 14, opacity: 0.5 }} />
           <input 
             ref={searchInputRef}
             type="text" 
@@ -55,7 +55,7 @@ export default function ModernTopControls() {
         <button className="desktop-window-btn" onClick={() => window.electronAPI?.maximize?.()} title="最大化">
           <Square size={14} />
         </button>
-        <button className="desktop-window-btn close" onClick={() => window.electronAPI?.close?.()} title="关闭">
+        <button className="desktop-window-btn close" onClick={requestAppClose} title="关闭">
           <X size={18} />
         </button>
       </div>

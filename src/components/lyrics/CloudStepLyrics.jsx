@@ -43,42 +43,37 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
 
     const update = () => {
       const currentTime = (engineRef.current?.getCurrentTime() || 0) + globalOffset;
-      const lineEndTime = line.time + (line.duration || 5);
 
       wordTimings.forEach((timing, idx) => {
         const el = wordElements[idx];
         if (!el) return;
 
         const { startTime, endTime } = timing;
-        let glowIntensity = 0;
-        let scale = 1;
         
-        if (currentTime < startTime) {
-          glowIntensity = 0;
-          scale = 1;
-        } else if (currentTime <= endTime) {
-          const progress = (currentTime - startTime) / Math.max(0.01, endTime - startTime);
-          glowIntensity = Math.sin(progress * Math.PI); // Peak at center
-          scale = 1 + 0.15 * Math.sin(progress * Math.PI);
+        if (currentTime >= startTime && currentTime <= endTime) {
+          if (!el.dataset.state || el.dataset.state !== 'active') {
+            el.dataset.state = 'active';
+            if (showGlow) {
+              el.style.color = themeColor;
+              el.style.textShadow = `0 0 ${fontPx * 0.4}px ${themeColor}, 0 0 ${fontPx * 0.8}px ${themeColor}`;
+            }
+            el.style.transform = 'scale(1.15)';
+          }
+        } else if (currentTime > endTime) {
+          if (!el.dataset.state || el.dataset.state !== 'passed') {
+            el.dataset.state = 'passed';
+            el.style.color = 'var(--text-main)';
+            el.style.textShadow = 'none';
+            el.style.transform = 'scale(1)';
+          }
         } else {
-          scale = 1;
-          const decayElapsed = currentTime - endTime;
-          const decayLimit = Math.max(1.0, lineEndTime - endTime);
-          if (decayElapsed < decayLimit) {
-            glowIntensity = 1 - (decayElapsed / decayLimit);
+          if (el.dataset.state) {
+            el.removeAttribute('data-state');
+            el.style.color = 'var(--text-muted)';
+            el.style.textShadow = 'none';
+            el.style.transform = 'scale(1)';
           }
         }
-
-        if (showGlow && glowIntensity > 0.05) {
-          const r1 = fontPx * 0.25 * glowIntensity;
-          const r2 = fontPx * 0.6 * glowIntensity;
-          el.style.textShadow = `0 0 ${r1}px ${themeColor}, 0 0 ${r2}px ${themeColor}`;
-          el.style.color = themeColor;
-        } else {
-          el.style.textShadow = 'none';
-          el.style.color = 'var(--text-main)';
-        }
-        el.style.transform = `scale(${scale})`;
       });
 
       animationId = requestAnimationFrame(update);
@@ -86,13 +81,14 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
 
     animationId = requestAnimationFrame(update);
     return () => cancelAnimationFrame(animationId);
-  }, [isActive, line, wordTimings, fontPx, themeColor, showGlow, globalOffset, engineRef]);
+  }, [isActive, wordTimings, fontPx, themeColor, showGlow, globalOffset, engineRef]);
 
   const absDist = Math.abs(dist);
   const zOffset = -absDist * 250; 
   const yOffset = dist * (fontPx * 2.8 * spacing); 
   const opacity = isActive ? 1 : Math.max(0, 0.8 - absDist * 0.25);
-  const blur = isActive ? 0 : Math.min(8, absDist * 1.5);
+  // Cap blur heavily to avoid GPU stalls.
+  const blur = isActive ? 0 : Math.min(2, absDist * 0.5);
   const rotateX = dist * 8; 
 
   return (
@@ -105,7 +101,8 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
         transform: `translateY(-50%) translateY(${yOffset}px) translateZ(${zOffset}px) rotateX(${rotateX}deg)`,
         opacity: opacity,
         filter: blur > 0 ? `blur(${blur}px)` : 'none',
-        transition: 'all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)',
+        transition: 'transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.8s ease, filter 0.8s ease',
+        willChange: 'transform, opacity',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -137,10 +134,10 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
             ref={el => { wordRefs.current[idx] = el; }}
             style={{
               display: 'inline-block',
-              willChange: isActive ? 'transform, color, text-shadow' : 'auto',
               whiteSpace: timing.text.trim() === '' ? 'pre' : 'normal',
               color: isActive ? 'var(--text-main)' : 'var(--text-muted)',
-              transition: 'color 0.8s ease'
+              transition: 'color 0.4s ease, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), text-shadow 0.4s ease',
+              willChange: isActive ? 'transform, color' : 'auto'
             }}
           >
             {timing.text}

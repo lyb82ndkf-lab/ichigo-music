@@ -106,7 +106,7 @@ function useAnimationMode(lineId, length, trackIndex) {
   }, [lineId, length, trackIndex]);
 }
 
-const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, themeColor, showGlow, globalOffset, isActive }) => {
+const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, themeColor, showGlow, globalOffset, isActive, dist }) => {
   const flatTimings = useMemo(() => buildFlatTimings(line), [line]);
   const charRefs = useRef([]);
   const containerRef = useRef(null);
@@ -185,14 +185,11 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
         el.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${scale})`;
         el.style.opacity = opacity;
 
-        if (showGlow && glowIntensity > 0.05) {
-          const r1 = fontPx * 0.15 * glowIntensity;
-          const r2 = fontPx * 0.35 * glowIntensity;
-          el.style.textShadow = `0 0 ${r1}px ${themeColor}, 0 0 ${r2}px ${themeColor}`;
-          el.style.color = themeColor;
+        // Use dataset for fast GPU-accelerated CSS state transitions instead of rAF text-shadow mutation
+        if (glowIntensity > 0.05) {
+          if (el.dataset.state !== 'glowing') el.dataset.state = 'glowing';
         } else {
-          el.style.textShadow = 'none';
-          el.style.color = 'var(--text-main)';
+          if (el.dataset.state === 'glowing') el.dataset.state = 'normal';
         }
       });
 
@@ -228,12 +225,19 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
     <div
       ref={containerRef}
       style={{
+        position: 'absolute',
+        top: '50%',
+        left: 0,
+        right: 0,
+        transform: `translateY(-50%) translateY(${dist * (fontPx * 4)}px)`,
         display: 'flex',
         flexDirection: 'column',
         alignItems: tStyle.jc === 'center' ? 'center' : (tStyle.jc === 'flex-start' ? 'flex-start' : 'flex-end'),
         width: '100%',
-        padding: '16px 8vw',
-        boxSizing: 'border-box'
+        padding: '0 8vw',
+        boxSizing: 'border-box',
+        transition: 'transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)',
+        zIndex: isActive ? 10 : 5 - Math.abs(dist)
       }}
     >
       <div
@@ -251,15 +255,34 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
           perspective: '1000px'
         }}
       >
+        <style>
+          {`
+            .tilt-lyric-char {
+              color: var(--text-main);
+              text-shadow: none;
+              transition: color 0.4s ease, text-shadow 0.4s ease;
+            }
+            .tilt-lyric-char[data-state="glowing"] {
+              color: ${themeColor};
+              text-shadow: 0 0 ${fontPx * 0.15}px ${themeColor}, 0 0 ${fontPx * 0.35}px ${themeColor};
+            }
+            .tilt-lyric-char[data-state="normal"] {
+              color: var(--text-main);
+              text-shadow: none;
+            }
+          `}
+        </style>
         {flatTimings.map((timing, idx) => (
           <span
             key={idx}
+            className="tilt-lyric-char"
             ref={el => { charRefs.current[idx] = el; }}
             style={{
               display: 'inline-block',
               willChange: 'transform, opacity',
               whiteSpace: timing.text.trim() === '' ? 'pre' : 'normal',
-              transformOrigin: 'center center'
+              transformOrigin: 'center center',
+              opacity: 0 // Prevent initial flash before rAF hook takes over
             }}
           >
             {timing.text}
@@ -310,7 +333,8 @@ export default function TiltLyrics({
         line: lyrics[i],
         index: i,
         trackIndex: i % 4,
-        isActive: i === activeLineIndex
+        isActive: i === activeLineIndex,
+        dist: i - activeLineIndex
       });
     }
     return lines;
@@ -320,10 +344,8 @@ export default function TiltLyrics({
     <div style={{
       width: '100%',
       height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'center',
-      gap: '2vh'
+      position: 'relative',
+      overflow: 'hidden'
     }}>
       {displayLines.map(item => (
         <ChaosLine
@@ -331,6 +353,7 @@ export default function TiltLyrics({
           line={item.line}
           trackIndex={item.trackIndex}
           isActive={item.isActive}
+          dist={item.dist}
           engineRef={engineRef}
           fontPx={fontPx}
           fontStack={fontStack}

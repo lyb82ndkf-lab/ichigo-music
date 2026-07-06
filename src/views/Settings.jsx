@@ -39,7 +39,7 @@ function Toggle({ checked, onChange }) { return <input type="checkbox" checked={
 function Segment({ options, value, onChange }) { return <div className="segmented-control">{options.map((item) => { const optionValue = typeof item === 'object' ? item.value : item; const label = typeof item === 'object' ? item.label : item; return <button key={String(optionValue)} type="button" className={value === optionValue ? 'active' : ''} onClick={() => onChange(optionValue)}>{label}</button>; })}</div>; }
 
 export default function Settings() {
-  const { user, logout, profile, theme, setTheme, colorMode, setColorMode, layoutMode, setLayoutMode, customThemeColors, saveCustomThemeColors, navbarConfig, saveNavbarConfig, advancedLyricConfig, saveAdvancedLyricConfig, coverConfig, saveCoverConfig, desktopLyricsConfig, saveDesktopLyricsConfig, audioConfig, saveAudioConfig, renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts, audioQuality, setAudioQuality, viewData } = useApp();
+  const { user, logout, profile, theme, setTheme, colorMode, setColorMode, layoutMode, setLayoutMode, customThemeColors, saveCustomThemeColors, navbarConfig, saveNavbarConfig, advancedLyricConfig, saveAdvancedLyricConfig, coverConfig, saveCoverConfig, desktopLyricsConfig, saveDesktopLyricsConfig, audioConfig, saveAudioConfig, renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts, audioQuality, setAudioQuality, viewData, appearanceConfig, saveAppearanceConfig } = useApp();
   const [activeTab, setActiveTab] = useState(() => viewData?.tab || (user ? 'theme' : 'account'));
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function Settings() {
   const resetAll = () => { if (window.confirm('\u786e\u8ba4\u91cd\u7f6e\u6240\u6709\u8bbe\u7f6e\u4e3a\u9ed8\u8ba4\u503c\uff1f\u6b64\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002')) { resetProfile(); window.location.reload(); } };
 
   const renderProfileTools = () => <div className="settings-section"><h3 className="settings-title"><CheckCircle size={18} />{T.profile}</h3><div className="settings-content"><p className="settings-desc">{T.profileDesc}</p><div className="settings-actions-row"><button className="setting-btn" onClick={exportProfile}>{T.export}</button><button className="setting-btn" onClick={() => document.getElementById('import-file-input')?.click()}>{T.import}</button><button className="setting-btn danger" onClick={resetAll}>{T.reset}</button><input id="import-file-input" type="file" accept=".json,application/json" hidden onChange={handleImportProfile} /></div><p className="settings-desc">{`\u5f53\u524d\u914d\u7f6e\u7248\u672c\uff1av${profile.version}\uff0c\u5b58\u50a8 Key\uff1a`}<code>ichigomusic_profile_v2</code></p></div></div>;
-  const renderThemeTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Monitor size={18} />{T.layoutColor}</h3><div className="settings-content"><SettingRow label={T.layout} hint="Classic / Modern"><Segment options={[{ value: 'classic', label: T.classic }, { value: 'modern', label: T.modern }]} value={layoutMode} onChange={setLayoutMode} /></SettingRow><SettingRow label={T.colorMode}><Segment options={[{ value: 'dark', label: T.dark }, { value: 'light', label: T.light }, { value: 'system', label: T.system }]} value={colorMode} onChange={setColorMode} /></SettingRow></div></div><div className="settings-section"><h3 className="settings-title"><Palette size={18} />{T.accent}</h3><div className="theme-selector">{themeOptions.map(t => <button key={t.id} className={`theme-btn ${theme === t.id ? 'active' : ''}`} onClick={() => setTheme(t.id)} style={{ background: t.color }} title={t.name} />)}</div></div><div className="settings-section"><h3 className="settings-title"><Palette size={18} />{T.customTheme}</h3><div className="settings-content settings-grid-3"><SettingRow label={T.primary}><input type="color" value={customPrimary} onChange={(e) => setCustomPrimary(e.target.value)} /></SettingRow><SettingRow label={T.bgStart}><input type="color" value={customBgStart} onChange={(e) => setCustomBgStart(e.target.value)} /></SettingRow><SettingRow label={T.bgEnd}><input type="color" value={customBgEnd} onChange={(e) => setCustomBgEnd(e.target.value)} /></SettingRow></div><button className="setting-btn active" onClick={handleApplyCustomTheme}>{T.applyCustom}</button></div>{renderProfileTools()}</div>;
+  const renderThemeTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Monitor size={18} />{T.layoutColor}</h3><div className="settings-content"><SettingRow label={T.layout} hint="Classic / Modern"><Segment options={[{ value: 'classic', label: T.classic }, { value: 'modern', label: T.modern }]} value={layoutMode} onChange={setLayoutMode} /></SettingRow><SettingRow label={T.colorMode}><Segment options={[{ value: 'dark', label: T.dark }, { value: 'light', label: T.light }, { value: 'system', label: T.system }]} value={colorMode} onChange={setColorMode} /></SettingRow><SettingRow label="关闭主面板"><Segment options={[{ value: 'prompt', label: '弹出提示' }, { value: 'hide', label: '隐藏到托盘' }, { value: 'close', label: '退出应用' }]} value={appearanceConfig.closeBehavior || 'prompt'} onChange={(v) => saveAppearanceConfig({ ...appearanceConfig, closeBehavior: v })} /></SettingRow></div></div><div className="settings-section"><h3 className="settings-title"><Palette size={18} />{T.accent}</h3><div className="theme-selector">{themeOptions.map(t => <button key={t.id} className={`theme-btn ${theme === t.id ? 'active' : ''}`} onClick={() => setTheme(t.id)} style={{ background: t.color }} title={t.name} />)}</div></div><div className="settings-section"><h3 className="settings-title"><Palette size={18} />{T.customTheme}</h3><div className="settings-content settings-grid-3"><SettingRow label={T.primary}><input type="color" value={customPrimary} onChange={(e) => setCustomPrimary(e.target.value)} /></SettingRow><SettingRow label={T.bgStart}><input type="color" value={customBgStart} onChange={(e) => setCustomBgStart(e.target.value)} /></SettingRow><SettingRow label={T.bgEnd}><input type="color" value={customBgEnd} onChange={(e) => setCustomBgEnd(e.target.value)} /></SettingRow></div><button className="setting-btn active" onClick={handleApplyCustomTheme}>{T.applyCustom}</button></div>{renderProfileTools()}</div>;
   const renderDesktopTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Airplay size={18} />{T.desktopWindow}</h3><div className="settings-content"><SettingRow label={T.floatingLyrics} hint="Electron"><button className={`setting-btn ${desktopLyricsConfig.show ? 'active' : ''}`} onClick={handleToggleDesktopLyrics}>{desktopLyricsConfig.show ? T.running : T.startNow}</button></SettingRow><SettingRow label={T.lockWindow}><Toggle checked={desktopLyricsConfig.locked} onChange={(v) => updateDesktop({ locked: v })} /></SettingRow><SettingRow label={T.topMost}><Toggle checked={desktopLyricsConfig.alwaysOnTop !== false} onChange={(v) => updateDesktop({ alwaysOnTop: v })} /></SettingRow><SettingRow label={`${T.opacity}\uff1a${Number(desktopLyricsConfig.opacity ?? 1).toFixed(2)}`}><input className="setting-slider" type="range" min="0.3" max="1" step="0.05" value={desktopLyricsConfig.opacity ?? 1} onChange={(e) => updateDesktop({ opacity: Number(e.target.value) })} /></SettingRow></div></div><div className="settings-section"><h3 className="settings-title"><Palette size={18} />{T.fontLayoutColor}</h3><div className="settings-content"><SettingRow label={T.fontFamily}><select className="setting-select" value={desktopLyricsConfig.fontFamily || 'Inter'} onChange={(e) => updateDesktop({ fontFamily: e.target.value })}><option value="Inter">Inter</option><option value="Noto Sans SC">Noto Sans SC</option><option value="Outfit">Outfit</option><option value="JetBrains Mono">JetBrains Mono</option><option value="system-ui">system-ui</option><option value="Microsoft YaHei">Microsoft YaHei</option></select></SettingRow><SettingRow label={`${T.fontSize}\uff1a${desktopLyricsConfig.fontSize || 36}px`}><input className="setting-slider" type="range" min="24" max="72" value={desktopLyricsConfig.fontSize || 36} onChange={(e) => updateDesktop({ fontSize: Number(e.target.value) })} /></SettingRow><SettingRow label={`${T.fontWeight}\uff1a${desktopLyricsConfig.fontWeight || 700}`}><Segment options={[300,400,500,600,700,800,900]} value={desktopLyricsConfig.fontWeight || 700} onChange={(v) => updateDesktop({ fontWeight: v, bold: v >= 700 })} /></SettingRow><SettingRow label={T.align}><Segment options={[{value:'left',label:T.left},{value:'center',label:T.center},{value:'right',label:T.right}]} value={desktopLyricsConfig.alignment || 'center'} onChange={(v)=>updateDesktop({alignment:v})}/></SettingRow><SettingRow label={T.lineCount}><Segment options={[{value:1,label:T.oneLine},{value:2,label:T.twoLines},{value:3,label:T.threeLines}]} value={desktopLyricsConfig.lineCount || 3} onChange={(v)=>updateDesktop({lineCount:v})}/></SettingRow><SettingRow label={T.showTranslation}><Toggle checked={desktopLyricsConfig.showTranslation !== false} onChange={(v)=>updateDesktop({showTranslation:v})}/></SettingRow><SettingRow label={`${T.translationSize}\uff1a${desktopLyricsConfig.translationSize || 22}px`}><input className="setting-slider" type="range" min="12" max="36" value={desktopLyricsConfig.translationSize || 22} onChange={(e)=>updateDesktop({translationSize:Number(e.target.value)})}/></SettingRow><SettingRow label="配色方案"><select className="setting-select" value={desktopLyricsConfig.colorPreset || 'strawberry'} onChange={(e) => updateDesktop({ colorPreset: e.target.value })}><option value="strawberry">草莓甜心</option><option value="aurora">极光绿野</option><option value="ocean">深海晴空</option><option value="purple">霓虹紫梦</option><option value="gold">灿烂暖金</option><option value="sakura">玫瑰樱粉</option><option value="dark">极简暗黑</option><option value="custom">自定义颜色</option></select></SettingRow>{(desktopLyricsConfig.colorPreset === 'custom') && (<><SettingRow label={T.playedColor}><div className="color-row"><input type="color" value={desktopLyricsConfig.playedColor || '#ff3366'} onChange={(e)=>updateDesktop({playedColor:e.target.value,color:e.target.value})}/>{swatches.map(c=><button key={`p-${c}`} className="swatch" style={{background:c}} onClick={()=>updateDesktop({playedColor:c,color:c})}/>)}</div></SettingRow><SettingRow label={T.unplayedColor}><div className="color-row"><input type="color" value={desktopLyricsConfig.unplayedColor || '#ffffff'} onChange={(e)=>updateDesktop({unplayedColor:e.target.value})}/>{swatches.map(c=><button key={`u-${c}`} className="swatch" style={{background:c}} onClick={()=>updateDesktop({unplayedColor:c})}/>)}</div></SettingRow><SettingRow label="描边颜色"><div className="color-row"><input type="color" value={desktopLyricsConfig.textStroke?.color || '#000000'} onChange={(e)=>updateDesktop({textStroke:{...(desktopLyricsConfig.textStroke || {}),color:e.target.value}})}/>{swatches.map(c=><button key={`s-${c}`} className="swatch" style={{background:c}} onClick={()=>updateDesktop({textStroke:{...(desktopLyricsConfig.textStroke || {}),color:c}})}/>)}</div></SettingRow></>)}<SettingRow label={T.stroke}><Toggle checked={desktopLyricsConfig.textStroke?.enabled} onChange={(v)=>updateDesktop({textStroke:{...desktopLyricsConfig.textStroke,enabled:v}})}/></SettingRow><SettingRow label={`${T.strokeWidth}\uff1a${desktopLyricsConfig.textStroke?.width ?? 0.5}px`}><input className="setting-slider" type="range" min="0" max="3" step="0.1" value={desktopLyricsConfig.textStroke?.width ?? 0.5} onChange={(e)=>updateDesktop({textStroke:{...desktopLyricsConfig.textStroke,width:Number(e.target.value)}})}/></SettingRow><SettingRow label={T.shadow}><Toggle checked={desktopLyricsConfig.textShadow?.enabled !== false} onChange={(v)=>updateDesktop({textShadow:{...desktopLyricsConfig.textShadow,enabled:v}})}/></SettingRow><SettingRow label={`${T.shadowBlur}\uff1a${desktopLyricsConfig.textShadow?.blur ?? 12}px`}><input className="setting-slider" type="range" min="0" max="30" value={desktopLyricsConfig.textShadow?.blur ?? 12} onChange={(e)=>updateDesktop({textShadow:{...desktopLyricsConfig.textShadow,blur:Number(e.target.value)}})}/></SettingRow><SettingRow label={T.glow}><Toggle checked={desktopLyricsConfig.glow?.enabled} onChange={(v)=>updateDesktop({glow:{...desktopLyricsConfig.glow,enabled:v}})}/></SettingRow></div></div></div>;
   const renderImmersiveTab = () => (
     <div className="settings-stack">
@@ -103,11 +103,10 @@ export default function Settings() {
           <SettingRow label={T.coverShape}><Segment options={[{value:true,label:T.square},{value:false,label:T.rounded}]} value={coverConfig.squareCover !== false} onChange={(v)=>updateCover({squareCover:v})}/></SettingRow>
           <SettingRow label={`${T.bgBlur}：${advancedLyricConfig.backgroundBlur || 32}`}><input className="setting-slider" type="range" min="0" max="60" value={advancedLyricConfig.backgroundBlur || 32} onChange={(e)=>updateImmersive({backgroundBlur:Number(e.target.value)})}/></SettingRow>
           <SettingRow label={T.bgMode}><Segment options={[{value:'cover',label:T.cover},{value:'gradient',label:T.gradient},{value:'solid',label:T.solid},{value:'none',label:T.none}]} value={advancedLyricConfig.backgroundMode || 'cover'} onChange={(v)=>updateImmersive({backgroundMode:v})}/></SettingRow>
-          <SettingRow label={T.visualizer}><Segment options={[{value:'bars',label:T.bars},{value:'waveform',label:T.waveform},{value:'particle',label:T.particle},{value:'circular',label:T.circular},{value:'none',label:T.off}]} value={advancedLyricConfig.visualizerStyle || 'bars'} onChange={(v)=>updateImmersive({visualizerStyle:v})}/></SettingRow>
         </div>
       </div>
       <div className="settings-section">
-        <h3 className="settings-title"><Image size={18} />沉浸特效与参数化控制</h3>
+        <h3 className="settings-title"><Sliders size={18} />沉浸特效与参数化控制</h3>
         <div className="settings-content">
           <SettingRow label="气泡模式对齐方式">
             <Segment options={[{value:'alternate',label:'左右交替'},{value:'left',label:'全局居左'},{value:'right',label:'全局居右'}]} value={advancedLyricConfig.bubbleAlign || 'alternate'} onChange={(v)=>updateImmersive({bubbleAlign:v})}/>
@@ -115,22 +114,301 @@ export default function Settings() {
           <SettingRow label={`云阶模式行间距：${advancedLyricConfig.cloudStepSpacing || 1}`}>
             <input className="setting-slider" type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.cloudStepSpacing || 1} onChange={(e)=>updateImmersive({cloudStepSpacing:Number(e.target.value)})}/>
           </SettingRow>
-          <SettingRow label={`黑胶旋转行间距：${advancedLyricConfig.vinylLineSpacing || 1}`}>
-            <input className="setting-slider" type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.vinylLineSpacing || 1} onChange={(e)=>updateImmersive({vinylLineSpacing:Number(e.target.value)})}/>
+          <SettingRow label={`黑胶旋转行间距：${advancedLyricConfig.vinylLineSpacing ?? 0.7}`}>
+            <input className="setting-slider" type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.vinylLineSpacing ?? 0.7} onChange={(e)=>updateImmersive({vinylLineSpacing:Number(e.target.value)})}/>
           </SettingRow>
-          <SettingRow label={`黑胶旋转倾斜角：${advancedLyricConfig.vinylTiltAngle || 0}°`}>
-            <input className="setting-slider" type="range" min="-60" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle || 0} onChange={(e)=>updateImmersive({vinylTiltAngle:Number(e.target.value)})}/>
+          <SettingRow label={`黑胶旋转倾斜角：${advancedLyricConfig.vinylTiltAngle ?? 0}°`}>
+            <input className="setting-slider" type="range" min="-60" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle ?? 0} onChange={(e)=>updateImmersive({vinylTiltAngle:Number(e.target.value)})}/>
           </SettingRow>
-          <SettingRow label="粒子发射器系统" hint="高频峰值时释放星光粒子"><Toggle checked={advancedLyricConfig.particleSystem !== false} onChange={(v)=>updateImmersive({particleSystem:v})}/></SettingRow>
-          {advancedLyricConfig.particleSystem !== false && (
+          <SettingRow label="背景悬浮粒子装饰 (Floating Decor)" hint="漂浮星空微粒装饰效果"><Toggle checked={advancedLyricConfig.showDecor === true} onChange={(v)=>updateImmersive({showDecor:v})}/></SettingRow>
+          {advancedLyricConfig.showDecor === true && (
             <>
-              <SettingRow label={`粒子发射数量：${advancedLyricConfig.particleAmount || 50}`}><input className="setting-slider" type="range" min="10" max="150" step="5" value={advancedLyricConfig.particleAmount || 50} onChange={(e)=>updateImmersive({particleAmount:Number(e.target.value)})}/></SettingRow>
-              <SettingRow label={`粒子发光大小：${advancedLyricConfig.particleSize || 1.5}`}><input className="setting-slider" type="range" min="0.5" max="3" step="0.1" value={advancedLyricConfig.particleSize || 1.5} onChange={(e)=>updateImmersive({particleSize:Number(e.target.value)})}/></SettingRow>
-              <SettingRow label={`粒子不透明度：${advancedLyricConfig.particleOpacity || 0.8}`}><input className="setting-slider" type="range" min="0.1" max="1" step="0.1" value={advancedLyricConfig.particleOpacity || 0.8} onChange={(e)=>updateImmersive({particleOpacity:Number(e.target.value)})}/></SettingRow>
+              <SettingRow label={`浮动粒子发射数：${advancedLyricConfig.decorParticleAmount ?? 40}`}><input className="setting-slider" type="range" min="10" max="150" step="5" value={advancedLyricConfig.decorParticleAmount ?? 40} onChange={(e)=>updateImmersive({decorParticleAmount:Number(e.target.value)})}/></SettingRow>
+              <SettingRow label={`粒子浮游运动速度：${(advancedLyricConfig.decorSpeed ?? 1.0).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.decorSpeed ?? 1.0} onChange={(e)=>updateImmersive({decorSpeed:Number(e.target.value)})}/></SettingRow>
+              <SettingRow label={`粒子发光微调半径：${(advancedLyricConfig.decorSize ?? 1.0).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.decorSize ?? 1.0} onChange={(e)=>updateImmersive({decorSize:Number(e.target.value)})}/></SettingRow>
+              <SettingRow label={`粒子底噪基础透明：${(advancedLyricConfig.decorOpacity ?? 0.6).toFixed(2)}`}><input className="setting-slider" type="range" min="0.1" max="1.0" step="0.05" value={advancedLyricConfig.decorOpacity ?? 0.6} onChange={(e)=>updateImmersive({decorOpacity:Number(e.target.value)})}/></SettingRow>
+              <SettingRow label="随音乐节奏闪烁喷涌" hint="关闭后微粒将保持匀速平静漂流"><Toggle checked={advancedLyricConfig.decorTwinkle === true} onChange={(v)=>updateImmersive({decorTwinkle:v})}/></SettingRow>
             </>
           )}
           <SettingRow label="背景水印与装饰符" hint="漂浮音符、十字星与水印"><Toggle checked={advancedLyricConfig.backgroundDecor !== false} onChange={(v)=>updateImmersive({backgroundDecor:v})}/></SettingRow>
           <SettingRow label="动态音阶描边" hint="视觉残影与霓虹拖影效果"><Toggle checked={advancedLyricConfig.dynamicOutlines !== false} onChange={(v)=>updateImmersive({dynamicOutlines:v})}/></SettingRow>
+
+          {/* ================= 常规滚动模式 (regular) 可视化参数 ================= */}
+          {advancedLyricConfig.lyricsMode === 'regular' && (
+            <>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>环形频谱可视化（封面后方）</h4>
+              <SettingRow label="环形样式">
+                <Segment 
+                  options={[
+                    { value: 'radial', label: '辐射线条' },
+                    { value: 'particle', label: '发光粒子' },
+                    { value: 'wave', label: '连续波环' }
+                  ]} 
+                  value={advancedLyricConfig.ringStyle || 'radial'} 
+                  onChange={(v) => updateImmersive({ ringStyle: v })} 
+                />
+              </SettingRow>
+              <SettingRow label={`采样精度 (线条/粒子数)：${advancedLyricConfig.ringBarCount ?? 180}`}>
+                <input className="setting-slider" type="range" min="60" max="360" step="10" value={advancedLyricConfig.ringBarCount ?? 180} onChange={(e) => updateImmersive({ ringBarCount: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`最大延伸振幅：${advancedLyricConfig.ringMaxAmplitude ?? 80}px`}>
+                <input className="setting-slider" type="range" min="20" max="200" step="5" value={advancedLyricConfig.ringMaxAmplitude ?? 80} onChange={(e) => updateImmersive({ ringMaxAmplitude: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`唱片边缘间距偏差：${advancedLyricConfig.ringInnerOffset ?? 5}px`}>
+                <input className="setting-slider" type="range" min="-50" max="100" step="1" value={advancedLyricConfig.ringInnerOffset ?? 5} onChange={(e) => updateImmersive({ ringInnerOffset: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`画笔/粒子线宽：${advancedLyricConfig.ringLineWidth ?? 2.5}px`}>
+                <input className="setting-slider" type="range" min="1.0" max="8.0" step="0.5" value={advancedLyricConfig.ringLineWidth ?? 2.5} onChange={(e) => updateImmersive({ ringLineWidth: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="配色方案">
+                <Segment 
+                  options={[
+                    { value: 'adaptive', label: '封面自适应' },
+                    { value: 'theme', label: '主题单色' },
+                    { value: 'custom', label: '双色渐变' }
+                  ]} 
+                  value={advancedLyricConfig.ringColorMode || 'adaptive'} 
+                  onChange={(v) => updateImmersive({ ringColorMode: v })} 
+                />
+              </SettingRow>
+              {advancedLyricConfig.ringColorMode === 'custom' && (
+                <SettingRow label="自定义渐变色">
+                  <div style={{ display: 'flex', gap: '16px' }}>
+                    <input type="color" value={advancedLyricConfig.ringCustomColor1 || '#17f700'} onChange={(e) => updateImmersive({ ringCustomColor1: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                    <input type="color" value={advancedLyricConfig.ringCustomColor2 || '#00d4ff'} onChange={(e) => updateImmersive({ ringCustomColor2: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                  </div>
+                </SettingRow>
+              )}
+              <SettingRow label={`自转慢速慢转角：${advancedLyricConfig.ringRotationSpeed ?? 15}°/分`}>
+                <input className="setting-slider" type="range" min="0" max="120" step="5" value={advancedLyricConfig.ringRotationSpeed ?? 15} onChange={(e) => updateImmersive({ ringRotationSpeed: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="慢转角随声浪脉冲加速">
+                <Toggle checked={advancedLyricConfig.ringRotationBeatSync === true} onChange={(v) => updateImmersive({ ringRotationBeatSync: v })} />
+              </SettingRow>
+              <SettingRow label={`发光辉光强度：${advancedLyricConfig.ringGlowIntensity ?? 0.6}`}>
+                <input className="setting-slider" type="range" min="0.0" max="1.5" step="0.1" value={advancedLyricConfig.ringGlowIntensity ?? 0.6} onChange={(e) => updateImmersive({ ringGlowIntensity: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="发光伴随节奏闪烁">
+                <Toggle checked={advancedLyricConfig.ringGlowPulse !== false} onChange={(v) => updateImmersive({ ringGlowPulse: v })} />
+              </SettingRow>
+              <SettingRow label={`频谱上升平滑：${advancedLyricConfig.ringSmoothing ?? 0.25}`}>
+                <input className="setting-slider" type="range" min="0.05" max="0.6" step="0.05" value={advancedLyricConfig.ringSmoothing ?? 0.25} onChange={(e) => updateImmersive({ ringSmoothing: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`残影回落时间：${advancedLyricConfig.ringTrailDecay ?? 0.85}`}>
+                <input className="setting-slider" type="range" min="0.5" max="0.98" step="0.02" value={advancedLyricConfig.ringTrailDecay ?? 0.85} onChange={(e) => updateImmersive({ ringTrailDecay: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`频谱不透明度：${advancedLyricConfig.ringOpacity ?? 0.85}`}>
+                <input className="setting-slider" type="range" min="0.1" max="1.0" step="0.05" value={advancedLyricConfig.ringOpacity ?? 0.85} onChange={(e) => updateImmersive({ ringOpacity: Number(e.target.value) })} />
+              </SettingRow>
+            </>
+          )}
+
+          {/* ================= 气泡模式 (streamer) 可视化参数 ================= */}
+          {advancedLyricConfig.lyricsMode === 'streamer' && (
+            <>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>底部流光氛围脉冲灯带</h4>
+              <SettingRow label={`灯带基础高度：${advancedLyricConfig.streamerBarHeight ?? 16}px`}>
+                <input className="setting-slider" type="range" min="5" max="80" step="1" value={advancedLyricConfig.streamerBarHeight ?? 16} onChange={(e) => updateImmersive({ streamerBarHeight: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`脉冲波动高度：${advancedLyricConfig.streamerBarMaxHeight ?? 80}px`}>
+                <input className="setting-slider" type="range" min="20" max="250" step="2" value={advancedLyricConfig.streamerBarMaxHeight ?? 80} onChange={(e) => updateImmersive({ streamerBarMaxHeight: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`灯带不透明度：${advancedLyricConfig.streamerBarOpacity ?? 0.75}`}>
+                <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.streamerBarOpacity ?? 0.75} onChange={(e) => updateImmersive({ streamerBarOpacity: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`霓虹辉光扩散半径：${advancedLyricConfig.streamerBarGlowSpread ?? 20}px`}>
+                <input className="setting-slider" type="range" min="0" max="50" step="2" value={advancedLyricConfig.streamerBarGlowSpread ?? 20} onChange={(e) => updateImmersive({ streamerBarGlowSpread: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`流光游动速度：${advancedLyricConfig.streamerBarFlowSpeed ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.streamerBarFlowSpeed ?? 1.0} onChange={(e) => updateImmersive({ streamerBarFlowSpeed: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="配色模式">
+                <Segment 
+                  options={[
+                    { value: 'theme', label: '应用主题色' },
+                    { value: 'custom', label: '自定义颜色' }
+                  ]} 
+                  value={advancedLyricConfig.streamerBarColorMode || 'theme'} 
+                  onChange={(v) => updateImmersive({ streamerBarColorMode: v })} 
+                />
+              </SettingRow>
+              {advancedLyricConfig.streamerBarColorMode === 'custom' && (
+                <SettingRow label="自定义灯带颜色">
+                  <input type="color" value={advancedLyricConfig.streamerBarCustomColor || '#ff4081'} onChange={(e) => updateImmersive({ streamerBarCustomColor: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                </SettingRow>
+              )}
+            </>
+          )}
+
+          {/* ================= 混乱模式 (talk) 可视化参数 ================= */}
+          {advancedLyricConfig.lyricsMode === 'talk' && (
+            <>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>背景视差粒子与击鼓爆发特效</h4>
+              <SettingRow label={`常驻星空粒子数：${advancedLyricConfig.talkParticleCount ?? 80}`}>
+                <input className="setting-slider" type="range" min="20" max="200" step="10" value={advancedLyricConfig.talkParticleCount ?? 80} onChange={(e) => updateImmersive({ talkParticleCount: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`粒子发光半径：${advancedLyricConfig.talkParticleSize ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.talkParticleSize ?? 1.0} onChange={(e) => updateImmersive({ talkParticleSize: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`粒子底噪透明度：${advancedLyricConfig.talkParticleOpacity ?? 0.7}`}>
+                <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.talkParticleOpacity ?? 0.7} onChange={(e) => updateImmersive({ talkParticleOpacity: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="常驻粒子形状">
+                <Segment 
+                  options={[
+                    { value: 'triangle', label: '经典三角' },
+                    { value: 'diamond', label: '华丽菱形' },
+                    { value: 'dot', label: '圆点星辰' },
+                    { value: 'line', label: '律动短线' }
+                  ]} 
+                  value={advancedLyricConfig.talkParticleShape || 'triangle'} 
+                  onChange={(v) => updateImmersive({ talkParticleShape: v })} 
+                />
+              </SettingRow>
+              <SettingRow label={`声浪冲击爆发阈值：${advancedLyricConfig.talkBurstThreshold ?? 200}`}>
+                <input className="setting-slider" type="range" min="100" max="250" step="5" value={advancedLyricConfig.talkBurstThreshold ?? 200} onChange={(e) => updateImmersive({ talkBurstThreshold: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`冲击波喷涌强度：${advancedLyricConfig.talkBurstIntensity ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0.3" max="2.0" step="0.1" value={advancedLyricConfig.talkBurstIntensity ?? 1.0} onChange={(e) => updateImmersive({ talkBurstIntensity: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`风向横向游移速度：${advancedLyricConfig.talkDriftSpeed ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0" max="3.0" step="0.1" value={advancedLyricConfig.talkDriftSpeed ?? 1.0} onChange={(e) => updateImmersive({ talkDriftSpeed: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`空间微弱引力效应：${advancedLyricConfig.talkGravity ?? 0.05}`}>
+                <input className="setting-slider" type="range" min="-0.2" max="0.2" step="0.02" value={advancedLyricConfig.talkGravity ?? 0.05} onChange={(e) => updateImmersive({ talkGravity: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="配色方案">
+                <Segment 
+                  options={[
+                    { value: 'adaptive', label: '自适应封面' },
+                    { value: 'custom', label: '自定义颜色' }
+                  ]} 
+                  value={advancedLyricConfig.talkColorMode || 'adaptive'} 
+                  onChange={(v) => updateImmersive({ talkColorMode: v })} 
+                />
+              </SettingRow>
+              {advancedLyricConfig.talkColorMode === 'custom' && (
+                <SettingRow label="自定义粒子颜色">
+                  <input type="color" value={advancedLyricConfig.talkCustomColor || '#ff4081'} onChange={(e) => updateImmersive({ talkCustomColor: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                </SettingRow>
+              )}
+            </>
+          )}
+
+          {/* ================= 云阶模式 (cloudstep) 可视化参数 ================= */}
+          {advancedLyricConfig.lyricsMode === 'cloudstep' && (
+            <>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>层叠雾化波纹（背景云层）</h4>
+              <SettingRow label={`雾层发散羽化值：${advancedLyricConfig.cloudWaveBlur ?? 23}px`}>
+                <input className="setting-slider" type="range" min="5" max="60" step="1" value={advancedLyricConfig.cloudWaveBlur ?? 23} onChange={(e) => updateImmersive({ cloudWaveBlur: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`声浪最大起伏高度：${advancedLyricConfig.cloudWaveHeight ?? 30}px`}>
+                <input className="setting-slider" type="range" min="10" max="80" step="2" value={advancedLyricConfig.cloudWaveHeight ?? 30} onChange={(e) => updateImmersive({ cloudWaveHeight: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`雾波底噪声透明度：${(advancedLyricConfig.cloudWaveOpacity ?? 0.39).toFixed(2)}`}>
+                <input className="setting-slider" type="range" min="0.02" max="0.5" step="0.01" value={advancedLyricConfig.cloudWaveOpacity ?? 0.39} onChange={(e) => updateImmersive({ cloudWaveOpacity: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`多层错落垂直分散度：${advancedLyricConfig.cloudWaveVerticalSpread ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0" max="3.0" step="0.1" value={advancedLyricConfig.cloudWaveVerticalSpread ?? 1.0} onChange={(e) => updateImmersive({ cloudWaveVerticalSpread: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="配色方案">
+                <Segment 
+                  options={[
+                    { value: 'theme', label: '跟随系统' },
+                    { value: 'custom', label: '自定义颜色' }
+                  ]} 
+                  value={advancedLyricConfig.cloudWaveColorMode || 'theme'} 
+                  onChange={(v) => updateImmersive({ cloudWaveColorMode: v })} 
+                />
+              </SettingRow>
+              {advancedLyricConfig.cloudWaveColorMode === 'custom' && (
+                <SettingRow label="自定义雾波颜色">
+                  <input type="color" value={advancedLyricConfig.cloudWaveCustomColor || '#ff4081'} onChange={(e) => updateImmersive({ cloudWaveCustomColor: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                </SettingRow>
+              )}
+            </>
+          )}
+
+          {/* ================= 空间画布 (spatial) 可视化参数 ================= */}
+          {advancedLyricConfig.lyricsMode === 'spatial' && (
+            <>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>3D 空间声部扩散粒子场</h4>
+              <SettingRow label={`空间星图粒子数量：${advancedLyricConfig.spatialParticleCount ?? 200}`}>
+                <input className="setting-slider" type="range" min="50" max="500" step="10" value={advancedLyricConfig.spatialParticleCount ?? 200} onChange={(e) => updateImmersive({ spatialParticleCount: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`粒子发光放大系数：${advancedLyricConfig.spatialParticleSize ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.spatialParticleSize ?? 1.0} onChange={(e) => updateImmersive({ spatialParticleSize: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`星云粒子不透明度：${advancedLyricConfig.spatialParticleOpacity ?? 0.7}`}>
+                <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.spatialParticleOpacity ?? 0.7} onChange={(e) => updateImmersive({ spatialParticleOpacity: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`X轴低频声压扩散：${advancedLyricConfig.spatialSpreadX ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0.5" max="3.0" step="0.1" value={advancedLyricConfig.spatialSpreadX ?? 1.0} onChange={(e) => updateImmersive({ spatialSpreadX: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`Y轴中频声压扩散：${advancedLyricConfig.spatialSpreadY ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0.5" max="3.0" step="0.1" value={advancedLyricConfig.spatialSpreadY ?? 1.0} onChange={(e) => updateImmersive({ spatialSpreadY: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`Z轴高频声压扩散：${advancedLyricConfig.spatialSpreadZ ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0.5" max="3.0" step="0.1" value={advancedLyricConfig.spatialSpreadZ ?? 1.0} onChange={(e) => updateImmersive({ spatialSpreadZ: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`焦外景深虚化系数：${advancedLyricConfig.spatialDepthBlur ?? 0.5}`}>
+                <input className="setting-slider" type="range" min="0" max="2.0" step="0.1" value={advancedLyricConfig.spatialDepthBlur ?? 0.5} onChange={(e) => updateImmersive({ spatialDepthBlur: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="配色方案">
+                <Segment 
+                  options={[
+                    { value: 'adaptive', label: '星域自适应' },
+                    { value: 'custom', label: '自定义颜色' }
+                  ]} 
+                  value={advancedLyricConfig.spatialColorMode || 'adaptive'} 
+                  onChange={(v) => updateImmersive({ spatialColorMode: v })} 
+                />
+              </SettingRow>
+              {advancedLyricConfig.spatialColorMode === 'custom' && (
+                <SettingRow label="自定义星场颜色">
+                  <input type="color" value={advancedLyricConfig.spatialCustomColor || '#ff4081'} onChange={(e) => updateImmersive({ spatialCustomColor: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
+                </SettingRow>
+              )}
+            </>
+          )}
+
+          {/* ================= 黑胶光碟 (vinyl) 可视化参数 ================= */}
+          {advancedLyricConfig.lyricsMode === 'vinyl' && (
+            <>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>黑胶盘面频谱刻槽与触针高频光圈</h4>
+              <SettingRow label={`盘面频谱声部沟槽：${advancedLyricConfig.vinylGrooveCount ?? 12}圈`}>
+                <input className="setting-slider" type="range" min="4" max="30" step="1" value={advancedLyricConfig.vinylGrooveCount ?? 12} onChange={(e) => updateImmersive({ vinylGrooveCount: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`刻线声部基础宽度：${advancedLyricConfig.vinylGrooveWidth ?? 1.0}`}>
+                <input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.vinylGrooveWidth ?? 1.0} onChange={(e) => updateImmersive({ vinylGrooveWidth: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`低音共鸣最大振幅：${advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0}`}>
+                <input className="setting-slider" type="range" min="1.5" max="10.0" step="0.5" value={advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0} onChange={(e) => updateImmersive({ vinylGrooveMaxWidth: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`声压不透明度占比：${advancedLyricConfig.vinylGrooveOpacity ?? 0.6}`}>
+                <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.vinylGrooveOpacity ?? 0.6} onChange={(e) => updateImmersive({ vinylGrooveOpacity: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`触点唱针光晕反射：${advancedLyricConfig.vinylStylusGlowStrength ?? 0.7}`}>
+                <input className="setting-slider" type="range" min="0" max="1.5" step="0.1" value={advancedLyricConfig.vinylStylusGlowStrength ?? 0.7} onChange={(e) => updateImmersive({ vinylStylusGlowStrength: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label={`唱针漫散光圈直径：${advancedLyricConfig.vinylStylusGlowSize ?? 20}px`}>
+                <input className="setting-slider" type="range" min="8" max="50" step="1" value={advancedLyricConfig.vinylStylusGlowSize ?? 20} onChange={(e) => updateImmersive({ vinylStylusGlowSize: Number(e.target.value) })} />
+              </SettingRow>
+              <SettingRow label="唱盘表面高反光偏振效果">
+                <Toggle checked={advancedLyricConfig.vinylEdgeReflection !== false} onChange={(v) => updateImmersive({ vinylEdgeReflection: v })} />
+              </SettingRow>
+              <SettingRow label="配色方案">
+                <Segment 
+                  options={[
+                    { value: 'theme', label: '跟随主题色' },
+                    { value: 'white', label: '银白同心射线' }
+                  ]} 
+                  value={advancedLyricConfig.vinylGrooveColorMode || 'theme'} 
+                  onChange={(v) => updateImmersive({ vinylGrooveColorMode: v })} 
+                />
+              </SettingRow>
+            </>
+          )}
         </div>
       </div>
     </div>

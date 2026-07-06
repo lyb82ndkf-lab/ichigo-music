@@ -268,11 +268,13 @@ export function parseDisplayTokens(line) {
     // Keep parser word boundaries as the visual animation unit, like folia.
     // The fill mask still uses graphemeTimings, so words can sweep internally,
     // while words such as "??" or mora such as "??" jump as one unit.
+    const tokenDuration = word.durationSec || (word.endSec !== undefined ? (word.endSec - word.startSec) : 0.1);
+    const tokenEndTime = word.endSec !== undefined ? word.endSec : (word.startSec + tokenDuration);
     tokens.push({
       text: word.text,
       startTime: word.startSec,
-      endTime: word.endSec,
-      durationSec: Math.max(0.001, word.endSec - word.startSec),
+      endTime: tokenEndTime,
+      durationSec: Math.max(0.001, tokenDuration),
       key: `${line.time}-word-${i}-${word.startSec}`,
       timed: true,
       startOffset: resolvedWordStartOffset,

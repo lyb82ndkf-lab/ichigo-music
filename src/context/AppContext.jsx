@@ -50,6 +50,7 @@ export function AppProvider({ children }) {
   const [resumeTime, setResumeTimeState] = useState(() => profile.lastSession?.resumeTime ?? profile.lastSession?.progress ?? null);
   const [recentlyPlayed, setRecentlyPlayed] = useState(() => profile.recentlyPlayed || []);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isClosePromptOpen, setIsClosePromptOpen] = useState(false);
 
   // Audio elements ref (shared across components)
   const [audioElement, setAudioElement] = useState(null);
@@ -74,6 +75,10 @@ export function AppProvider({ children }) {
   const shortcuts = profile.shortcuts || DEFAULT_PROFILE.shortcuts;
   const audioQuality = audioConfig.quality || 'exhigh';
   const playMode = playbackConfig.playMode || 'sequence';
+
+  const isFirstTimeSetupComplete = profile.isFirstTimeSetupComplete !== undefined 
+    ? profile.isFirstTimeSetupComplete 
+    : false;
 
   // Dynamic warm/cold color extraction
   const [extractedColors, setExtractedColors] = useState({
@@ -555,6 +560,17 @@ export function AppProvider({ children }) {
     return yiq >= 155 ? '#111111' : '#ffffff';
   }
 
+  const requestAppClose = useCallback(() => {
+    const behavior = profile.appearance?.closeBehavior || DEFAULT_PROFILE.appearance.closeBehavior;
+    if (behavior === 'hide') {
+      window.electronAPI?.hide?.();
+    } else if (behavior === 'close') {
+      window.electronAPI?.close?.();
+    } else {
+      setIsClosePromptOpen(true);
+    }
+  }, [profile.appearance?.closeBehavior]);
+
   const contextValue = useMemo(() => ({
     profile,
     updateProfile,
@@ -595,10 +611,16 @@ export function AppProvider({ children }) {
     isQueueOpen,
     setIsQueueOpen,
 
+    isClosePromptOpen,
+    setIsClosePromptOpen,
+    requestAppClose,
+
     playSong,
     togglePlay,
     playNext,
     playPrev,
+
+    isFirstTimeSetupComplete,
 
     colorMode,
     setColorMode,
@@ -651,10 +673,11 @@ export function AppProvider({ children }) {
   }), [
     profile, updateProfile, currentView, viewData, historyIndex, viewHistory.length, user, likedSongIds,
     likedPlaylistId, currentSong, playlist, playlistIndex, isPlaying, volume, progress, duration, playMode,
-    recentlyPlayed, isQueueOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
+    recentlyPlayed, isQueueOpen, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
     visualizerMode, appearanceConfig, coverConfig, backgroundConfig, advancedLyricConfig, visualizerConfig,
     desktopLyricsConfig, audioConfig, playbackConfig, renderingConfig, shortcuts, userPlaylists, audioQuality,
     resumeTime, audioElement, setUser, setCurrentSongAndPersist, setPlaylistAndPersist, setPlaylistIndexAndPersist,
+    isFirstTimeSetupComplete, requestAppClose,
     setVolume, persistProgress, persistDuration, setColorMode, setLayoutMode, setTheme, saveCustomThemeColors,
     saveNavbarConfig, saveLyricStyle, saveVisualizerMode, saveAppearanceConfig, saveCoverConfig, saveBackgroundConfig,
     saveAdvancedLyricConfig, saveVisualizerConfig, saveDesktopLyricsConfig, mergeDesktopLyricsConfigFromIpc,

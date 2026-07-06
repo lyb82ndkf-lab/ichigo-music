@@ -249,10 +249,14 @@ export default function AudioPlayer() {
       setCrossOriginMode(null);
     } else if (code) {
       console.error(`Fatal audio error code ${code}. Skipping to next song in 1.5 seconds...`);
-      setIsPlaying(false);
-      setTimeout(() => {
-        playNext();
-      }, 1500);
+      if (isPlaying) {
+        setIsPlaying(false);
+        setTimeout(() => {
+          playNext();
+        }, 1500);
+      } else {
+        console.warn("Audio failed to load, but player is paused. Ignoring auto-skip to prevent auto-play loop.");
+      }
     }
   };
 
