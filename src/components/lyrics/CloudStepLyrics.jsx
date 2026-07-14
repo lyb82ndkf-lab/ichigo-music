@@ -9,15 +9,19 @@ function buildWordTimings(line) {
       timings.push({
         text: word.text,
         startTime: word.startSec,
-        endTime: word.startSec + word.durationSec
+        endTime: word.endSec !== undefined ? word.endSec : word.startSec + Math.max(0.001, word.durationSec || 0.1)
       });
     }
   } else {
-    // Fallback: entire line as a single timing block
-    timings.push({
-      text: line.text,
-      startTime: line.time,
-      endTime: line.time
+    const graphemes = splitGraphemes(line.text);
+    const duration = Math.max(0.4, Number(line.duration || 0) || 5);
+    const unitDuration = duration / Math.max(1, graphemes.length);
+    graphemes.forEach((text, index) => {
+      timings.push({
+        text,
+        startTime: line.time + index * unitDuration,
+        endTime: line.time + (index + 1) * unitDuration
+      });
     });
   }
   return timings;
@@ -47,14 +51,14 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
         const { startTime, endTime } = timing;
         
         if (currentTime >= startTime && currentTime <= endTime) {
-          if (!el.dataset.state || el.dataset.state !== 'active') {
-            el.dataset.state = 'active';
-            if (showGlow) {
-              el.style.color = themeColor;
-              el.style.textShadow = `0 0 ${fontPx * 0.4}px ${themeColor}, 0 0 ${fontPx * 0.8}px ${themeColor}`;
-            }
-            el.style.transform = 'scale(1.15)';
-          }
+          const progress = Math.max(0, Math.min(1, (currentTime - startTime) / Math.max(0.001, endTime - startTime)));
+          const pulse = Math.sin(progress * Math.PI);
+          el.dataset.state = 'active';
+          el.style.color = themeColor;
+          el.style.textShadow = showGlow
+            ? `0 0 ${fontPx * 0.4}px ${themeColor}, 0 0 ${fontPx * 0.8}px ${themeColor}`
+            : `0 0 ${fontPx * 0.18}px ${themeColor}`;
+          el.style.transform = `scale(${1 + pulse * 0.15})`;
         } else if (currentTime > endTime) {
           if (!el.dataset.state || el.dataset.state !== 'passed') {
             el.dataset.state = 'passed';

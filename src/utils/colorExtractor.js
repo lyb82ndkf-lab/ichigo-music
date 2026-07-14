@@ -142,11 +142,14 @@ export const extractWarmColdColors = async (imageUrl) => {
         let bestCold = null;
         let bestColdScore = -1;
 
-        distinctColors.forEach(c => {
-          const { h, s, l } = c.hsl;
-          // Avoid grayscale/unsaturated colors for our themed warm/cold colors
-          if (s < 12) return;
+        // Take top 30 colors to evaluate
+        const topColors = sortedColors.slice(0, 30).map(hex => ({
+          hex,
+          hsl: hexToHsl(hex)
+        }));
 
+        topColors.forEach(c => {
+          const { h, s, l } = c.hsl;
           // Warm score: closer to Hue = 25 (Orange/Red)
           const distWarm = getHueDistance(h, 25);
           const warmScore = Math.max(0, 1 - distWarm / 100) * (s / 100);
@@ -208,11 +211,25 @@ export const extractWarmColdColors = async (imageUrl) => {
     };
 
     img.onerror = () => {
+      clearTimeout(timeoutId);
       resolve({
         warm: '#ff6b6b',
         cold: '#3399ff',
         dominant: '#ff4081'
       });
     };
+
+    // Add a 3 second timeout in case the URL hangs (e.g. expired Netease token)
+    timeoutId = setTimeout(() => {
+      console.warn('Color extraction timed out for', coverUrl);
+      img.src = '';
+      resolve({
+        warm: '#ff6b6b',
+        cold: '#3399ff',
+        dominant: '#ff4081'
+      });
+    }, 3000);
+
+    img.src = coverUrl;
   });
 };

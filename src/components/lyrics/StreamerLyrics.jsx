@@ -54,15 +54,17 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
         }
 
         if (currentTime < token.startTime) {
-          if (el.style.opacity !== '0') {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(10px)';
-          }
+          el.style.opacity = '0';
+          el.style.transform = 'translateY(10px) scale(0.96)';
+          el.style.color = 'rgba(255,255,255,0.58)';
         } else {
-          if (el.style.opacity !== '1') {
-            el.style.opacity = '1';
-            el.style.transform = 'translateY(0px)';
-          }
+          const progress = token.timed
+            ? Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)))
+            : 1;
+          const pulse = Math.sin(progress * Math.PI);
+          el.style.opacity = '1';
+          el.style.transform = `translateY(${-fontPx * 0.06 * pulse}px) scale(${1 + pulse * 0.08})`;
+          el.style.color = themeColor || '#fff';
         }
       });
 
@@ -150,8 +152,9 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
                 display: 'inline-block',
                 whiteSpace: 'pre',
                 opacity: isPassed ? 1 : 0,
-                transform: isPassed ? 'translateY(0px)' : 'translateY(10px)',
-                transition: 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                transform: isPassed ? 'translateY(0px) scale(1)' : 'translateY(10px) scale(0.96)',
+                color: isPassed ? '#fff' : 'rgba(255,255,255,0.58)',
+                transition: 'opacity 0.12s linear, transform 0.12s linear, color 0.12s linear',
                 textShadow: `0 0 ${fontPx * 0.2}px rgba(255,255,255,0.5)`,
                 willChange: 'opacity, transform'
               }}

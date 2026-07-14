@@ -1,14 +1,90 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
+import { parseDisplayTokens } from './MonetLyricsEngine';
+
+const VinylTimedText = React.memo(({ line, isActive, isPassed, engineRef, globalOffset, fontPx, themeColor }) => {
+  const tokens = useMemo(() => parseDisplayTokens(line), [line]);
+  const tokenRefs = useRef([]);
+
+  useEffect(() => {
+    tokenRefs.current = tokenRefs.current.slice(0, tokens.length);
+  }, [tokens]);
+
+  useEffect(() => {
+    if (!isActive) return undefined;
+
+    let animationId;
+    const update = () => {
+      const currentTime = (engineRef.current?.getCurrentTime?.() || 0) + globalOffset;
+
+      tokens.forEach((token, index) => {
+        const el = tokenRefs.current[index];
+        if (!el) return;
+
+        if (!token.timed || currentTime >= token.endTime) {
+          el.style.color = themeColor;
+          el.style.opacity = '1';
+          el.style.transform = 'translateY(0) scale(1)';
+          el.style.textShadow = `0 0 ${fontPx * 0.35}px ${themeColor}`;
+        } else if (currentTime >= token.startTime) {
+          const progress = Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)));
+          const pulse = Math.sin(progress * Math.PI);
+          el.style.color = themeColor;
+          el.style.opacity = `${0.72 + progress * 0.28}`;
+          el.style.transform = `translateY(${-fontPx * 0.08 * pulse}px) scale(${1 + 0.12 * pulse})`;
+          el.style.textShadow = `0 0 ${fontPx * (0.28 + progress * 0.32)}px ${themeColor}`;
+        } else {
+          el.style.color = 'var(--text-main)';
+          el.style.opacity = '0.38';
+          el.style.transform = 'translateY(0) scale(1)';
+          el.style.textShadow = 'none';
+        }
+      });
+
+      animationId = requestAnimationFrame(update);
+    };
+
+    update();
+    return () => cancelAnimationFrame(animationId);
+  }, [isActive, tokens, engineRef, globalOffset, fontPx, themeColor]);
+
+  if (!isActive) {
+    return <>{line.text}</>;
+  }
+
+  return (
+    <>
+      {tokens.map((token, index) => (
+        <span
+          key={token.key}
+          ref={el => { tokenRefs.current[index] = el; }}
+          style={{
+            display: 'inline-block',
+            whiteSpace: 'pre',
+            color: isPassed ? themeColor : 'var(--text-main)',
+            opacity: isPassed ? 1 : 0.38,
+            transform: 'translateY(0) scale(1)',
+            transition: 'opacity 0.18s ease, transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease',
+            willChange: 'opacity, transform, color'
+          }}
+        >
+          {token.text}
+        </span>
+      ))}
+    </>
+  );
+});
 
 export default function VinylRecordLyrics({ 
   lyrics = [], 
   activeLineIndex = -1, 
+  engineRef,
   fontPx = 36, 
   fontStack, 
   themeColor, 
   coverUrl, 
   isPlaying,
+  globalOffset = 0,
   lineSpacing = 0.7,
   tiltAngle = 0
 }) {
@@ -319,7 +395,17 @@ export default function VinylRecordLyrics({
                   letterSpacing: '1px'
                 }}
               >
-                <div style={{ fontStyle: isActive ? 'italic' : 'normal', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{line.text}</div>
+                <div style={{ fontStyle: isActive ? 'italic' : 'normal', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                  <VinylTimedText
+                    line={line}
+                    isActive={isActive}
+                    isPassed={isPassed}
+                    engineRef={engineRef}
+                    globalOffset={globalOffset}
+                    fontPx={fontPx}
+                    themeColor={themeColor}
+                  />
+                </div>
                 {line.translation && (
                   <div style={{ 
                     fontSize: `${fontPx * 0.45}px`, 

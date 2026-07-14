@@ -68,6 +68,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
       <div 
         className="monet-line-main"
         style={{
+          position: 'relative',
           fontSize: `${fontPx}px`,
           fontWeight: fontWeight,
           color: color,
@@ -83,10 +84,12 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
             className="monet-line-row"
             style={{
               display: 'inline-block',
+              position: 'relative',
               whiteSpace: 'normal',
               wordBreak: 'break-word',
               minHeight: `${fontPx * 1.18}px`,
-              marginTop: rowIndex === 0 ? 0 : `${fontPx * 0.04}px`
+              marginTop: rowIndex === 0 ? 0 : `${fontPx * 0.04}px`,
+              pointerEvents: 'none'
             }}
           >
             {row.map((token) => (
@@ -100,6 +103,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
                 status={status}
                 showGlow={showGlow}
                 animationStyle="regular"
+                showBase
               />
             ))}
           </span>

@@ -188,26 +188,32 @@ export function buildWordGraphemeTimings(wordText, startTime, durationSec) {
  */
 export function parseDisplayTokens(line) {
   if (!line || !line.text) return [];
-  // LRC / non-word-synced lines: synthesize grapheme tokens with even
-  // timings. This keeps the immersive and desktop lyric paths visually aligned:
-  // even when a provider only returns line-level LRC, the active line can still
-  // reveal and pop one character at a time. Only active tokens join the global
-  // rAF registry, so visible inactive lines stay cheap.
-  if (!line.isYrc || !line.words || line.words.length === 0) {
-    return [{
-      text: line.text,
-      startTime: line.time,
-      endTime: line.time + Math.max(0.4, line.duration || 5),
-      durationSec: 0, // 0 duration ensures it highlights instantly instead of sweeping
-      key: `${line.time}-fallback`,
-      timed: false,
-      startOffset: 0,
-      endOffset: line.text.length,
-      wordIndex: 0,
-      graphemeIndex: 0,
-      wordText: line.text,
-      graphemeTimings: [{ startTime: line.time, endTime: line.time }]
-    }];
+  if (!line.words || line.words.length === 0) {
+    const graphemes = splitGraphemes(line.text);
+    const lineStart = Number(line.time || 0);
+    const lineDuration = Math.max(0.4, Number(line.duration || 0) || 5);
+    const unitDuration = lineDuration / Math.max(1, graphemes.length);
+    let cursor = 0;
+    return graphemes.map((text, index) => {
+      const startTime = lineStart + index * unitDuration;
+      const endTime = startTime + unitDuration;
+      const startOffset = cursor;
+      cursor += text.length;
+      return {
+        text,
+        startTime,
+        endTime,
+        durationSec: unitDuration,
+        key: `${line.time}-fallback-${index}-${startOffset}`,
+        timed: true,
+        startOffset,
+        endOffset: cursor,
+        wordIndex: index,
+        graphemeIndex: 0,
+        wordText: text,
+        graphemeTimings: [{ startTime, endTime }]
+      };
+    });
   }
 
   const tokens = [];
@@ -235,7 +241,6 @@ export function parseDisplayTokens(line) {
     }
 
     const resolvedWordStartOffset = wordStartOffset !== -1 ? wordStartOffset : currentIndex;
-    const graphemeTimings = buildWordGraphemeTimings(word.text, word.startSec, word.durationSec);
     const wordEndOffset = resolvedWordStartOffset + word.text.length;
 
     // Keep parser word boundaries as the visual animation unit, like folia.
@@ -243,11 +248,13 @@ export function parseDisplayTokens(line) {
     // while words such as "??" or mora such as "??" jump as one unit.
     const tokenDuration = word.durationSec || (word.endSec !== undefined ? (word.endSec - word.startSec) : 0.1);
     const tokenEndTime = word.endSec !== undefined ? word.endSec : (word.startSec + tokenDuration);
+    const safeTokenDuration = Math.max(0.001, tokenDuration);
+    const graphemeTimings = buildWordGraphemeTimings(word.text, word.startSec, safeTokenDuration);
     tokens.push({
       text: word.text,
       startTime: word.startSec,
       endTime: tokenEndTime,
-      durationSec: Math.max(0.001, tokenDuration),
+      durationSec: safeTokenDuration,
       key: `${line.time}-word-${i}-${word.startSec}`,
       timed: true,
       startOffset: resolvedWordStartOffset,

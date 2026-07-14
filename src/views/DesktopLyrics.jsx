@@ -9,6 +9,8 @@ const t = {
   dragHint: 'Unlock to drag and resize'
 };
 
+const getSweepClipBleedPx = (fontSize) => Math.max(3, Math.ceil(fontSize * 0.08));
+
 export default function DesktopLyrics() {
   const [syncData, setSyncData] = useState({
     isPlaying: false,
@@ -45,10 +47,8 @@ export default function DesktopLyrics() {
   const [railY, setRailY] = useState(0);
 
   const wordsRefs = useRef([]);
-  const sweepContainerRefs = useRef([]);
   const activeLineRef = useRef(null);
   const innerRef = useRef(null);
-  const activeTokensRef = useRef([]);
 
   const colorPresets = {
     strawberry: { played: '#ff3366', unplayed: '#ffffff', stroke: '#4a0e1c' },
@@ -165,9 +165,6 @@ export default function DesktopLyrics() {
 
   // Center active lyric scroll rail synchronously before paint to prevent 1-frame jump
   React.useLayoutEffect(() => {
-    // Clear YRC word refs to prevent stale elements from previous lines
-    wordsRefs.current = [];
-    
     if (activeLineRef.current && innerRef.current) {
       const offsetTop = activeLineRef.current.offsetTop;
       const height = activeLineRef.current.offsetHeight;
@@ -175,11 +172,6 @@ export default function DesktopLyrics() {
       setRailY(-offsetTop + (viewportHeight / 2) - (height / 2));
     }
   }, [syncData.activeIndex, viewportHeight, syncData.lines, config.lineCount]);
-
-  useEffect(() => {
-    const activeLine = syncData.lines?.[syncData.activeIndex];
-    activeTokensRef.current = activeLine ? parseDisplayTokens(activeLine) : [];
-  }, [syncData.lines, syncData.activeIndex]);
 
   // Shared token-level sweep animation loop. It uses the same display-token
   // model as immersive lyrics, so YRC/QRC/KRC and fallback LRC all reveal on the
@@ -195,7 +187,7 @@ export default function DesktopLyrics() {
         const adjustedTime = virtualTime + syncData.globalOffset;
         const activeLine = syncData.lines[syncData.activeIndex];
         if (activeLine) {
-          const activeTokens = activeTokensRef.current;
+          const activeTokens = parseDisplayTokens(activeLine);
           for (let i = 0; i < activeTokens.length; i += 1) {
             const token = activeTokens[i];
             const el = wordsRefs.current[i];
@@ -210,7 +202,12 @@ export default function DesktopLyrics() {
             }
             
             const pct = Math.max(0, Math.min(1, progress));
-            el.style.clipPath = `inset(0 ${100 - pct * 100}% 0 0)`;
+            const clipBleedPx = getSweepClipBleedPx(config.fontSize || 36);
+            const clipPath = pct <= 0
+              ? 'inset(0 100% 0 100%)'
+              : `inset(0 ${100 - pct * 100}% 0 -${clipBleedPx}px)`;
+            el.style.clipPath = clipPath;
+            el.style.webkitClipPath = clipPath;
             el.style.transform = 'none';
           }
         }
@@ -369,7 +366,6 @@ export default function DesktopLyrics() {
             >
               {syncData.lines.map((line, idx) => {
                 const isActive = idx === localActiveIdx;
-                const isYrc = line.isYrc && line.words;
                 
                 // Calculate line visibility based on lineCount settings
                 const count = Number(config.lineCount ?? 3);
@@ -416,13 +412,22 @@ export default function DesktopLyrics() {
                       {(() => {
                         const displayTokens = parseDisplayTokens(line);
                         const rows = [displayTokens];
+                        const clipBleedPx = getSweepClipBleedPx(config.fontSize || 36);
+                        const tokenStyle = (token) => ({
+                          display: 'inline-block',
+                          marginRight: 0,
+                          whiteSpace: 'pre'
+                        });
                         let tokenCounter = 0;
+                        if (isActive) {
+                          wordsRefs.current = [];
+                        }
                         return (
                         <div style={{ position: 'relative' }}>
                           <div style={{ position: 'relative', zIndex: 1 }}>
                             {rows.map((row, rowIdx) => (
-                              <span key={`bg-row-${rowIdx}`} style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap' }}>
-                                {row.map((token) => <span key={`bg-${token.key}`} style={{ marginRight: token.text === ' ' ? '0.25em' : '0.02em', opacity: isActive ? (token.timed ? 0.12 : 0.5) : 1, color: !isActive && idx < localActiveIdx ? activeAccent : unplayedColor }}>{token.text}</span>)}
+                              <span key={`bg-row-${rowIdx}`} style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap', opacity: isActive ? 0.68 : 1, color: !isActive && idx < localActiveIdx ? activeAccent : unplayedColor }}>
+                                {row.map((token) => <span key={`bg-${token.key}`} style={tokenStyle(token)}>{token.text}</span>)}
                               </span>
                             ))}
                           </div>
@@ -433,7 +438,7 @@ export default function DesktopLyrics() {
                                   const currentIdx = tokenCounter++;
                                   return (
                                   <span key={`fg-${token.key}`} ref={el => { if (isActive) wordsRefs.current[currentIdx] = el; }}
-                                    style={{ marginRight: token.text === ' ' ? '0.25em' : '0.02em', color: activeAccent, textShadow: `${shadow}${glow}, 0 0 12px ${activeAccent}88`, clipPath: isActive ? 'inset(0 100% 0 0)' : (idx < localActiveIdx ? 'inset(0 0 0 0)' : 'inset(0 100% 0 0)'), whiteSpace: 'nowrap', display: 'inline-block', transformOrigin: 'center bottom' }}>
+                                    style={{ ...tokenStyle(token), color: activeAccent, textShadow: `${shadow}${glow}, 0 0 12px ${activeAccent}88`, clipPath: isActive ? 'inset(0 100% 0 100%)' : (idx < localActiveIdx ? `inset(0 0 0 -${clipBleedPx}px)` : 'inset(0 100% 0 100%)'), WebkitClipPath: isActive ? 'inset(0 100% 0 100%)' : (idx < localActiveIdx ? `inset(0 0 0 -${clipBleedPx}px)` : 'inset(0 100% 0 100%)'), transformOrigin: 'center bottom' }}>
                                     {token.text}
                                   </span>
                                   );

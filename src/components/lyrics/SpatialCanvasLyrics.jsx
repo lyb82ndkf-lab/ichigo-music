@@ -1,5 +1,6 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
+import { parseDisplayTokens } from './MonetLyricsEngine';
 
 // Pre-compute seeded random positions so they stay stable during resizing
 function seededRandom(seed) {
@@ -7,7 +8,80 @@ function seededRandom(seed) {
   return x - Math.floor(x);
 }
 
-export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 36, fontStack, themeColor }) {
+const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, globalOffset, fontPx, themeColor }) => {
+  const tokens = useMemo(() => parseDisplayTokens(line), [line]);
+  const tokenRefs = useRef([]);
+
+  useEffect(() => {
+    tokenRefs.current = tokenRefs.current.slice(0, tokens.length);
+  }, [tokens]);
+
+  useEffect(() => {
+    if (!isActive) return undefined;
+
+    let animationId;
+    const update = () => {
+      const currentTime = (engineRef.current?.getCurrentTime?.() || 0) + globalOffset;
+
+      tokens.forEach((token, index) => {
+        const el = tokenRefs.current[index];
+        if (!el) return;
+
+        if (!token.timed || currentTime >= token.endTime) {
+          el.style.color = themeColor;
+          el.style.opacity = '1';
+          el.style.transform = 'translateY(0) scale(1)';
+          el.style.textShadow = `0 0 ${fontPx * 0.45}px ${themeColor}`;
+        } else if (currentTime >= token.startTime) {
+          const progress = Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)));
+          const pulse = Math.sin(progress * Math.PI);
+          el.style.color = themeColor;
+          el.style.opacity = `${0.72 + progress * 0.28}`;
+          el.style.transform = `translateY(${-fontPx * 0.08 * pulse}px) scale(${1 + 0.14 * pulse})`;
+          el.style.textShadow = `0 0 ${fontPx * (0.35 + progress * 0.35)}px ${themeColor}`;
+        } else {
+          el.style.color = 'var(--text-main)';
+          el.style.opacity = '0.36';
+          el.style.transform = 'translateY(0) scale(1)';
+          el.style.textShadow = 'none';
+        }
+      });
+
+      animationId = requestAnimationFrame(update);
+    };
+
+    update();
+    return () => cancelAnimationFrame(animationId);
+  }, [isActive, tokens, engineRef, globalOffset, fontPx, themeColor]);
+
+  if (!isActive) {
+    return <>{line.text}</>;
+  }
+
+  return (
+    <>
+      {tokens.map((token, index) => (
+        <span
+          key={token.key}
+          ref={el => { tokenRefs.current[index] = el; }}
+          style={{
+            display: 'inline-block',
+            whiteSpace: 'pre',
+            color: isPassed ? themeColor : 'var(--text-main)',
+            opacity: isPassed ? 1 : 0.36,
+            transform: 'translateY(0) scale(1)',
+            transition: 'opacity 0.18s ease, transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease',
+            willChange: 'opacity, transform, color'
+          }}
+        >
+          {token.text}
+        </span>
+      ))}
+    </>
+  );
+});
+
+export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1, engineRef, fontPx = 36, fontStack, themeColor, globalOffset = 0 }) {
   const containerRef = useRef(null);
   const parentRef = useRef(null);
   const { advancedLyricConfig } = useApp();
@@ -211,7 +285,15 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
                 pointerEvents: 'none'
               }}
             >
-              {line.text}
+              <SpatialTimedText
+                line={line}
+                isActive={isActive}
+                isPassed={isPassed}
+                engineRef={engineRef}
+                globalOffset={globalOffset}
+                fontPx={fontPx}
+                themeColor={themeColor}
+              />
               {line.translation && (
                 <div style={{ 
                   fontSize: `${fontPx * 0.5}px`, 

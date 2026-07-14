@@ -47,40 +47,75 @@ export function parseLrc(lrcStr) {
 export function parseYrc(yrcStr) {
   if (!yrcStr) return [];
   
-  const lines = yrcStr.split('\n');
+  const lines = yrcStr.split(/\r?\n/);
   const result = [];
-  const timeRegex = /\[(\d+):(\d+)(?:\.(\d+))?\]/;
+  
+  // Matches either [min:sec.ms] or [lineStartTimeMs,lineDurationMs]
+  const lrcTimeRegex = /^\[(\d+):(\d+)(?:\.(\d+))?\]/;
+  const yrcTimeRegex = /^\[(\d+),(\d+)\]/;
+  
   // Format: (startMs,durationMs,0)wordText
   const wordRegex = /\((\d+),(\d+),\d+\)([^\(\n]*)/g;
 
   for (const line of lines) {
-    const timeMatch = timeRegex.exec(line);
-    if (!timeMatch) continue;
+    let lineTime = 0;
+    let lineDuration = 0;
+    let rest = line;
+    let isYrcFormat = false;
 
-    const min = parseInt(timeMatch[1]);
-    const sec = parseInt(timeMatch[2]);
-    let msStr = timeMatch[3] || '0';
-    if (msStr.length === 1) msStr += '00';
-    else if (msStr.length === 2) msStr += '0';
-    else if (msStr.length > 3) msStr = msStr.substring(0, 3);
-    
-    const ms = parseInt(msStr);
-    const lineTime = min * 60 + sec + ms / 1000;
+    const yrcTimeMatch = yrcTimeRegex.exec(line);
+    if (yrcTimeMatch) {
+      const lineStartTimeMs = parseInt(yrcTimeMatch[1], 10);
+      const lineDurationMs = parseInt(yrcTimeMatch[2], 10);
+      lineTime = lineStartTimeMs / 1000;
+      lineDuration = lineDurationMs / 1000;
+      rest = line.substring(yrcTimeMatch[0].length);
+      isYrcFormat = true;
+    } else {
+      const lrcTimeMatch = lrcTimeRegex.exec(line);
+      if (lrcTimeMatch) {
+        const min = parseInt(lrcTimeMatch[1], 10);
+        const sec = parseInt(lrcTimeMatch[2], 10);
+        let msStr = lrcTimeMatch[3] || '0';
+        if (msStr.length === 1) msStr += '00';
+        else if (msStr.length === 2) msStr += '0';
+        else if (msStr.length > 3) msStr = msStr.substring(0, 3);
+        const ms = parseInt(msStr, 10);
+        lineTime = min * 60 + sec + ms / 1000;
+        rest = line.substring(lrcTimeMatch[0].length);
+        isYrcFormat = true;
+      }
+    }
+
+    if (!isYrcFormat) continue;
 
     const words = [];
     let match;
     let rawLineText = '';
 
     wordRegex.lastIndex = 0;
-    while ((match = wordRegex.exec(line)) !== null) {
-      const start = parseInt(match[1]);
-      const duration = parseInt(match[2]);
+    while ((match = wordRegex.exec(rest)) !== null) {
+      const startVal = parseInt(match[1], 10);
+      const durationVal = parseInt(match[2], 10);
       const text = match[3];
 
+      let wordStartSec = 0;
+      // If startVal is an absolute timestamp (in ms), it will be greater than or equal to lineTime * 1000.
+      // But to be safe, if startVal is greater than lineTime (meaning it's not a relative small offset),
+      // we treat it as absolute.
+      if (startVal >= lineTime * 1000 - 100) {
+        wordStartSec = startVal / 1000;
+      } else {
+        wordStartSec = lineTime + startVal / 1000;
+      }
+      
+      const wordDurationSec = durationVal / 1000;
+      const wordEndSec = wordStartSec + wordDurationSec;
+
       words.push({
-        startSec: lineTime + start / 1000,
-        endSec: lineTime + (start + duration) / 1000,
-        durationSec: duration / 1000,
+        startSec: wordStartSec,
+        endSec: wordEndSec,
+        durationSec: wordDurationSec,
         text: text
       });
       rawLineText += text;
@@ -89,6 +124,7 @@ export function parseYrc(yrcStr) {
     if (words.length > 0) {
       result.push({
         time: lineTime,
+        duration: lineDuration || (words[words.length - 1].endSec - lineTime),
         text: rawLineText,
         words: words,
         isYrc: true
@@ -149,7 +185,7 @@ export function computeLineDurations(lines) {
     const current = { ...line };
     const next = lines[idx + 1];
     
-    if (!current.isYrc) {
+    if (!(current.words && current.words.length > 0)) {
       let duration = next ? next.time - current.time : 5;
       const estimatedReadingTime = (current.text || '').length * 0.5;
       if (duration > estimatedReadingTime + 2 && duration > 5) {
@@ -180,7 +216,7 @@ export function computeLineDurations(lines) {
     if (next) {
       // Calculate current line's true vocal end time
       let currentEndTime = current.time + current.duration;
-      if (current.isYrc && current.words && current.words.length > 0) {
+      if (current.words && current.words.length > 0) {
         currentEndTime = current.words[current.words.length - 1].endSec;
       } else {
         // LRC line: assume vocal ends early

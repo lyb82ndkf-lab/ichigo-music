@@ -17,11 +17,12 @@ function buildFlatTimings(line) {
         timings.push({
           text: word.text,
           startTime: word.startSec,
-          endTime: word.startSec + word.durationSec
+          endTime: word.endSec !== undefined ? word.endSec : word.startSec + Math.max(0.001, word.durationSec || 0.1)
         });
       } else {
         const graphemes = splitGraphemes(word.text);
-        const timePerGrapheme = word.durationSec / Math.max(1, graphemes.length);
+        const duration = Math.max(0.001, word.durationSec || (word.endSec !== undefined ? word.endSec - word.startSec : 0.1));
+        const timePerGrapheme = duration / Math.max(1, graphemes.length);
         graphemes.forEach((g, i) => {
           timings.push({
             text: g,
@@ -32,11 +33,15 @@ function buildFlatTimings(line) {
       }
     }
   } else {
-    // Fallback: entire line as a single timing block
-    timings.push({
-      text: line.text,
-      startTime: line.time,
-      endTime: line.time
+    const graphemes = splitGraphemes(line.text);
+    const duration = Math.max(0.4, Number(line.duration || 0) || 5);
+    const unitDuration = duration / Math.max(1, graphemes.length);
+    graphemes.forEach((text, index) => {
+      timings.push({
+        text,
+        startTime: line.time + index * unitDuration,
+        endTime: line.time + (index + 1) * unitDuration
+      });
     });
   }
   return timings;
@@ -160,6 +165,10 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
 
         el.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${scale})`;
         el.style.opacity = opacity;
+        el.style.color = glowIntensity > 0.05 ? themeColor : 'var(--text-main)';
+        el.style.textShadow = glowIntensity > 0.05
+          ? `0 0 ${fontPx * 0.15}px ${themeColor}, 0 0 ${fontPx * 0.35}px ${themeColor}`
+          : 'none';
 
         // Use dataset for fast GPU-accelerated CSS state transitions instead of rAF text-shadow mutation
         if (glowIntensity > 0.05) {
@@ -236,7 +245,7 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
             .tilt-lyric-char {
               color: var(--text-main);
               text-shadow: none;
-              transition: color 0.4s ease, text-shadow 0.4s ease;
+              transition: color 0.12s linear, text-shadow 0.12s linear;
             }
             .tilt-lyric-char[data-state="glowing"] {
               color: ${themeColor};

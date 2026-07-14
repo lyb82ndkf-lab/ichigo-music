@@ -13,7 +13,8 @@ export default function AudioPlayer() {
     setAudioElement,
     playMode,
     resumeTime,
-    setResumeTime
+    setResumeTime,
+    playSong
   } = useApp();
 
   const audioRef = useRef(null);
@@ -90,6 +91,9 @@ export default function AudioPlayer() {
 
   // Handle song change
   useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current._hasRetriedUrl = false;
+    }
     if (currentSong && currentSong.url) {
       setProgress(0);
       setDuration(0);
@@ -199,9 +203,26 @@ export default function AudioPlayer() {
 
   useEffect(() => {
     if (!isPlaying || !audioSource || crossOriginMode === null) return;
-    const id = window.setTimeout(() => setupWebAudio(), 0);
-    return () => window.clearTimeout(id);
+    setupWebAudio();
   }, [isPlaying, audioSource, crossOriginMode]);
+
+  // Eagerly initialize or resume Web Audio API on first user gesture
+  useEffect(() => {
+    const handleGesture = () => {
+      if (audioContextRef.current && audioContextRef.current.state === 'running') return;
+      setupWebAudio();
+    };
+
+    window.addEventListener('click', handleGesture, { capture: true });
+    window.addEventListener('keydown', handleGesture, { capture: true });
+    window.addEventListener('touchstart', handleGesture, { capture: true });
+
+    return () => {
+      window.removeEventListener('click', handleGesture, { capture: true });
+      window.removeEventListener('keydown', handleGesture, { capture: true });
+      window.removeEventListener('touchstart', handleGesture, { capture: true });
+    };
+  }, [crossOriginMode]);
 
   // When play starts, setup audio analyser
   const handlePlay = () => {
@@ -248,8 +269,19 @@ export default function AudioPlayer() {
       window.ichigoAnalyser = null;
       setCrossOriginMode(null);
     } else if (code) {
-      console.error(`Fatal audio error code ${code}. Skipping to next song in 1.5 seconds...`);
+      console.error(`Fatal audio error code ${code}.`);
       if (isPlaying) {
+        // If it's a source not supported error, it might be an expired URL from cache.
+        // Try to refresh the URL once before skipping to the next song.
+        if (code === 4 && currentSong && currentSong.url && !audioRef.current._hasRetriedUrl) {
+          console.log("Attempting to refresh song URL...");
+          audioRef.current._hasRetriedUrl = true;
+          // playSong will fetch a fresh URL and update currentSong, triggering a reload.
+          playSong(currentSong);
+          return;
+        }
+
+        console.log("Skipping to next song in 1.5 seconds...");
         setIsPlaying(false);
         setTimeout(() => {
           playNext();

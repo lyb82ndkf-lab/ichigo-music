@@ -68,7 +68,7 @@ function AppContent() {
     setUpdateInfo
   } = useApp();
 
-  const { engineRef, lyrics, activeLineIndex } = useLyricEngine(currentSong?.id, audioElement);
+  const { engineRef, lyrics, activeLineIndex } = useLyricEngine(currentSong?.id, audioElement, currentSong);
 
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isImmersiveSettingsOpen, setIsImmersiveSettingsOpen] = useState(false);
