@@ -5,6 +5,8 @@ import { buildGraphemeOffsets, computeFillWidth } from './MonetLyricsEngine';
 // 由顶级 rAF loop 统一调用，彻底绕过 React render
 export const wordRegistry = new Set();
 
+const getSweepBleedPx = (fontPx) => Math.max(3, Math.ceil(fontPx * 0.08));
+
 const setWordVisualState = (el, fillWidth, glowStr = 'none', reveal = 1, scale = 1, y = 0) => {
   if (!el) return;
   el.style.setProperty('--fill-width-px', `${fillWidth}px`);
@@ -49,9 +51,11 @@ export default function MonetWordSweep({
   lineRenderEndTime,
   status,
   showGlow = false,
-  animationStyle = 'pop'
+  animationStyle = 'pop',
+  showBase = true
 }) {
   const spanRef = useRef(null);
+  const fillRef = useRef(null);
   
   // 1. 离线测量字素偏移（每个 token 在其生命周期内只测量一次）
   const graphemeOffsets = useMemo(() => {
@@ -64,17 +68,27 @@ export default function MonetWordSweep({
     if (!token.timed) return;
     
     const fullWidth = graphemeOffsets[graphemeOffsets.length - 1] || 0;
+    const sweepBleedPx = getSweepBleedPx(fontPx);
 
     // Folia-style hot path: only the active line participates in the rAF word
     // sweep. Waiting and passed lines are static, avoiding N visible lines * M
     // words worth of per-frame DOM writes.
     if (status === 'passed') {
       setWordVisualState(spanRef.current, fullWidth, 'none', 1, 1, 0);
+      if (fillRef.current) {
+        fillRef.current.style.webkitMaskImage = 'none';
+        fillRef.current.style.maskImage = 'none';
+      }
       return;
     }
 
     if (status !== 'active') {
       setWordVisualState(spanRef.current, 0, 'none', 0.08, 1, 0);
+      if (fillRef.current) {
+        const maskStr = 'linear-gradient(90deg, transparent 0px, transparent 100%)';
+        fillRef.current.style.webkitMaskImage = maskStr;
+        fillRef.current.style.maskImage = maskStr;
+      }
       return;
     }
 
@@ -143,8 +157,18 @@ export default function MonetWordSweep({
       }
 
       if (roundedFillWidth !== lastValueRef.fillWidth) {
-        el.style.setProperty('--fill-width-px', `${roundedFillWidth}px`);
         lastValueRef.fillWidth = roundedFillWidth;
+        if (fillRef.current) {
+          const edgeSoftness = Math.max(Math.min(fontPx * 0.45, 16), 6);
+          const fillEnd = roundedFillWidth + sweepBleedPx;
+          const currentSoftness = Math.min(edgeSoftness, roundedFillWidth);
+          const solidEnd = Math.max(fillEnd - currentSoftness, 0);
+          const featherStart = Math.max(fillEnd - currentSoftness * 0.55, 0);
+          const featherEnd = Math.max(fillEnd, 0);
+          const maskStr = `linear-gradient(90deg, black 0px, black ${solidEnd}px, rgba(0,0,0,0.92) ${featherStart}px, transparent ${featherEnd}px, transparent 100%)`;
+          fillRef.current.style.webkitMaskImage = maskStr;
+          fillRef.current.style.maskImage = maskStr;
+        }
       }
 
       if (glowStr !== lastValueRef.glowStr) {
@@ -166,7 +190,7 @@ export default function MonetWordSweep({
       }
     };
 
-    wordUpdater(token.startTime);
+    wordUpdater(status === 'active' ? token.startTime : token.startTime);
     wordRegistry.add(wordUpdater);
 
     return () => {
@@ -177,13 +201,13 @@ export default function MonetWordSweep({
   if (!token.timed) {
     // 标点、空格、没有时轴信息的普通字符
     return (
-      <span className="monet-word-static" style={{ whiteSpace: 'pre-wrap', opacity: status === 'active' ? 1 : 0.4 }}>
+      <span className="monet-word-static" style={{ whiteSpace: 'pre-wrap', opacity: showBase ? 1 : 1, color: showBase ? undefined : 'transparent' }}>
         {token.text}
       </span>
     );
   }
 
-  const edgeSoftness = Math.max(Math.min(fontPx * 0.45, 16), 6);
+  const sweepBleedPx = getSweepBleedPx(fontPx);
   
   // 注意这里的 inline style。由于采用了原生 --fill-width-px 变量进行 mask 切割，
   // 我们避免了每一帧去重新生成 mask 字符串，浏览器硬件层能很好地优化这种 CSS Var 动画。
@@ -198,22 +222,26 @@ export default function MonetWordSweep({
         opacity: animationStyle === 'regular' ? 1 : 'var(--word-reveal, 0.34)',
         transform: 'translate3d(0, var(--word-y, 0px), 0) scale(var(--word-scale, 1))',
         transformOrigin: 'center bottom',
+        paddingLeft: `${sweepBleedPx}px`,
+        marginLeft: `-${sweepBleedPx}px`,
         willChange: status === 'active' && animationStyle !== 'regular' ? 'transform, opacity' : 'auto'
       }}
     >
-      <span className="monet-word-base" style={{ opacity: status === 'active' ? (animationStyle === 'regular' ? 0.42 : 0.28) : 0.35, textShadow: showGlow ? 'var(--word-glow, none)' : 'none' }}>
+      <span className="monet-word-base" style={{ opacity: showBase ? (status === 'active' ? (animationStyle === 'regular' ? 0.58 : 0.28) : 1) : 0, textShadow: showGlow ? 'var(--word-glow, none)' : 'none' }}>
         {token.text}
       </span>
       <span 
+        ref={fillRef}
         className="monet-word-fill"
         style={{
           position: 'absolute',
           left: 0, top: 0,
+          paddingLeft: `${sweepBleedPx}px`,
           whiteSpace: 'pre-wrap',
-          color: 'var(--text-main)',
-          textShadow: 'none',
-          WebkitMaskImage: `linear-gradient(90deg, black 0px, black calc(max(var(--fill-width-px, 0px) - ${edgeSoftness}px, 0px)), rgba(0,0,0,0.92) calc(max(var(--fill-width-px, 0px) - ${edgeSoftness * 0.55}px, 0px)), transparent max(var(--fill-width-px, 0px), 0px), transparent 100%)`,
-          maskImage: `linear-gradient(90deg, black 0px, black calc(max(var(--fill-width-px, 0px) - ${edgeSoftness}px, 0px)), rgba(0,0,0,0.92) calc(max(var(--fill-width-px, 0px) - ${edgeSoftness * 0.55}px, 0px)), transparent max(var(--fill-width-px, 0px), 0px), transparent 100%)`
+          color: 'var(--primary)',
+          textShadow: showGlow ? 'var(--word-glow, none)' : '0 0 10px var(--primary-glow)',
+          WebkitMaskRepeat: 'no-repeat',
+          maskRepeat: 'no-repeat'
         }}
       >
         {token.text}

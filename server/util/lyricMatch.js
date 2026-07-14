@@ -134,9 +134,47 @@ function parseClock(value) {
   return parts[0] || 0
 }
 
+function parseSimpleLrc(lrcText) {
+  const lines = []
+  const timeTagRe = /\[(\d+):(\d+)(?:\.(\d+))?\]/g
+  for (const raw of String(lrcText || '').split(/\r?\n/)) {
+    const text = raw.replace(/\[[^\]]+\]/g, '').trim()
+    if (!text || text === '//') continue
+    if (/^(?:TME|QQ音乐|腾讯音乐).*(?:翻译|著作权|版权)/i.test(text)) continue
+    timeTagRe.lastIndex = 0
+    let match
+    while ((match = timeTagRe.exec(raw))) {
+      const min = Number(match[1]) || 0
+      const sec = Number(match[2]) || 0
+      let msText = match[3] || '0'
+      if (msText.length === 1) msText += '00'
+      else if (msText.length === 2) msText += '0'
+      else if (msText.length > 3) msText = msText.slice(0, 3)
+      lines.push({ time: min * 60 + sec + (Number(msText) || 0) / 1000, text })
+    }
+  }
+  return lines.sort((a, b) => a.time - b.time)
+}
+
+function mergeTranslations(lines, lrcText, toleranceSec = 0.45) {
+  const translations = parseSimpleLrc(lrcText)
+  if (!translations.length) return lines
+  return (lines || []).map(line => {
+    const hit = translations.find(item => Math.abs(item.time - line.time) <= toleranceSec)
+    return hit ? { ...line, translation: hit.text } : line
+  })
+}
+
 function attr(tag, name) {
   const re = new RegExp(`${name}=["']([^"']+)["']`, 'i')
   return tag.match(re)?.[1]
+}
+
+function resolveWordStartMs(lineStartMs, markerStartMs) {
+  // QRC providers may emit word markers as absolute song timestamps, while KRC
+  // usually emits offsets relative to the line. Detect absolute markers by
+  // comparing with the line start; otherwise fall back to relative offsets.
+  return markerStartMs >= lineStartMs - 100 ? markerStartMs : lineStartMs + markerStartMs
 }
 
 function parseTtml(ttml) {
@@ -195,15 +233,20 @@ function parseQrc(qrcText) {
     const body = lineMatch[3]
     const words = []
     let text = ''
-    const wordRe = /\((\d+),(\d+)\)([^\(\[]*)/g
-    let wm
-    while ((wm = wordRe.exec(body))) {
+    const wordRe = /\((\d+),(\d+)\)/g
+    const markers = Array.from(body.matchAll(wordRe))
+    const suffixTimed = markers.length > 0 && body.slice(0, markers[0].index).trim()
+    for (let i = 0; i < markers.length; i += 1) {
+      const wm = markers[i]
       const offset = Number(wm[1]) || 0
       const dur = Number(wm[2]) || 0
-      const wordText = wm[3] || ''
+      const wordText = suffixTimed
+        ? body.slice(i === 0 ? 0 : markers[i - 1].index + markers[i - 1][0].length, wm.index)
+        : body.slice(wm.index + wm[0].length, markers[i + 1]?.index ?? body.length)
       if (!wordText) continue
-      const startSec = (startMs + offset) / 1000
-      const endSec = (startMs + offset + dur) / 1000
+      const wordStartMs = resolveWordStartMs(startMs, offset)
+      const startSec = wordStartMs / 1000
+      const endSec = (wordStartMs + dur) / 1000
       words.push({ text: wordText, startSec, endSec, durationSec: Math.max(0.001, endSec - startSec) })
       text += wordText
     }
@@ -223,14 +266,20 @@ function parseKrc(krcText) {
     const body = lineMatch[3]
     const words = []
     let text = ''
-    const wordRe = /<(\d+),(\d+),\d+>([^<]+)/g
-    let wm
-    while ((wm = wordRe.exec(body))) {
+    const wordRe = /<(\d+),(\d+),\d+>/g
+    const markers = Array.from(body.matchAll(wordRe))
+    const suffixTimed = markers.length > 0 && body.slice(0, markers[0].index).trim()
+    for (let i = 0; i < markers.length; i += 1) {
+      const wm = markers[i]
       const offset = Number(wm[1]) || 0
       const dur = Number(wm[2]) || 0
-      const wordText = wm[3] || ''
-      const startSec = (startMs + offset) / 1000
-      const endSec = (startMs + offset + dur) / 1000
+      const wordText = suffixTimed
+        ? body.slice(i === 0 ? 0 : markers[i - 1].index + markers[i - 1][0].length, wm.index)
+        : body.slice(wm.index + wm[0].length, markers[i + 1]?.index ?? body.length)
+      if (!wordText) continue
+      const wordStartMs = resolveWordStartMs(startMs, offset)
+      const startSec = wordStartMs / 1000
+      const endSec = (wordStartMs + dur) / 1000
       words.push({ text: wordText, startSec, endSec, durationSec: Math.max(0.001, endSec - startSec) })
       text += wordText
     }
@@ -303,7 +352,12 @@ async function fetchQQ(song) {
   const data = await requestQQ('GetPlayLyricInfo', 'music.musichallSong.PlayLyricInfo', param)
   if (!data?.lyric) return null
   const decrypted = await qrcDecrypt(data.lyric)
-  const lines = parseQrc(decrypted)
+  let lines = parseQrc(decrypted)
+  if (data.trans) {
+    try {
+      lines = mergeTranslations(lines, await qrcDecrypt(data.trans))
+    } catch (err) {}
+  }
   return lines.length ? { source: 'qq', format: 'qrc', isWordByWord: true, providerSong: song, lines } : null
 }
 

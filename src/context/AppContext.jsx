@@ -459,14 +459,34 @@ export function AppProvider({ children }) {
     }
   }, [navigateTo]);
 
+  // Short-lived URL cache to avoid slow API re-fetches when switching songs quickly
+  const songUrlCacheRef = useRef(new Map());
+
   // Playback Control logic
   const playSong = useCallback(async (song, newQueue = null, resumeProgress = null) => {
     if (!song) return;
     const { audioQuality, playlist } = stateRef.current;
 
     try {
-      const urlRes = await api.getSongUrls(song.id, audioQuality);
-      const songUrl = urlRes.data[0]?.url;
+      const urlCacheKey = `${song.id}_${audioQuality}`;
+      const cachedEntry = songUrlCacheRef.current.get(urlCacheKey);
+      let songUrl;
+
+      // Use cached URL if it's less than 2 minutes old
+      if (cachedEntry && Date.now() - cachedEntry.time < 2 * 60 * 1000) {
+        songUrl = cachedEntry.url;
+      } else {
+        const urlRes = await api.getSongUrls(song.id, audioQuality);
+        songUrl = urlRes.data[0]?.url;
+        if (songUrl) {
+          songUrlCacheRef.current.set(urlCacheKey, { url: songUrl, time: Date.now() });
+          // Keep cache small
+          if (songUrlCacheRef.current.size > 50) {
+            const firstKey = songUrlCacheRef.current.keys().next().value;
+            songUrlCacheRef.current.delete(firstKey);
+          }
+        }
+      }
 
       if (!songUrl) {
         alert('\u65e0\u6cd5\u83b7\u53d6\u8be5\u6b4c\u66f2\u7684\u64ad\u653e\u6e90\uff08\u53ef\u80fd\u662fVIP\u6b4c\u66f2\u6216\u7248\u6743\u9650\u5236\uff09');
@@ -508,6 +528,32 @@ export function AppProvider({ children }) {
       setCurrentSongAndPersist(songWithUrl);
       setIsPlaying(true);
       addToRecent(songWithUrl);
+
+      // Pre-fetch URL for the next song in the background to make playNext instant
+      try {
+        const { playlist: currentPlaylist, playlistIndex: currentIdx, playMode: currentMode } = stateRef.current;
+        if (currentPlaylist.length > 1) {
+          let nextIdx;
+          if (currentMode === 'random') {
+            nextIdx = Math.floor(Math.random() * currentPlaylist.length);
+          } else {
+            const songIdx = currentPlaylist.findIndex(item => item.id === song.id);
+            nextIdx = songIdx !== -1 ? (songIdx + 1) % currentPlaylist.length : (currentIdx + 1) % currentPlaylist.length;
+          }
+          const nextSong = currentPlaylist[nextIdx];
+          if (nextSong) {
+            const nextCacheKey = `${nextSong.id}_${audioQuality}`;
+            if (!songUrlCacheRef.current.has(nextCacheKey)) {
+              api.getSongUrls(nextSong.id, audioQuality).then(res => {
+                const nextUrl = res.data[0]?.url;
+                if (nextUrl) {
+                  songUrlCacheRef.current.set(nextCacheKey, { url: nextUrl, time: Date.now() });
+                }
+              }).catch(() => {}); // silently ignore pre-fetch failures
+            }
+          }
+        }
+      } catch (_) { /* ignore pre-fetch errors */ }
     } catch (error) {
       console.error('Error starting song playback:', error);
       alert('\u64ad\u653e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');

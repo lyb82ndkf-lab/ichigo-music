@@ -125,6 +125,12 @@ export default function MonetPosterLayout({
     return () => observer.disconnect();
   }, [fontScale]);
 
+  const displayLyrics = useMemo(() => (
+    advancedLyricConfig?.showTranslation === false
+      ? lyrics.map(line => ({ ...line, translation: '' }))
+      : lyrics
+  ), [lyrics, advancedLyricConfig?.showTranslation]);
+
   const visibleLines = useMemo(() => {
     const configuredLines = advancedLyricConfig?.visibleLines || 5;
     const linesToKeep = Math.max(1, Math.min(configuredLines, 5));
@@ -136,19 +142,16 @@ export default function MonetPosterLayout({
     // During normal playback the lyric engine's activeLineIndex is the single
     // source of truth. Recomputing from a stale currentTimeRef during the same
     // render can lag by one line and center the previous lyric instead.
-    if (manualScrollOffset !== 0 && lyrics && lyrics.length > 0) {
-      for (let i = lyrics.length - 1; i >= 0; i--) {
-        if (displayTime >= lyrics[i].time) {
+    if (manualScrollOffset !== 0 && displayLyrics && displayLyrics.length > 0) {
+      for (let i = displayLyrics.length - 1; i >= 0; i--) {
+        if (displayTime >= displayLyrics[i].time) {
           effectiveActiveIndex = i;
           break;
         }
       }
     }
-    const sourceLyrics = advancedLyricConfig?.showTranslation === false
-      ? lyrics.map(line => ({ ...line, translation: '' }))
-      : lyrics;
-    return buildVisibleWindow(sourceLyrics, effectiveActiveIndex, displayTime, { before: half, after: half });
-  }, [lyrics, activeLineIndex, currentTime, manualScrollOffset, advancedLyricConfig?.visibleLines, advancedLyricConfig?.showTranslation]);
+    return buildVisibleWindow(displayLyrics, effectiveActiveIndex, displayTime, { before: half, after: half });
+  }, [displayLyrics, activeLineIndex, currentTime, manualScrollOffset, advancedLyricConfig?.visibleLines]);
 
   // Active Intro Key logic for transitions on song change
   const [introKey, setIntroKey] = useState(currentSong?.id || 'initial');
@@ -346,7 +349,7 @@ export default function MonetPosterLayout({
             <div style={{ width: '100%', height: '100%' }}>
               {animMode === 'streamer' && (
                 <StreamerLyrics
-                  lyrics={lyrics}
+                  lyrics={displayLyrics}
                   activeLineIndex={activeLineIndex}
                   engineRef={engineRef}
                   fontPx={dimensions.fontPx}
@@ -359,7 +362,7 @@ export default function MonetPosterLayout({
               )}
               {animMode === 'talk' && (
                 <TiltLyrics
-                  lyrics={lyrics}
+                  lyrics={displayLyrics}
                   activeLineIndex={activeLineIndex}
                   engineRef={engineRef}
                   fontPx={dimensions.fontPx}
@@ -371,7 +374,7 @@ export default function MonetPosterLayout({
               )}
               {animMode === 'cloudstep' && (
                 <CloudStepLyrics
-                  lyrics={lyrics}
+                  lyrics={displayLyrics}
                   activeLineIndex={activeLineIndex}
                   engineRef={engineRef}
                   fontPx={dimensions.fontPx}
@@ -384,22 +387,26 @@ export default function MonetPosterLayout({
               )}
               {animMode === 'spatial' && (
                 <SpatialCanvasLyrics
-                  lyrics={lyrics}
+                  lyrics={displayLyrics}
                   activeLineIndex={activeLineIndex}
+                  engineRef={engineRef}
                   fontPx={dimensions.fontPx}
                   fontStack={fontStack}
                   themeColor={themeColor}
+                  globalOffset={advancedLyricConfig?.globalOffset || 0}
                 />
               )}
               {animMode === 'vinyl' && (
                 <VinylRecordLyrics
-                  lyrics={lyrics}
+                  lyrics={displayLyrics}
                   activeLineIndex={activeLineIndex}
+                  engineRef={engineRef}
                   fontPx={dimensions.fontPx}
                   fontStack={fontStack}
                   themeColor={themeColor}
                   coverUrl={coverUrlResized}
                   isPlaying={isPlaying}
+                  globalOffset={advancedLyricConfig?.globalOffset || 0}
                   lineSpacing={advancedLyricConfig?.vinylLineSpacing ?? 0.7}
                   tiltAngle={advancedLyricConfig?.vinylTiltAngle ?? 0}
                 />

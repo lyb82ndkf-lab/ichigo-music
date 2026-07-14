@@ -9,6 +9,7 @@ export default function MVPlayer() {
   const [mvDetail, setMvDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const videoRef = useRef(null);
+  const sourceRef = useRef(null);
 
   useEffect(() => {
     if (!viewData?.id) return;
@@ -44,7 +45,33 @@ export default function MVPlayer() {
     if (appAudio) {
       appAudio.pause();
     }
+
+    // Connect to Web Audio API for visualizers
+    if (videoRef.current && window.ichigoAudioContext && window.ichigoAnalyser) {
+      try {
+        const audioCtx = window.ichigoAudioContext;
+        if (audioCtx.state === 'suspended') {
+          audioCtx.resume().catch(() => {});
+        }
+        if (!sourceRef.current) {
+          sourceRef.current = audioCtx.createMediaElementSource(videoRef.current);
+          sourceRef.current.connect(window.ichigoAnalyser);
+        }
+      } catch (e) {
+        console.warn('MV Audio routing failed', e);
+      }
+    }
   };
+
+  useEffect(() => {
+    return () => {
+      if (sourceRef.current) {
+        try {
+          sourceRef.current.disconnect();
+        } catch (e) {}
+      }
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -81,6 +108,7 @@ export default function MVPlayer() {
           src={mvUrl}
           controls
           autoPlay
+          crossOrigin="anonymous"
           onPlay={handleVideoPlay}
           style={{ width: '100%', height: '100%', objectFit: 'contain' }}
         />

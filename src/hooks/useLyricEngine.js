@@ -9,7 +9,7 @@ function getDurationSec(songMeta) {
 }
 
 function hasWordTimedLyrics(lines) {
-  return (lines || []).some(line => line?.isYrc && Array.isArray(line.words) && line.words.length >= 2);
+  return (lines || []).some(line => Array.isArray(line.words) && line.words.length > 0);
 }
 
 function getRealLyricLines(lines) {
@@ -66,7 +66,13 @@ function normalizeMatchedLines(result) {
   const lines = result?.data?.lines || result?.lines || [];
   const source = result?.data?.source || result?.source || 'matched';
   return Array.isArray(lines)
-    ? lines.map(line => ({ ...line, lyricSource: line.lyricSource || source }))
+    ? lines.map(line => ({
+        ...line,
+        lyricSource: line.lyricSource || source,
+        // Ensure isYrc is set when word-level timing data exists,
+        // so all downstream consumers (getWordProgress, desktop lyrics) work correctly.
+        isYrc: line.isYrc || (Array.isArray(line.words) && line.words.length > 0)
+      }))
     : [];
 }
 
@@ -118,7 +124,7 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
 
   engineRef.current.getWordProgress = (lineIndex, wordIndex) => {
     const line = engineRef.current.lyrics[lineIndex];
-    if (!line || !line.isYrc || !line.words[wordIndex]) return 0;
+    if (!line || !line.words || !line.words[wordIndex]) return 0;
     const word = line.words[wordIndex];
     const t = engineRef.current.currentTime;
     if (t < word.startSec) return 0;
@@ -136,7 +142,7 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
     const fetchLyrics = async () => {
       const durationSec = getDurationSec(songMeta || {});
       const durationMs = durationSec > 0 ? Math.round(durationSec * 1000) : undefined;
-      const cacheKey = `lyrics_cache_v5_${songId}_${lyricSources || 'auto'}_${durationMs || 0}`;
+      const cacheKey = `lyrics_cache_v10_${songId}_${lyricSources || 'auto'}_${durationMs || 0}`;
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
         try {
