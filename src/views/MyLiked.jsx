@@ -15,27 +15,65 @@ export default function MyLiked() {
   
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     if (!user || !likedPlaylistId) {
       setSongs([]);
+      setLoadingMore(false);
       return;
     }
 
+    let cancelled = false;
     const fetchLikedSongsDetails = async () => {
       setLoading(true);
+      setLoadingMore(false);
       try {
-        const res = await api.getPlaylistTracks(likedPlaylistId, 1000);
-        setSongs(res.songs || []);
+        const pageSize = 500;
+        const expectedTotal = Math.max(Number(likedSongIds?.size || 0), pageSize);
+        const mergeSongs = (prev, next) => {
+          const seen = new Set(prev.map(song => song.id));
+          const merged = [...prev];
+          for (const song of next) {
+            if (!song?.id || seen.has(song.id)) continue;
+            seen.add(song.id);
+            merged.push(song);
+          }
+          return merged;
+        };
+
+        const firstPage = await api.getPlaylistTracks(likedPlaylistId, pageSize, 0);
+        if (cancelled) return;
+        const firstSongs = firstPage.songs || [];
+        setSongs(firstSongs);
+        setLoading(false);
+
+        let offset = firstSongs.length;
+        if (offset < expectedTotal) setLoadingMore(true);
+        while (!cancelled && offset < expectedTotal) {
+          const res = await api.getPlaylistTracks(likedPlaylistId, pageSize, offset);
+          if (cancelled) return;
+          const nextSongs = res.songs || [];
+          if (nextSongs.length === 0) break;
+          setSongs(prev => mergeSongs(prev, nextSongs));
+          offset += nextSongs.length;
+          if (nextSongs.length < pageSize) break;
+        }
       } catch (err) {
         console.error('Failed to load liked songs:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     };
 
     fetchLikedSongsDetails();
-  }, [user, likedPlaylistId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [user, likedPlaylistId, likedSongIds]);
 
   const playAll = () => {
     if (songs.length > 0) {
@@ -107,6 +145,11 @@ export default function MyLiked() {
             >
               <Play size={14} fill="currentColor" /> 播放全部
             </button>
+          )}
+          {loadingMore && (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '10px' }}>
+              Loading {songs.length}/{likedSongIds.size || songs.length}
+            </div>
           )}
         </div>
       </div>

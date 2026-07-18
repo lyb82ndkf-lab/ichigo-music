@@ -1,7 +1,7 @@
 // main-electron.js - Electron main desktop application process
-import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell } from 'electron';
+import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog } from 'electron';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 import net from 'net';
 import fs from 'fs';
 
@@ -47,6 +47,125 @@ const savePerformanceConfig = (cfg) => {
   } catch (err) {
     console.error('Failed to save performance config:', err);
   }
+};
+
+const getDefaultCacheDirectory = () => {
+  const baseDir = app.isPackaged ? path.dirname(app.getPath('exe')) : __dirname;
+  return path.join(baseDir, 'ichigomusic-cache');
+};
+
+const safeCacheDir = (cacheDir) => {
+  const dir = String(cacheDir || '').trim();
+  return dir || getDefaultCacheDirectory();
+};
+
+const ensureDir = async (dir) => {
+  await fs.promises.mkdir(dir, { recursive: true });
+};
+
+const inferAudioExtension = (url, contentType = '') => {
+  const fromUrl = String(url || '').split('?')[0].match(/\.(mp3|m4a|flac|wav|ogg|aac)$/i)?.[1];
+  if (fromUrl) return fromUrl.toLowerCase();
+  if (/flac/i.test(contentType)) return 'flac';
+  if (/mp4|m4a|aac/i.test(contentType)) return 'm4a';
+  if (/ogg/i.test(contentType)) return 'ogg';
+  if (/wav/i.test(contentType)) return 'wav';
+  return 'mp3';
+};
+
+const getAudioCacheBase = (songId, quality) => `${String(songId).replace(/[^\w.-]/g, '_')}_${String(quality || 'default').replace(/[^\w.-]/g, '_')}`;
+
+const findCachedAudioFile = async (cacheDir, songId, quality) => {
+  const audioDir = path.join(safeCacheDir(cacheDir), 'audio');
+  try {
+    const entries = await fs.promises.readdir(audioDir, { withFileTypes: true });
+    const base = getAudioCacheBase(songId, quality);
+    const hit = entries.find(entry => entry.isFile() && entry.name.startsWith(`${base}.`));
+    if (!hit) return null;
+    const filePath = path.join(audioDir, hit.name);
+    const now = new Date();
+    fs.promises.utimes(filePath, now, now).catch(() => {});
+    return filePath;
+  } catch {
+    return null;
+  }
+};
+
+const inferImageExtension = (url, contentType = '') => {
+  const fromUrl = String(url || '').split('?')[0].match(/\.(jpe?g|png|webp|gif|avif)$/i)?.[1];
+  if (fromUrl) return fromUrl.toLowerCase().replace('jpeg', 'jpg');
+  if (/png/i.test(contentType)) return 'png';
+  if (/webp/i.test(contentType)) return 'webp';
+  if (/gif/i.test(contentType)) return 'gif';
+  if (/avif/i.test(contentType)) return 'avif';
+  return 'jpg';
+};
+
+const getCoverCacheBase = (songId) => String(songId).replace(/[^\w.-]/g, '_');
+
+const findCachedCoverFile = async (cacheDir, songId) => {
+  const coverDir = path.join(safeCacheDir(cacheDir), 'covers');
+  try {
+    const entries = await fs.promises.readdir(coverDir, { withFileTypes: true });
+    const base = getCoverCacheBase(songId);
+    const hit = entries.find(entry => entry.isFile() && entry.name.startsWith(`${base}.`));
+    if (!hit) return null;
+    const filePath = path.join(coverDir, hit.name);
+    const now = new Date();
+    fs.promises.utimes(filePath, now, now).catch(() => {});
+    return filePath;
+  } catch {
+    return null;
+  }
+};
+
+const collectCacheFiles = async (dir) => {
+  const results = [];
+  async function walk(currentDir) {
+    let entries = [];
+    try {
+      entries = await fs.promises.readdir(currentDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        await walk(entryPath);
+      } else if (entry.isFile()) {
+        try {
+          const stat = await fs.promises.stat(entryPath);
+          results.push({ path: entryPath, size: stat.size, atimeMs: stat.atimeMs, mtimeMs: stat.mtimeMs });
+        } catch {}
+      }
+    }
+  }
+  await walk(dir);
+  return results;
+};
+
+const pruneCache = async (cacheDir, maxBytes) => {
+  const root = safeCacheDir(cacheDir);
+  const limit = Math.max(128 * 1024 * 1024, Number(maxBytes) || 1024 * 1024 * 1024);
+  const files = await collectCacheFiles(root);
+  let total = files.reduce((sum, file) => sum + file.size, 0);
+  if (total <= limit) return { total, removed: 0 };
+  let removed = 0;
+  files.sort((a, b) => (a.atimeMs || a.mtimeMs) - (b.atimeMs || b.mtimeMs));
+  for (const file of files) {
+    if (total <= limit) break;
+    try {
+      await fs.promises.unlink(file.path);
+      total -= file.size;
+      removed += 1;
+    } catch {}
+  }
+  return { total, removed };
+};
+
+const lyricCachePath = (cacheDir, key) => {
+  const safeKey = Buffer.from(String(key || ''), 'utf8').toString('base64url');
+  return path.join(safeCacheDir(cacheDir), 'lyrics', `${safeKey}.json`);
 };
 
 // Apply Hardware Acceleration settings immediately on startup
@@ -465,6 +584,131 @@ function createWindow() {
 
   ipcMain.on('open-external', (event, url) => {
     shell.openExternal(url);
+  });
+
+  ipcMain.removeHandler('get-default-cache-directory');
+  ipcMain.handle('get-default-cache-directory', async () => getDefaultCacheDirectory());
+
+  ipcMain.removeHandler('select-cache-directory');
+  ipcMain.handle('select-cache-directory', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '选择 ICHIGOMusic 缓存目录',
+      properties: ['openDirectory', 'createDirectory']
+    });
+    if (result.canceled || !result.filePaths?.[0]) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.removeHandler('get-cached-audio');
+  ipcMain.handle('get-cached-audio', async (_event, { songId, quality, cacheDir }) => {
+    const filePath = await findCachedAudioFile(cacheDir, songId, quality);
+    return filePath ? { url: pathToFileURL(filePath).toString(), path: filePath } : null;
+  });
+
+  ipcMain.removeHandler('cache-audio');
+  ipcMain.handle('cache-audio', async (_event, { songId, quality, url, cacheDir, maxBytes }) => {
+    if (!songId || !url || !/^https?:\/\//i.test(String(url))) return null;
+    const root = safeCacheDir(cacheDir);
+    const audioDir = path.join(root, 'audio');
+    await ensureDir(audioDir);
+
+    const existing = await findCachedAudioFile(root, songId, quality);
+    if (existing) return { url: pathToFileURL(existing).toString(), path: existing, cached: true };
+
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+    if (!response.ok || !response.body) throw new Error(`Audio cache download failed: ${response.status}`);
+    const ext = inferAudioExtension(url, response.headers.get('content-type') || '');
+    const base = getAudioCacheBase(songId, quality);
+    const filePath = path.join(audioDir, `${base}.${ext}`);
+    const tempPath = `${filePath}.tmp-${Date.now()}`;
+    const arrayBuffer = await response.arrayBuffer();
+    await fs.promises.writeFile(tempPath, Buffer.from(arrayBuffer));
+    await fs.promises.rename(tempPath, filePath);
+    await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
+    return { url: pathToFileURL(filePath).toString(), path: filePath, cached: true };
+  });
+
+  ipcMain.removeHandler('get-cached-cover');
+  ipcMain.handle('get-cached-cover', async (_event, { songId, cacheDir }) => {
+    const filePath = await findCachedCoverFile(cacheDir, songId);
+    return filePath ? { url: pathToFileURL(filePath).toString(), path: filePath } : null;
+  });
+
+  ipcMain.removeHandler('cache-cover');
+  ipcMain.handle('cache-cover', async (_event, { songId, url, cacheDir, maxBytes }) => {
+    if (!songId || !url || !/^https?:\/\//i.test(String(url))) return null;
+    const root = safeCacheDir(cacheDir);
+    const coverDir = path.join(root, 'covers');
+    await ensureDir(coverDir);
+    const existing = await findCachedCoverFile(root, songId);
+    if (existing) return { url: pathToFileURL(existing).toString(), path: existing, cached: true };
+
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+    });
+    if (!response.ok || !response.body) throw new Error(`Cover cache download failed: ${response.status}`);
+    const ext = inferImageExtension(url, response.headers.get('content-type') || '');
+    const filePath = path.join(coverDir, `${getCoverCacheBase(songId)}.${ext}`);
+    const tempPath = `${filePath}.tmp-${Date.now()}`;
+    const arrayBuffer = await response.arrayBuffer();
+    await fs.promises.writeFile(tempPath, Buffer.from(arrayBuffer));
+    await fs.promises.rename(tempPath, filePath);
+    await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
+    return { url: pathToFileURL(filePath).toString(), path: filePath, cached: true };
+  });
+
+  ipcMain.removeHandler('read-lyric-cache');
+  ipcMain.handle('read-lyric-cache', async (_event, { key, cacheDir }) => {
+    try {
+      const filePath = lyricCachePath(cacheDir, key);
+      const text = await fs.promises.readFile(filePath, 'utf8');
+      const now = new Date();
+      fs.promises.utimes(filePath, now, now).catch(() => {});
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  });
+
+  ipcMain.removeHandler('write-lyric-cache');
+  ipcMain.handle('write-lyric-cache', async (_event, { key, data, cacheDir, maxBytes }) => {
+    try {
+      const filePath = lyricCachePath(cacheDir, key);
+      await ensureDir(path.dirname(filePath));
+      await fs.promises.writeFile(filePath, JSON.stringify(data), 'utf8');
+      await pruneCache(safeCacheDir(cacheDir), Number(maxBytes) || 1024 * 1024 * 1024);
+      return true;
+    } catch (err) {
+      console.error('Failed to write lyric cache:', err);
+      return false;
+    }
+  });
+
+  ipcMain.removeHandler('get-cache-stats');
+  ipcMain.handle('get-cache-stats', async (_event, { cacheDir }) => {
+    const root = safeCacheDir(cacheDir);
+    const files = await collectCacheFiles(root);
+    return {
+      dir: root,
+      size: files.reduce((sum, file) => sum + file.size, 0),
+      files: files.length
+    };
+  });
+
+  ipcMain.removeHandler('clear-app-cache');
+  ipcMain.handle('clear-app-cache', async (_event, { cacheDir }) => {
+    const root = safeCacheDir(cacheDir);
+    await fs.promises.rm(path.join(root, 'audio'), { recursive: true, force: true });
+    await fs.promises.rm(path.join(root, 'lyrics'), { recursive: true, force: true });
+    await fs.promises.rm(path.join(root, 'covers'), { recursive: true, force: true });
+    await ensureDir(path.join(root, 'audio'));
+    await ensureDir(path.join(root, 'lyrics'));
+    await ensureDir(path.join(root, 'covers'));
+    return true;
   });
 
   // Load local Vite dev server or production build

@@ -68,6 +68,9 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
     const minFrameMs = fps === 0 ? 0 : 1000 / fps;
     const resolvedPrimary = resolveCanvasColor(primaryColor || 'var(--primary)');
     const sampleOffset = 4;
+    const configuredVisualizerStyle = advancedLyricConfig?.visualizerStyleByMode?.[animationMode]
+      || advancedLyricConfig?.visualizerStyle
+      || 'mode';
 
     const resizeCanvas = () => {
       const rect = canvas.parentElement.getBoundingClientRect();
@@ -134,7 +137,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       if (advancedLyricConfig?.particleSystem === false) return;
       if (intensity < 200) return; // Only spawn on high peaks
       
-      const amount = advancedLyricConfig?.particleAmount || 50;
+      const amount = Math.min(advancedLyricConfig?.particleAmount || 50, 40);
       const baseSize = advancedLyricConfig?.particleSize || 1.5;
       
       // Spawn a burst of particles
@@ -193,7 +196,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       const inner = (coverSize / 2) + innerOffset;
       const maxPulse = advancedLyricConfig?.ringMaxAmplitude ?? 80;
       
-      const bars = advancedLyricConfig?.ringBarCount ?? 180;
+      const bars = Math.min(Number(advancedLyricConfig?.ringBarCount ?? 180) || 180, isBehindCover ? 128 : 96);
       const sampleSpan = currentBufferLength * 0.6;
       let totalEnergy = 0;
       
@@ -510,7 +513,8 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
 
     const draw = (now) => {
       animationId = requestAnimationFrame(draw);
-      if (fps !== 0 && now - lastFrame < minFrameMs) return;
+      const frameBudgetMs = isPlaying ? minFrameMs : 1000 / 12;
+      if ((isPlaying ? fps !== 0 : true) && now - lastFrame < frameBudgetMs) return;
       
       const deltaSec = lastFrame === 0 ? 0.016 : (now - lastFrame) / 1000;
       lastFrame = now;
@@ -521,11 +525,23 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       prepareData();
       ctx.clearRect(0, 0, width, height);
 
+      if (configuredVisualizerStyle === 'off') {
+        particlesRef.current = [];
+        talkParticlesRef.current = [];
+        return;
+      }
+
       // Draw particle system first (background layer)
       drawParticles();
 
-      // Route rendering strictly by animationMode
-      if (animationMode === 'regular') {
+      if (configuredVisualizerStyle === 'bars') {
+        drawStreamerBar();
+      } else if (configuredVisualizerStyle === 'wave') {
+        if (animationMode === 'regular') drawEnhancedCircle(deltaSec);
+        else drawCloudWaves();
+      } else if (configuredVisualizerStyle === 'circle') {
+        drawEnhancedCircle(deltaSec);
+      } else if (animationMode === 'regular') {
         drawEnhancedCircle(deltaSec);
       } else if (animationMode === 'streamer') {
         drawStreamerBar();

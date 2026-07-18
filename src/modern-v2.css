@@ -451,11 +451,14 @@
 
 .layout-modern #progress-fill {
   height: 100%;
-  width: 0%;
+  width: 100%;
   background: linear-gradient(90deg, rgba(255,255,255,0.92), rgba(var(--primary-rgb, 255,64,129), 0.74));
   border-radius: 999px;
-  transition: width 0.12s linear;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.08s linear;
   box-shadow: 0 0 16px rgba(var(--primary-rgb, 255,64,129), 0.18);
+  will-change: transform;
 }
 
 .layout-modern #progress-thumb {
@@ -469,7 +472,8 @@
   transition: opacity 0.16s, transform 0.16s;
 }
 
-.layout-modern #progress-bar:hover #progress-thumb {
+.layout-modern #progress-bar:hover #progress-thumb,
+.layout-modern #progress-bar.seeking #progress-thumb {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
 }

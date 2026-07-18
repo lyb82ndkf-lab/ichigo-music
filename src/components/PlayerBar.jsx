@@ -18,7 +18,7 @@ import {
   Tv
 } from 'lucide-react';
 
-export default function PlayerBar({ onToggleLyrics, isLyricsOpen }) {
+export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] }) {
   const {
     currentSong,
     isPlaying,
@@ -47,6 +47,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen }) {
   const [showQueue, setShowQueue] = useState(false);
   const [prevVolume, setPrevVolume] = useState(0.8);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [progressPreview, setProgressPreview] = useState(null);
 
   const formatTime = (s) => {
     if (isNaN(s) || s === Infinity) return '00:00';
@@ -61,6 +62,38 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen }) {
       const newTime = (percentage / 100) * duration;
       audioElement.currentTime = newTime;
     }
+  };
+
+  const updateProgressPreview = (e) => {
+    if (!duration || !Array.isArray(lyrics) || lyrics.length === 0) {
+      setProgressPreview(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const targetTime = percent * duration;
+    let index = -1;
+    for (let i = lyrics.length - 1; i >= 0; i -= 1) {
+      if (targetTime >= Number(lyrics[i].time || 0)) {
+        index = i;
+        break;
+      }
+    }
+    if (index < 0) index = 0;
+    const line = lyrics[index];
+    const start = Number(line?.time || 0);
+    const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : duration;
+    const end = Math.max(start + 0.2, Math.min(duration || nextStart, nextStart || (start + Number(line?.duration || 5))));
+    setProgressPreview({
+      x: Math.max(120, Math.min(rect.width - 120, e.clientX - rect.left)),
+      index,
+      total: lyrics.length,
+      text: line?.text || '',
+      translation: line?.translation || '',
+      start,
+      end,
+      lineProgress: Math.max(0, Math.min(1, (targetTime - start) / Math.max(0.2, end - start)))
+    });
   };
 
   const handleVolumeToggle = () => {
@@ -195,7 +228,25 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen }) {
 
         <div className="progress-bar-container">
           <span>{formatTime(progress)}</span>
-          <div className="progress-slider">
+          <div
+            className="progress-slider"
+            onMouseMove={updateProgressPreview}
+            onMouseLeave={() => setProgressPreview(null)}
+          >
+            {progressPreview && (
+              <div className="progress-lyric-preview" style={{ left: `${progressPreview.x}px` }}>
+                <div className="progress-preview-count">{progressPreview.index + 1} / {progressPreview.total}</div>
+                <div className="progress-preview-text">{progressPreview.text}</div>
+                {progressPreview.translation && <div className="progress-preview-translation">{progressPreview.translation}</div>}
+                <div className="progress-preview-line">
+                  <span>{formatTime(progressPreview.start)}</span>
+                  <div className="progress-preview-meter">
+                    <i style={{ width: `${progressPreview.lineProgress * 100}%` }} />
+                  </div>
+                  <span>{formatTime(progressPreview.end)}</span>
+                </div>
+              </div>
+            )}
             <input 
               type="range"
               min="0"

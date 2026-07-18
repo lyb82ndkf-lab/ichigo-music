@@ -39,9 +39,27 @@ function scoreCandidate(target, song) {
   let durationScore = 0
   if (durationMs > 0 && songDuration > 0) {
     const diff = Math.abs(durationMs - songDuration)
-    durationScore = diff <= 3000 ? 20 : diff <= 8000 ? 12 : diff <= 15000 ? 6 : 0
+    const mismatchPenalty = diff > Math.max(30000, durationMs * 0.2) ? -36 : 0
+    durationScore = diff <= 3000 ? 20 : diff <= 8000 ? 12 : diff <= 15000 ? 6 : mismatchPenalty
   }
   return titleScore + artistScore + durationScore
+}
+
+function durationDiffMs(target, song) {
+  const durationMs = Number(target.durationMs || 0)
+  const songDuration = Number(song?.duration || 0)
+  if (durationMs <= 0 || songDuration <= 0) return 0
+  return Math.abs(durationMs - songDuration)
+}
+
+function isDurationCompatible(target, song) {
+  const durationMs = Number(target.durationMs || 0)
+  const songDuration = Number(song?.duration || 0)
+  if (durationMs <= 0 || songDuration <= 0) return true
+  const tolerance = durationMs >= 90000
+    ? Math.max(15000, durationMs * 0.10)
+    : Math.max(8000, durationMs * 0.15)
+  return Math.abs(durationMs - songDuration) <= tolerance
 }
 
 function pickBest(target, songs) {
@@ -51,10 +69,16 @@ function pickBest(target, songs) {
 }
 
 function rankCandidates(target, songs, minScore = 72, limit = 5) {
-  return (songs || [])
+  const sourceSongs = songs || []
+  const durationMatched = sourceSongs.filter(song => isDurationCompatible(target, song))
+  const candidates = durationMatched.length ? durationMatched : sourceSongs
+  return candidates
     .map(song => ({ song, score: scoreCandidate(target, song) }))
     .filter(item => item.score >= minScore)
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      return durationDiffMs(target, a.song) - durationDiffMs(target, b.song)
+    })
     .slice(0, limit)
 }
 
@@ -78,6 +102,72 @@ function isInstrumentalLyric(lines) {
   })
 }
 
+function hasKana(text) {
+  return /[\u3040-\u30ff]/u.test(String(text || ''))
+}
+
+function looksLikeRomajiTail(text) {
+  return /\s(?:[a-z]{1,8}[\s'-]+){2,}[a-z]{1,10}$/i.test(String(text || ''))
+}
+
+function cleanMixedLyricText(text) {
+  let value = String(text || '').replace(/\s+/g, ' ').trim()
+  if (!value) return value
+
+  if (hasKana(value) && looksLikeRomajiTail(value)) {
+    value = value.replace(/\s(?:[a-z]{1,8}[\s'-]+){2,}[a-z]{1,10}$/i, '').trim()
+  }
+
+  if (hasKana(value)) {
+    // Mixed TTML/QRC lines can arrive as: source + Chinese translation + romaji.
+    // Cut at simplified-Chinese translation starters, but keep Japanese kanji
+    // that may legitimately appear before them.
+    const mixed = value.match(/^(.{2,90}?)([这那为们个来对里后前吗没么说时过还让给爱会长发见听气无尽欢谁终点].*)$/u)
+    if (mixed && hasKana(mixed[1]) && !hasKana(mixed[2])) {
+      value = mixed[1].trim()
+    }
+  }
+
+  return value
+}
+
+function trimWordsToCleanText(words, originalText, cleanText) {
+  if (!Array.isArray(words) || !words.length || cleanText === originalText) return words
+  const trimmed = []
+  let assembled = ''
+  for (const word of words) {
+    const next = assembled + String(word.text || '')
+    if (cleanText.startsWith(next) || next.startsWith(cleanText)) {
+      const remaining = cleanText.slice(assembled.length)
+      if (!remaining) break
+      trimmed.push({ ...word, text: remaining.length < String(word.text || '').length ? remaining : word.text })
+      assembled += remaining.length < String(word.text || '').length ? remaining : String(word.text || '')
+      if (assembled.length >= cleanText.length) break
+    } else if (assembled.length < cleanText.length) {
+      trimmed.push(word)
+      assembled = next
+    } else {
+      break
+    }
+  }
+  return trimmed.length ? trimmed : words
+}
+
+function sanitizeLyricLine(line) {
+  const originalText = String(line?.text || '')
+  const cleanText = cleanMixedLyricText(originalText)
+  if (!cleanText || cleanText === originalText) return line
+  return {
+    ...line,
+    text: cleanText,
+    words: trimWordsToCleanText(line.words, originalText, cleanText)
+  }
+}
+
+function isAuxiliaryTtmlSpan(attrs) {
+  return /translation|trans|roman|romaji|roma|pronunciation|pronounce|pron\b|background/i.test(String(attrs || ''))
+}
+
 function assessMatchedLyric(result, target = {}) {
   const lines = Array.isArray(result?.lines) ? result.lines : []
   const realLines = lines.filter(line => line?.text && String(line.text).trim() && !/^\.+$/.test(String(line.text).trim()))
@@ -88,11 +178,12 @@ function assessMatchedLyric(result, target = {}) {
   const durationSec = Number(target.durationMs || 0) > 0 ? Number(target.durationMs) / 1000 : 0
   const lastEnd = realLines.reduce((max, line) => Math.max(max, Number(line.time || 0) + Number(line.duration || 0)), 0)
   const coverage = durationSec > 0 ? lastEnd / durationSec : 1
+  const durationMismatch = durationSec >= 90 && coverage > 0 && (coverage < 0.62 || coverage > 1.22)
   const lowQuality = !instrumentalLike && (
     realLines.length === 0 ||
     realLines.length < 10 ||
     creditOnly ||
-    (durationSec >= 90 && coverage > 0 && coverage < 0.28)
+    durationMismatch
   )
   return { usable: !lowQuality, lowQuality, instrumentalLike, wordTimed, realLineCount: realLines.length, creditCount, coverage }
 }
@@ -191,7 +282,10 @@ function parseTtml(ttml) {
     const spanRe = /<span\b([^>]*)>([\s\S]*?)<\/span>/gi
     let spanMatch
     let fullText = ''
+    let sawSpan = false
     while ((spanMatch = spanRe.exec(body))) {
+      sawSpan = true
+      if (isAuxiliaryTtmlSpan(spanMatch[1])) continue
       const spanText = stripTags(spanMatch[2])
       if (!spanText) continue
       const wStart = parseClock(attr(spanMatch[1], 'begin')) || start
@@ -200,14 +294,14 @@ function parseTtml(ttml) {
       fullText += spanText
       if (wEnd > end) end = wEnd
     }
-    if (!fullText) fullText = stripTags(body)
+    if (!fullText && !sawSpan) fullText = cleanMixedLyricText(stripTags(body))
     if (fullText) lines.push({ time: start, text: fullText, duration: Math.max(0.001, end - start), words, isYrc: words.length > 0, sourceFormat: 'ttml' })
   }
   return finishLines(lines, 'amll')
 }
 
 function finishLines(lines, source) {
-  const sorted = (lines || []).filter(l => l.text).sort((a, b) => a.time - b.time)
+  const sorted = (lines || []).filter(l => l.text).map(sanitizeLyricLine).sort((a, b) => a.time - b.time)
   for (let i = 0; i < sorted.length; i += 1) {
     const line = sorted[i]
     const next = sorted[i + 1]
@@ -348,7 +442,7 @@ async function searchQQ(keyword, limit = 8) {
 async function fetchQQ(song) {
   if (!song?.id || !song?.qqMid) return null
   const artistsStr = (song.artists || []).map(a => a.name).join(', ')
-  const param = { albumName: toBase64Utf8(song.album?.name || ''), crypt: 1, ct: 19, cv: 2111, interval: Math.floor((song.duration || 0) / 1000), lrc_t: 0, qrc: 1, qrc_t: 0, roma: 1, roma_t: 0, singerName: toBase64Utf8(artistsStr), songID: Number(song.id), songName: toBase64Utf8(song.name), trans: 1, trans_t: 0, type: 0 }
+  const param = { albumName: toBase64Utf8(song.album?.name || ''), crypt: 1, ct: 19, cv: 2111, interval: Math.floor((song.duration || 0) / 1000), lrc_t: 0, qrc: 1, qrc_t: 0, roma: 0, roma_t: 0, singerName: toBase64Utf8(artistsStr), songID: Number(song.id), songName: toBase64Utf8(song.name), trans: 1, trans_t: 0, type: 0 }
   const data = await requestQQ('GetPlayLyricInfo', 'music.musichallSong.PlayLyricInfo', param)
   if (!data?.lyric) return null
   const decrypted = await qrcDecrypt(data.lyric)

@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1, ListMusic, Volume2, VolumeX } from 'lucide-react';
 
-export default function ModernPlayerBar({ onToggleLyrics }) {
+export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
   const { 
     currentSong,
     isPlaying, 
@@ -20,10 +20,13 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
     setIsQueueOpen,
     volume,
     setVolume,
-    desktopLyricsConfig
+    desktopLyricsConfig,
+    navigateTo
   } = useApp();
 
   const [prevVolume, setPrevVolume] = useState(0.8);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [progressPreview, setProgressPreview] = useState(null);
   const handleVolumeToggle = () => {
     if (volume > 0) {
       setPrevVolume(volume);
@@ -42,16 +45,79 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
     return `${min}:${sec}`;
   };
 
-  const handleProgressClick = (e) => {
+  const seekFromClientX = (clientX) => {
     if (!progressRef.current || !duration) return;
     const rect = progressRef.current.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     if (audioElement) audioElement.currentTime = percent * duration;
+  };
+
+  const getLyricPreview = (clientX) => {
+    if (!progressRef.current || !duration || !Array.isArray(lyrics) || lyrics.length === 0) return null;
+    const rect = progressRef.current.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    const targetTime = percent * duration;
+    let index = -1;
+    for (let i = lyrics.length - 1; i >= 0; i -= 1) {
+      if (targetTime >= Number(lyrics[i].time || 0)) {
+        index = i;
+        break;
+      }
+    }
+    if (index < 0) index = 0;
+    const line = lyrics[index];
+    const start = Number(line?.time || 0);
+    const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : duration;
+    const end = Math.max(start + 0.2, Math.min(duration || nextStart, nextStart || (start + Number(line?.duration || 5))));
+    const lineProgress = Math.max(0, Math.min(1, (targetTime - start) / Math.max(0.2, end - start)));
+    return {
+      x: Math.max(120, Math.min(rect.width - 120, clientX - rect.left)),
+      index,
+      total: lyrics.length,
+      text: line?.text || '',
+      translation: line?.translation || '',
+      start,
+      end,
+      lineProgress
+    };
+  };
+
+  const updateProgressPreview = (clientX) => {
+    setProgressPreview(getLyricPreview(clientX));
+  };
+
+  const handleProgressPointerDown = (e) => {
+    e.preventDefault();
+    setIsSeeking(true);
+    updateProgressPreview(e.clientX);
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    seekFromClientX(e.clientX);
+  };
+
+  const handleProgressPointerMove = (e) => {
+    updateProgressPreview(e.clientX);
+    if (!isSeeking) return;
+    seekFromClientX(e.clientX);
+  };
+
+  const handleProgressPointerUp = (e) => {
+    setIsSeeking(false);
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
 
   const progressPercent = duration ? (progress / duration) * 100 : 0;
   const coverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
   const isLiked = currentSong ? likedSongIds.has(currentSong.id) : false;
+  const primaryArtist = currentSong?.ar?.[0] || currentSong?.artists?.[0] || null;
+  const albumId = currentSong?.al?.id || currentSong?.album?.id;
+
+  const handleSongClick = () => {
+    if (albumId) navigateTo('album-detail', { id: albumId });
+  };
+
+  const handleArtistClick = () => {
+    if (primaryArtist?.id) navigateTo('artist-detail', { id: primaryArtist.id });
+  };
 
   const handlePlayMode = () => {
     if (playMode === 'sequence') setPlayMode('random');
@@ -66,11 +132,19 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
             <div className="control-cover" style={{ backgroundImage: `url(${coverUrl})`, cursor: 'pointer' }} onClick={() => { setIsQueueOpen(false); onToggleLyrics?.(); }} title="\u70b9\u51fb\u8fdb\u5165\u6c89\u6d78\u6a21\u5f0f" />
             <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-              <span style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span
+                onClick={handleSongClick}
+                title={albumId ? '打开专辑' : undefined}
+                style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: albumId ? 'pointer' : 'default' }}
+              >
                 {currentSong?.name || '未播放'}
               </span>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {currentSong?.ar?.[0]?.name || '未知艺术家'}
+              <span
+                onClick={handleArtistClick}
+                title={primaryArtist?.id ? '打开歌手' : undefined}
+                style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: primaryArtist?.id ? 'pointer' : 'default' }}
+              >
+                {primaryArtist?.name || '未知艺术家'}
               </span>
             </div>
           </div>
@@ -154,8 +228,33 @@ export default function ModernPlayerBar({ onToggleLyrics }) {
           </div>
         </div>
 
-        <div id="progress-bar" ref={progressRef} onClick={handleProgressClick}>
-          <div id="progress-fill" style={{ width: `${progressPercent}%` }} />
+        <div
+          id="progress-bar"
+          className={isSeeking ? 'seeking' : ''}
+          ref={progressRef}
+          onPointerDown={handleProgressPointerDown}
+          onPointerMove={handleProgressPointerMove}
+          onPointerUp={handleProgressPointerUp}
+          onPointerCancel={handleProgressPointerUp}
+          onPointerLeave={() => {
+            if (!isSeeking) setProgressPreview(null);
+          }}
+        >
+          {progressPreview && (
+            <div className="progress-lyric-preview" style={{ left: `${progressPreview.x}px` }}>
+              <div className="progress-preview-count">{progressPreview.index + 1} / {progressPreview.total}</div>
+              <div className="progress-preview-text">{progressPreview.text}</div>
+              {progressPreview.translation && <div className="progress-preview-translation">{progressPreview.translation}</div>}
+              <div className="progress-preview-line">
+                <span>{formatTime(progressPreview.start)}</span>
+                <div className="progress-preview-meter">
+                  <i style={{ width: `${progressPreview.lineProgress * 100}%` }} />
+                </div>
+                <span>{formatTime(progressPreview.end)}</span>
+              </div>
+            </div>
+          )}
+          <div id="progress-fill" style={{ transform: `scaleX(${Math.max(0, Math.min(1, progressPercent / 100))})` }} />
           <div id="progress-thumb" style={{ left: `${progressPercent}%` }} />
         </div>
       </div>

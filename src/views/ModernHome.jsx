@@ -5,15 +5,25 @@ import GlassNavCard from '../components/GlassNavCard';
 import { useLyricEngine } from '../hooks/useLyricEngine';
 
 function GlassTile({ song }) {
-  const { playSong } = useApp();
+  const { playSong, navigateTo } = useApp();
   const coverUrl = song?.coverUrl || song?.al?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
+  const primaryArtist = song?.ar?.[0] || song?.artists?.[0] || null;
   
   return (
     <div className="home-glass-tile" onClick={() => playSong(song)}>
       <img src={coverUrl} alt="cover" className="tile-cover" />
       <div className="tile-info">
         <div className="tile-name">{song.name}</div>
-        <div className="tile-artist">{song.ar?.[0]?.name || '未知艺术家'}</div>
+        <div
+          className="tile-artist"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (primaryArtist?.id) navigateTo('artist-detail', { id: primaryArtist.id });
+          }}
+          style={{ cursor: primaryArtist?.id ? 'pointer' : 'default' }}
+        >
+          {primaryArtist?.name || '未知艺术家'}
+        </div>
       </div>
       <button className="tile-play-btn"><Play size={16} fill="currentColor" /></button>
     </div>
@@ -37,8 +47,13 @@ function GlassPlaylistTile({ playlist }) {
 }
 
 export default function ModernHome() {
-  const { currentSong, isPlaying, togglePlay, navigateTo, recentlyPlayed, audioElement, userPlaylists } = useApp();
-  const { lyrics, activeLineIndex } = useLyricEngine(currentSong?.id, audioElement, currentSong);
+  const { currentSong, isPlaying, togglePlay, navigateTo, recentlyPlayed, audioElement, userPlaylists, advancedLyricConfig } = useApp();
+  const { lyrics, activeLineIndex } = useLyricEngine(
+    currentSong?.id,
+    audioElement,
+    currentSong,
+    advancedLyricConfig?.lyricSources || 'amll,qq,kugou'
+  );
 
   const openSearch = () => {
     navigateTo('search');
@@ -46,6 +61,8 @@ export default function ModernHome() {
 
   const coverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl;
   const activeLyric = activeLineIndex >= 0 && lyrics[activeLineIndex] ? lyrics[activeLineIndex].text : '';
+  const currentPrimaryArtist = currentSong?.ar?.[0] || currentSong?.artists?.[0] || null;
+  const currentAlbumName = currentSong?.al?.name || currentSong?.album?.name || '未知专辑';
 
   return (
     <div id="modern-home" className="modern-home">
@@ -75,7 +92,18 @@ export default function ModernHome() {
               {currentSong ? currentSong.name : '听你所想，享你所爱'}
             </div>
             <div className="home-sub" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {currentSong ? `${currentSong.ar?.[0]?.name || '未知艺术家'} · ${currentSong.al?.name || '未知专辑'}` : '选择一首歌开始'}
+              {currentSong ? (
+                <>
+                  <span
+                    onClick={() => currentPrimaryArtist?.id && navigateTo('artist-detail', { id: currentPrimaryArtist.id })}
+                    style={{ cursor: currentPrimaryArtist?.id ? 'pointer' : 'default' }}
+                  >
+                    {currentPrimaryArtist?.name || '未知艺术家'}
+                  </span>
+                  {' · '}
+                  {currentAlbumName}
+                </>
+              ) : '选择一首歌开始'}
             </div>
             
             {activeLyric && (

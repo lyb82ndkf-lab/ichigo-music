@@ -32,6 +32,7 @@ function assessLyricQuality(lines, durationSec = 0) {
   const lastEnd = realLines.reduce((max, line) => Math.max(max, Number(line.time || 0) + Number(line.duration || 0)), 0);
   const firstStart = realLines.reduce((min, line) => Math.min(min, Number(line.time || 0)), Number.POSITIVE_INFINITY);
   const coverage = durationSec > 0 ? lastEnd / durationSec : 1;
+  const durationMismatch = durationSec >= 90 && coverage > 0 && (coverage < 0.62 || coverage > 1.22);
   const timeSpread = Number.isFinite(firstStart) ? Math.max(0, lastEnd - firstStart) : 0;
   const timedLineCount = realLines.filter(line => Number.isFinite(line.time) && line.time >= 0).length;
 
@@ -52,7 +53,7 @@ function assessLyricQuality(lines, durationSec = 0) {
     || creditOnly
     || realLines.length < 10
     || (durationSec >= 90 && realLines.length <= 4)
-    || (durationSec >= 90 && coverage > 0 && coverage < 0.28 && realLines.length < 10)
+    || durationMismatch
     || (timedLineCount >= 2 && timeSpread < 5));
 
   return { lowQuality, score, wordTimed, realLineCount: realLines.length, coverage, lastEnd, instrumentalLike, creditLineCount };
@@ -91,10 +92,21 @@ function getArtistName(songMeta) {
 }
 
 
-export function useLyricEngine(songId, audioElement, songMeta = null, lyricSources = 'amll,qq,kugou') {
+export function useLyricEngine(songId, audioElement, songMeta = null, lyricSources = 'amll,qq,kugou', cacheConfig = null) {
   const [lyrics, setLyrics] = useState([]);
   const [activeLineIndex, setActiveLineIndex] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
+  const displayedSongIdRef = useRef(null);
+
+  const durationSec = getDurationSec(songMeta || {});
+  const durationMs = durationSec > 0 ? Math.round(durationSec * 1000) : undefined;
+  const songTitle = getSongField(songMeta, ['name', 'title']);
+  const songArtist = getArtistName(songMeta);
+  const songAlbum = songMeta?.album?.name || songMeta?.al?.name
+    || (typeof songMeta?.album === 'string' ? songMeta.album : '');
+  const lyricCacheEnabled = cacheConfig?.enabled === true && cacheConfig?.lyrics !== false;
+  const lyricCacheDir = cacheConfig?.directory || '';
+  const lyricCacheMaxGb = Math.max(1, Math.min(10, Number(cacheConfig?.maxSizeGb || 1)));
   
   // engineRef holds mutable state that shouldn't trigger re-renders
   const engineRef = useRef({
@@ -134,15 +146,48 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
 
   // Fetch and parse lyrics
   useEffect(() => {
-    if (!songId) return;
+    if (!songId) {
+      setLyrics([]);
+      setActiveLineIndex(-1);
+      engineRef.current.lyrics = [];
+      engineRef.current.activeIndex = -1;
+      displayedSongIdRef.current = null;
+      return;
+    }
 
     let isMounted = true;
+    const isDifferentSong = displayedSongIdRef.current !== songId;
+    if (isDifferentSong) {
+      displayedSongIdRef.current = songId;
+      setLyrics([]);
+      setActiveLineIndex(-1);
+      engineRef.current.lyrics = [];
+      engineRef.current.activeIndex = -1;
+    }
     setIsLoading(true);
 
     const fetchLyrics = async () => {
-      const durationSec = getDurationSec(songMeta || {});
-      const durationMs = durationSec > 0 ? Math.round(durationSec * 1000) : undefined;
-      const cacheKey = `lyrics_cache_v10_${songId}_${lyricSources || 'auto'}_${durationMs || 0}`;
+      const cacheKey = `lyrics_cache_v12_${songId}_${lyricSources || 'auto'}_${durationMs || 0}`;
+      if (lyricCacheEnabled && window.electronAPI?.readLyricCache) {
+        const fileCached = await window.electronAPI.readLyricCache({
+          key: cacheKey,
+          cacheDir: lyricCacheDir
+        }).catch(() => null);
+        if (fileCached) {
+          const fileCacheQuality = assessLyricQuality(fileCached, durationSec);
+          const fileCacheCanSatisfy = !fileCacheQuality.lowQuality && (lyricSources === 'netease' || fileCacheQuality.wordTimed || fileCacheQuality.instrumentalLike);
+          if (fileCacheCanSatisfy) {
+            if (isMounted) {
+              setLyrics(fileCached);
+              engineRef.current.lyrics = fileCached;
+              engineRef.current.activeIndex = -1;
+              setActiveLineIndex(-1);
+              setIsLoading(false);
+            }
+            return;
+          }
+        }
+      }
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
         try {
@@ -182,13 +227,13 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
         const allowMatchedSources = lyricSources !== 'netease';
         const shouldTryMatched = allowMatchedSources && (bestQuality.lowQuality || !bestQuality.wordTimed);
 
-        if (shouldTryMatched && songMeta) {
+        if (shouldTryMatched && songId) {
           try {
             const matched = await api.getMatchedLyrics({
               id: songId,
-              title: getSongField(songMeta, ['name', 'title']),
-              artist: getArtistName(songMeta),
-              album: songMeta?.album?.name || songMeta?.al?.name || songMeta?.album || '',
+              title: songTitle,
+              artist: songArtist,
+              album: songAlbum,
               durationMs,
               sources: lyricSources || 'amll,qq,kugou'
             });
@@ -206,6 +251,14 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
         if (bestLines.length > 0 && !bestQuality.lowQuality && (lyricSources === 'netease' || bestQuality.wordTimed || bestQuality.instrumentalLike)) {
           try {
             localStorage.setItem(cacheKey, JSON.stringify(bestLines));
+            if (lyricCacheEnabled && window.electronAPI?.writeLyricCache) {
+              window.electronAPI.writeLyricCache({
+                key: cacheKey,
+                data: bestLines,
+                cacheDir: lyricCacheDir,
+                maxBytes: lyricCacheMaxGb * 1024 * 1024 * 1024
+              }).catch(() => {});
+            }
           } catch (e) {
             console.warn('Failed to cache lyrics', e);
           }
@@ -242,7 +295,17 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
     return () => {
       isMounted = false;
     };
-  }, [songId, songMeta, lyricSources]);
+  }, [
+    songId,
+    lyricSources,
+    durationMs,
+    songTitle,
+    songArtist,
+    songAlbum,
+    lyricCacheEnabled,
+    lyricCacheDir,
+    lyricCacheMaxGb
+  ]);
 
   // Main synchronization loop: line-level sync does not need a per-frame rAF
   useEffect(() => {

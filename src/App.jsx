@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
 import { AppProvider, useApp, APP_VERSION } from './context/AppContext';
 import { AnimatePresence } from 'framer-motion';
 import ClosePromptModal from './components/ClosePromptModal';
@@ -18,18 +18,18 @@ import MiniQueuePopover from './components/MiniQueuePopover';
 import DesktopLyrics from './views/DesktopLyrics';
 import { useLyricEngine } from './hooks/useLyricEngine';
 
-// Views
-import Discover from './views/Discover';
-import Search from './views/Search';
-import PlaylistDetail from './views/PlaylistDetail';
-import AlbumDetail from './views/AlbumDetail';
-import ArtistDetail from './views/ArtistDetail';
-import MVPlayer from './views/MVPlayer';
-import Leaderboards from './views/Leaderboards';
-import MyLiked from './views/MyLiked';
-import RecentlyPlayed from './views/RecentlyPlayed';
-import Settings from './views/Settings';
-import ModernHome from './views/ModernHome';
+// Views are route-split so startup only pays for the current screen.
+const Discover = lazy(() => import('./views/Discover'));
+const Search = lazy(() => import('./views/Search'));
+const PlaylistDetail = lazy(() => import('./views/PlaylistDetail'));
+const AlbumDetail = lazy(() => import('./views/AlbumDetail'));
+const ArtistDetail = lazy(() => import('./views/ArtistDetail'));
+const MVPlayer = lazy(() => import('./views/MVPlayer'));
+const Leaderboards = lazy(() => import('./views/Leaderboards'));
+const MyLiked = lazy(() => import('./views/MyLiked'));
+const RecentlyPlayed = lazy(() => import('./views/RecentlyPlayed'));
+const Settings = lazy(() => import('./views/Settings'));
+const ModernHome = lazy(() => import('./views/ModernHome'));
 
 // Icons
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';
@@ -64,11 +64,18 @@ function AppContent() {
     setIsQueueOpen,
     navigateTo,
     immersiveColor,
+    cacheConfig,
     updateInfo,
     setUpdateInfo
   } = useApp();
 
-  const { engineRef, lyrics, activeLineIndex } = useLyricEngine(currentSong?.id, audioElement, currentSong);
+  const { engineRef, lyrics, activeLineIndex } = useLyricEngine(
+    currentSong?.id,
+    audioElement,
+    currentSong,
+    advancedLyricConfig?.lyricSources || 'amll,qq,kugou',
+    cacheConfig
+  );
 
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isImmersiveSettingsOpen, setIsImmersiveSettingsOpen] = useState(false);
@@ -81,7 +88,22 @@ function AppContent() {
     });
   };
 
-  const immersiveCoverUrl = currentSong?.coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
+  const currentLyricsMode = advancedLyricConfig?.lyricsMode || 'regular';
+  const currentModeVisualizerStyle = advancedLyricConfig?.visualizerStyleByMode?.[currentLyricsMode]
+    || advancedLyricConfig?.visualizerStyle
+    || 'bars';
+  const updateCurrentModeVisualizerStyle = (visualizerStyle) => {
+    updateAdvancedLyricConfig({
+      visualizerStyle,
+      ...(currentLyricsMode === 'regular' && visualizerStyle === 'wave' ? { ringStyle: 'wave' } : {}),
+      visualizerStyleByMode: {
+        ...(advancedLyricConfig?.visualizerStyleByMode || {}),
+        [currentLyricsMode]: visualizerStyle
+      }
+    });
+  };
+
+  const immersiveCoverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl || currentSong?.album?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
   const immersiveBgMode = advancedLyricConfig.backgroundMode || 'cover';
   const configuredBgBlur = advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 32;
   const bgBlur = Math.min(configuredBgBlur, 48);
@@ -92,6 +114,16 @@ function AppContent() {
       ? `blur(${bgBlur * 1.5}px) brightness(0.28) saturate(0.9)`
       : `blur(${bgBlur}px) brightness(0.4) saturate(1.2)`
   }), [immersiveBgMode, immersiveCoverUrl, bgBlur]);
+
+  const routeKeyRef = useRef(`${currentView}:${viewData?.id || ''}`);
+  useEffect(() => {
+    const routeKey = `${currentView}:${viewData?.id || ''}`;
+    if (routeKeyRef.current !== routeKey) {
+      routeKeyRef.current = routeKey;
+      setIsLyricsOpen(false);
+      setIsImmersiveSettingsOpen(false);
+    }
+  }, [currentView, viewData?.id]);
 
   // Auto open desktop lyrics if config says show is true
   useEffect(() => {
@@ -313,7 +345,10 @@ function AppContent() {
   }, [currentView, viewData, layoutMode]);
 
   return (
-    <div style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div
+      className={isLyricsOpen ? 'lyrics-open' : undefined}
+      style={{ height: '100%', width: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+    >
       {layoutMode !== 'modern' && <TopBar />}
       {layoutMode === 'modern' && <ModernTopControls />}
       <div className="app-container" style={{ flex: 1, overflow: 'hidden' }}>
@@ -379,18 +414,23 @@ function AppContent() {
           
           {/* View Component Wrapper */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {viewComponent}
+            <Suspense fallback={<div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>}>
+              {viewComponent}
+            </Suspense>
           </div>
         </main>
+
+        {isLyricsOpen && <div className="lyrics-immersive-hover-sensor" aria-hidden="true" />}
 
         {/* Bottom Playback Control Bar */}
         {layoutMode !== 'modern' && (
           <PlayerBar
             onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)}
             isLyricsOpen={isLyricsOpen}
+            lyrics={lyrics}
           />
         )}
-        {layoutMode === 'modern' && <ModernPlayerBar onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)} />}
+        {layoutMode === 'modern' && <ModernPlayerBar onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)} lyrics={lyrics} />}
         
         {layoutMode === 'modern' && (
           <MiniQueuePopover isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
@@ -508,12 +548,12 @@ function AppContent() {
                         <span>动画模式</span>
                         <select className="setting-select" value={advancedLyricConfig.lyricsMode || 'talk'}
                           onChange={(e) => updateAdvancedLyricConfig({ lyricsMode: e.target.value })}>
-                          <option value="talk">混乱模式 (3D倾诉)</option>
+                          <option value="talk">逐字模式</option>
                           <option value="regular">常规滚动</option>
-                          <option value="streamer">气泡模式 (流光)</option>
-                          <option value="cloudstep">云阶模式 (楼梯)</option>
-                          <option value="spatial">空间画布 (全屏)</option>
-                          <option value="vinyl">黑胶光碟 (旋转)</option>
+                          <option value="streamer">气泡模式</option>
+                          <option value="cloudstep">云阶模式</option>
+                          <option value="spatial">空间画布</option>
+                          <option value="vinyl">黑胶光碟</option>
                         </select>
                       </label>
                       <label className="setting-row-inline">
@@ -523,6 +563,18 @@ function AppContent() {
                           <option value="warm">自适应暖色</option>
                           <option value="cold">自适应冷色</option>
                           <option value="original">专辑原色</option>
+                        </select>
+                      </label>
+                      <label className="setting-row-inline">
+                        <span>歌词源</span>
+                        <select className="setting-select" value={advancedLyricConfig.lyricSources || 'amll,qq,kugou'}
+                          onChange={(e) => updateAdvancedLyricConfig({ lyricSources: e.target.value })}>
+                          <option value="amll,qq,kugou">自动：时长匹配 + 逐字优先</option>
+                          <option value="netease">网易云原始歌词</option>
+                          <option value="amll">AMLL TTML 逐字</option>
+                          <option value="qq">QQ 音乐逐字</option>
+                          <option value="kugou">酷狗逐字</option>
+                          <option value="qq,kugou">QQ / 酷狗逐字</option>
                         </select>
                       </label>
                       <label className="setting-row-inline">
@@ -621,6 +673,11 @@ function AppContent() {
                         <input type="checkbox" checked={advancedLyricConfig.showGlow === true}
                           onChange={(e) => updateAdvancedLyricConfig({ showGlow: e.target.checked })} />
                       </label>
+                      <label className="setting-row-inline">
+                        <span>歌词辉光强度：{(advancedLyricConfig.lyricGlowIntensity ?? 1).toFixed(1)}x</span>
+                        <input type="range" min="0" max="2" step="0.1" value={advancedLyricConfig.lyricGlowIntensity ?? 1}
+                          onChange={(e) => updateAdvancedLyricConfig({ lyricGlowIntensity: Number(e.target.value) })} />
+                      </label>
                       <label className="setting-row-inline compact-toggle">
                         <span>Floating decor</span>
                         <input type="checkbox" checked={advancedLyricConfig.showDecor === true}
@@ -663,8 +720,8 @@ function AppContent() {
                     <div className="immersive-settings-section" style={{ overflowY: 'auto', maxHeight: '350px', paddingRight: '4px' }}>
                       <label className="setting-row-inline">
                         <span>波形样式</span>
-                        <select className="setting-select" value={advancedLyricConfig.visualizerStyle || 'bars'}
-                          onChange={(e) => updateAdvancedLyricConfig({ visualizerStyle: e.target.value })}>
+                        <select className="setting-select" value={currentModeVisualizerStyle}
+                          onChange={(e) => updateCurrentModeVisualizerStyle(e.target.value)}>
                           <option value="bars">底部律动条</option>
                           <option value="wave">流动波形</option>
                           <option value="circle">环形脉冲</option>

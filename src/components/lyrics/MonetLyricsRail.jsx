@@ -5,7 +5,7 @@ import MonetWordSweep from './MonetWordSweep';
 /**
  * MonetRailLine component
  */
-const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack, y, maxWidthPx, showTranslation, showGlow, onClick, inactiveLyricBlur }) => {
+const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack, y, maxWidthPx, showTranslation, showGlow, glowIntensity, onClick, inactiveLyricBlur }) => {
   const { line, status, offset, layout } = entry;
   
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
@@ -102,6 +102,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
                 lineRenderEndTime={lineEndTime}
                 status={status}
                 showGlow={showGlow}
+                glowIntensity={glowIntensity}
                 animationStyle="regular"
                 showBase
               />
@@ -129,7 +130,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
   );
 });
 
-export default function MonetLyricsRail({ visibleLines, fontPx, translationFontPx, fontStack, containerHeight, maxWidthPx, showTranslation = true, showGlow = false, activeAnchorRatio = 0.5, onWheel, onLyricClick, inactiveLyricBlur }) {
+export default function MonetLyricsRail({ visibleLines, fontPx, translationFontPx, fontStack, containerHeight, maxWidthPx, showTranslation = true, showGlow = false, glowIntensity = 1, activeAnchorRatio = 0.5, onWheel, onLyricClick, inactiveLyricBlur }) {
   const containerRef = useRef(null);
 
   // 计算每一行 Y 的绝对位置
@@ -196,6 +197,7 @@ export default function MonetLyricsRail({ visibleLines, fontPx, translationFontP
           maxWidthPx={maxWidthPx}
           showTranslation={showTranslation}
           showGlow={showGlow}
+          glowIntensity={glowIntensity}
           onClick={() => onLyricClick && onLyricClick(entry.line)}
           inactiveLyricBlur={inactiveLyricBlur}
         />

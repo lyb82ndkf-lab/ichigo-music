@@ -325,6 +325,7 @@ export default function MonetPosterLayout({
               maxWidthPx={dimensions.maxWidthPx}
               showTranslation={advancedLyricConfig?.showTranslation !== false}
               showGlow={advancedLyricConfig?.showGlow === true}
+              glowIntensity={advancedLyricConfig?.lyricGlowIntensity ?? 1}
               activeAnchorRatio={(() => {
                 if (showCover) {
                   // coverAlignedRatio places the active line exactly at the cover center.

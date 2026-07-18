@@ -10,6 +10,41 @@ const t = {
 };
 
 const getSweepClipBleedPx = (fontSize) => Math.max(3, Math.ceil(fontSize * 0.08));
+const getLinesSignature = (lines = []) => {
+  if (!Array.isArray(lines) || lines.length === 0) return '0';
+  const first = lines[0];
+  const last = lines[lines.length - 1];
+  return `${lines.length}:${first?.time || 0}:${last?.time || 0}:${last?.text || ''}`;
+};
+
+const findActiveLineIndex = (lines = [], currentTime = 0, preferredIndex = -1) => {
+  if (!Array.isArray(lines) || lines.length === 0) return -1;
+  const isCurrent = (index) => {
+    const line = lines[index];
+    if (!line || currentTime < Number(line.time || 0)) return false;
+    const nextLine = lines[index + 1];
+    const endTime = nextLine ? Number(nextLine.time || 0) : Number(line.time || 0) + Number(line.duration || 8);
+    return currentTime < endTime;
+  };
+
+  if (preferredIndex >= 0 && preferredIndex < lines.length && isCurrent(preferredIndex)) return preferredIndex;
+  const nextIndex = preferredIndex + 1;
+  if (nextIndex >= 0 && nextIndex < lines.length && isCurrent(nextIndex)) return nextIndex;
+
+  let low = 0;
+  let high = lines.length - 1;
+  let result = -1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (currentTime >= Number(lines[mid]?.time || 0)) {
+      result = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return result;
+};
 
 export default function DesktopLyrics() {
   const [syncData, setSyncData] = useState({
@@ -44,11 +79,19 @@ export default function DesktopLyrics() {
     lineCount: 3
   });
   const [windowSize, setWindowSize] = useState({ width: 1000, height: 150 });
-  const [railY, setRailY] = useState(0);
-
   const wordsRefs = useRef([]);
-  const activeLineRef = useRef(null);
   const innerRef = useRef(null);
+  const syncDataRef = useRef(syncData);
+  const configRef = useRef(config);
+  const activeTokensRef = useRef([]);
+  const lastClipPathsRef = useRef([]);
+  const renderedSyncRef = useRef({ linesSignature: '0', activeIndex: -1, globalOffset: 0 });
+
+  configRef.current = config;
+
+  useEffect(() => {
+    syncDataRef.current = { ...syncDataRef.current, ...syncData };
+  }, [syncData]);
 
   const colorPresets = {
     strawberry: { played: '#ff3366', unplayed: '#ffffff', stroke: '#4a0e1c' },
@@ -133,7 +176,27 @@ export default function DesktopLyrics() {
   useEffect(() => {
     const cleanupFns = [];
     if (window.electronAPI?.onLyricsUpdate) {
-      const cleanup = window.electronAPI.onLyricsUpdate((data) => setSyncData(data));
+      const cleanup = window.electronAPI.onLyricsUpdate((data) => {
+        const next = { ...syncDataRef.current, ...data };
+        let packetTime = Number(next.audioTime || 0) + Number(next.globalOffset || 0);
+        if (next.isPlaying) packetTime += Math.max(0, Date.now() - Number(next.systemTime || Date.now())) / 1000;
+        next.activeIndex = findActiveLineIndex(next.lines, packetTime, syncDataRef.current.activeIndex);
+        syncDataRef.current = next;
+        const linesSignature = getLinesSignature(next.lines);
+        const rendered = renderedSyncRef.current;
+        if (
+          rendered.linesSignature !== linesSignature ||
+          rendered.activeIndex !== next.activeIndex ||
+          rendered.globalOffset !== next.globalOffset
+        ) {
+          renderedSyncRef.current = {
+            linesSignature,
+            activeIndex: next.activeIndex,
+            globalOffset: next.globalOffset
+          };
+          setSyncData(next);
+        }
+      });
       if (typeof cleanup === 'function') cleanupFns.push(cleanup);
     }
     if (window.electronAPI?.onDesktopLyricsConfig) {
@@ -162,34 +225,55 @@ export default function DesktopLyrics() {
 
   // Dynamically calculate constrained viewport height based on window height
   const viewportHeight = Math.max(60, effectiveWindowHeight - 100);
+  const localActiveIdx = syncData.activeIndex;
+  const activeLineForTokens = syncData.lines?.[syncData.activeIndex] || null;
+  const activeTokens = useMemo(() => (
+    activeLineForTokens ? parseDisplayTokens(activeLineForTokens) : []
+  ), [activeLineForTokens]);
 
-  // Center active lyric scroll rail synchronously before paint to prevent 1-frame jump
-  React.useLayoutEffect(() => {
-    if (activeLineRef.current && innerRef.current) {
-      const offsetTop = activeLineRef.current.offsetTop;
-      const height = activeLineRef.current.offsetHeight;
-      const parentH = innerRef.current.clientHeight;
-      setRailY(-offsetTop + (viewportHeight / 2) - (height / 2));
-    }
-  }, [syncData.activeIndex, viewportHeight, syncData.lines, config.lineCount]);
+  useEffect(() => {
+    activeTokensRef.current = activeTokens;
+    lastClipPathsRef.current = [];
+  }, [activeTokens]);
 
+  // Keep every lyric on a fixed-height rail slot. Measuring the active DOM node
+  // caused the coordinate origin to change whenever hidden rows were mounted.
+  const lyricSlotHeight = Math.ceil(
+    (config.fontSize || 36) * 1.2
+    + (config.showTranslation !== false ? (config.translationSize || 22) + 8 : 0)
+    + 16
+  );
   // Shared token-level sweep animation loop. It uses the same display-token
   // model as immersive lyrics, so YRC/QRC/KRC and fallback LRC all reveal on the
   // same per-grapheme timing path.
   useEffect(() => {
     let rafId;
     const loop = () => {
-      if (syncData.lines && syncData.lines.length > 0) {
-        let virtualTime = syncData.audioTime;
-        if (syncData.isPlaying) {
-          virtualTime += (Date.now() - syncData.systemTime) / 1000;
+      const currentSync = syncDataRef.current;
+      const currentConfig = configRef.current;
+      if (currentSync.lines && currentSync.lines.length > 0) {
+        let virtualTime = currentSync.audioTime;
+        if (currentSync.isPlaying) {
+          virtualTime += (Date.now() - currentSync.systemTime) / 1000;
         }
-        const adjustedTime = virtualTime + syncData.globalOffset;
-        const activeLine = syncData.lines[syncData.activeIndex];
-        if (activeLine) {
-          const activeTokens = parseDisplayTokens(activeLine);
-          for (let i = 0; i < activeTokens.length; i += 1) {
-            const token = activeTokens[i];
+        const adjustedTime = virtualTime + currentSync.globalOffset;
+        const localActiveIndex = findActiveLineIndex(currentSync.lines, adjustedTime, currentSync.activeIndex);
+        if (localActiveIndex !== currentSync.activeIndex) {
+          const nextSync = { ...currentSync, activeIndex: localActiveIndex };
+          syncDataRef.current = nextSync;
+          renderedSyncRef.current = {
+            ...renderedSyncRef.current,
+            activeIndex: localActiveIndex,
+            linesSignature: getLinesSignature(nextSync.lines)
+          };
+          setSyncData(nextSync);
+          rafId = requestAnimationFrame(loop);
+          return;
+        }
+        const tokens = activeTokensRef.current;
+        if (tokens.length > 0) {
+          for (let i = 0; i < tokens.length; i += 1) {
+            const token = tokens[i];
             const el = wordsRefs.current[i];
             if (!el) continue;
             
@@ -202,13 +286,16 @@ export default function DesktopLyrics() {
             }
             
             const pct = Math.max(0, Math.min(1, progress));
-            const clipBleedPx = getSweepClipBleedPx(config.fontSize || 36);
+            const clipBleedPx = getSweepClipBleedPx(currentConfig.fontSize || 36);
             const clipPath = pct <= 0
               ? 'inset(0 100% 0 100%)'
               : `inset(0 ${100 - pct * 100}% 0 -${clipBleedPx}px)`;
-            el.style.clipPath = clipPath;
-            el.style.webkitClipPath = clipPath;
-            el.style.transform = 'none';
+            if (lastClipPathsRef.current[i] !== clipPath) {
+              lastClipPathsRef.current[i] = clipPath;
+              el.style.clipPath = clipPath;
+              el.style.webkitClipPath = clipPath;
+              el.style.transform = 'none';
+            }
           }
         }
       }
@@ -216,21 +303,8 @@ export default function DesktopLyrics() {
     };
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
-  }, [syncData, config.fontSize]);
-
-  useEffect(() => {
-    if (window.electronAPI?.onDesktopLyricsConfig) {
-      const cleanup = window.electronAPI.onDesktopLyricsConfig((data) => {
-        setConfig(prev => {
-          const next = { ...prev, ...data };
-          return next;
-        });
-      });
-      return cleanup;
-    }
   }, []);
 
-  const localActiveIdx = syncData.activeIndex;
   const alignItems = config.alignment === 'left' ? 'flex-start' : (config.alignment === 'right' ? 'flex-end' : 'center');
   const textAlign = config.alignment || 'center';
 
@@ -316,7 +390,7 @@ export default function DesktopLyrics() {
           flexDirection: 'column',
           alignItems,
           justifyContent: 'center',
-          width: 'fit-content',
+          width: '100%',
           minWidth: '320px',
           maxWidth: '100%',
           height: 'fit-content',
@@ -356,12 +430,9 @@ export default function DesktopLyrics() {
             <div
               className="desktop-lyrics-rail"
               style={{
-                transform: `translateY(${railY}px)`,
-                transition: 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems,
-                width: '100%'
+                position: 'relative',
+                width: '100%',
+                height: '100%'
               }}
             >
               {syncData.lines.map((line, idx) => {
@@ -378,6 +449,8 @@ export default function DesktopLyrics() {
                 const opacity = isActive ? 1 : (isVisible ? 0.38 : 0);
                 const blur = isActive ? 0 : (isVisible ? 0.8 : 4);
                 const pointerEvents = isVisible ? 'auto' : 'none';
+                if (!isVisible) return null;
+                const relativeIndex = idx - localActiveIdx;
                 
                 // Keep active margins normal, shrink non-active margins
                 const margin = isActive ? '8px 0' : '2px 0';
@@ -385,15 +458,18 @@ export default function DesktopLyrics() {
                 return (
                   <div 
                     key={`desktop-lyric-${line.time}-${idx}`} 
-                    ref={isActive ? activeLineRef : null}
                     style={{
-                      position: 'relative', 
-                      margin, 
-                      transition: 'all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1)',
-                      transform: `scale(${scale})`,
+                      position: 'absolute',
+                      top: '50%',
+                      left: 0,
+                      height: `${lyricSlotHeight}px`,
+                      padding: margin,
+                      boxSizing: 'border-box',
+                      transition: 'transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.24s ease',
+                      transform: `translateY(calc(-50% + ${relativeIndex * lyricSlotHeight}px)) scale(${scale})`,
                       transformOrigin: config.alignment === 'left' ? 'center left' : (config.alignment === 'right' ? 'center right' : 'center center'),
                       opacity, 
-                      filter: blur > 0 ? `blur(${blur}px)` : 'none',
+                      filter: 'none',
                       display: 'flex', 
                       flexDirection: 'column', 
                       alignItems,
@@ -401,6 +477,8 @@ export default function DesktopLyrics() {
                       pointerEvents
                     }}
                   >
+                    {isVisible && (
+                    <>
                     <div style={{
                       position: 'relative', fontSize: `${config.fontSize || 36}px`,
                       fontWeight: isActive ? (config.fontWeight || 700) : Math.max(300, (config.fontWeight || 700) - 100),
@@ -425,11 +503,9 @@ export default function DesktopLyrics() {
                         return (
                         <div style={{ position: 'relative' }}>
                           <div style={{ position: 'relative', zIndex: 1 }}>
-                            {rows.map((row, rowIdx) => (
-                              <span key={`bg-row-${rowIdx}`} style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap', opacity: isActive ? 0.68 : 1, color: !isActive && idx < localActiveIdx ? activeAccent : unplayedColor }}>
-                                {row.map((token) => <span key={`bg-${token.key}`} style={tokenStyle(token)}>{token.text}</span>)}
-                              </span>
-                            ))}
+                            <span style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap', opacity: isActive ? 0.68 : 1, color: !isActive && idx < localActiveIdx ? activeAccent : unplayedColor }}>
+                              {line.text}
+                            </span>
                           </div>
                           <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none', display: isActive ? 'block' : 'none' }}>
                             {rows.map((row, rowIdx) => (
@@ -438,7 +514,7 @@ export default function DesktopLyrics() {
                                   const currentIdx = tokenCounter++;
                                   return (
                                   <span key={`fg-${token.key}`} ref={el => { if (isActive) wordsRefs.current[currentIdx] = el; }}
-                                    style={{ ...tokenStyle(token), color: activeAccent, textShadow: `${shadow}${glow}, 0 0 12px ${activeAccent}88`, clipPath: isActive ? 'inset(0 100% 0 100%)' : (idx < localActiveIdx ? `inset(0 0 0 -${clipBleedPx}px)` : 'inset(0 100% 0 100%)'), WebkitClipPath: isActive ? 'inset(0 100% 0 100%)' : (idx < localActiveIdx ? `inset(0 0 0 -${clipBleedPx}px)` : 'inset(0 100% 0 100%)'), transformOrigin: 'center bottom' }}>
+                                    style={{ ...tokenStyle(token), color: activeAccent, textShadow: config.glow?.enabled ? `${shadow}${glow}, 0 0 12px ${activeAccent}88` : shadow, clipPath: isActive ? 'inset(0 100% 0 100%)' : (idx < localActiveIdx ? `inset(0 0 0 -${clipBleedPx}px)` : 'inset(0 100% 0 100%)'), WebkitClipPath: isActive ? 'inset(0 100% 0 100%)' : (idx < localActiveIdx ? `inset(0 0 0 -${clipBleedPx}px)` : 'inset(0 100% 0 100%)'), transformOrigin: 'center bottom' }}>
                                     {token.text}
                                   </span>
                                   );
@@ -454,15 +530,18 @@ export default function DesktopLyrics() {
                     {isActive && config.showTranslation !== false && line.translation && (
                       <div style={{
                         fontSize: `${config.translationSize || Math.max(16, (config.fontSize || 36) * 0.6)}px`,
-                        fontWeight: 500,
+                        fontWeight: config.fontWeight || 700,
                         fontFamily: `"${fontFamily}", "Microsoft YaHei", "Noto Sans SC", sans-serif`,
-                        color: 'rgba(255,255,255,0.76)',
+                        color: activeAccent,
                         marginTop: 4,
-                        textShadow: '0 2px 6px rgba(0,0,0,0.8)',
+                        textShadow: `${shadow}${glow}`,
+                        WebkitTextStroke: stroke,
                         textAlign
                       }}>
                         {line.translation}
                       </div>
+                    )}
+                    </>
                     )}
                   </div>
                 );

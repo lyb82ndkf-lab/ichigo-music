@@ -28,6 +28,7 @@ export default function AudioPlayer() {
   const playRequestIdRef = useRef(0);
   const lastLoadedKeyRef = useRef('');
   const zeroTimeRecoveryRef = useRef({ key: '', attempts: 0 });
+  const urlRefreshAttemptRef = useRef({ songId: null, count: 0 });
 
   // Clean up global window references on unmount
   useEffect(() => {
@@ -94,7 +95,12 @@ export default function AudioPlayer() {
     if (audioRef.current) {
       audioRef.current._hasRetriedUrl = false;
     }
-    if (currentSong && currentSong.url) {
+    if (urlRefreshAttemptRef.current.songId !== currentSong?.id) {
+      urlRefreshAttemptRef.current = { songId: currentSong?.id || null, count: 0 };
+    }
+    const cachedAt = Number(currentSong?.urlCachedAt || 0);
+    const hasFreshUrl = currentSong?.url && cachedAt && Date.now() - cachedAt < 15 * 60 * 1000;
+    if (currentSong && hasFreshUrl) {
       setProgress(0);
       setDuration(0);
       zeroTimeRecoveryRef.current = { key: currentSong.url, attempts: 0 };
@@ -111,7 +117,7 @@ export default function AudioPlayer() {
   useEffect(() => {
     if (!isPlaying || !audioSource) return undefined;
 
-    const timerId = window.setTimeout(() => {
+    const timerId = window.setInterval(() => {
       const audio = audioRef.current;
       if (!audio || !isPlaying) return;
       const stuckAtStart = (audio.currentTime || 0) < 0.05;
@@ -144,9 +150,9 @@ export default function AudioPlayer() {
         audio.load();
         safePlay();
       }
-    }, 3200);
+    }, 1200);
 
-    return () => window.clearTimeout(timerId);
+    return () => window.clearInterval(timerId);
   }, [isPlaying, audioSource, crossOriginMode]);
 
   // Expose audio element to global context
@@ -262,7 +268,16 @@ export default function AudioPlayer() {
     console.error("Audio playback error event:", e);
     const code = audioRef.current?.error?.code;
     
-    if (crossOriginMode === 'anonymous' && (code === 4 || code === 2 || code === 3)) {
+    const urlRetry = urlRefreshAttemptRef.current;
+    if (isPlaying && code === 4 && currentSong && urlRetry.count < 1) {
+      console.log("Attempting to refresh song URL before CORS fallback...");
+      urlRefreshAttemptRef.current = { songId: currentSong.id, count: urlRetry.count + 1 };
+      audioRef.current._hasRetriedUrl = true;
+      playSong(currentSong, null, audioRef.current?.currentTime || 0, { forceRefreshUrl: true });
+      return;
+    }
+
+    if (crossOriginMode === 'anonymous' && (code === 2 || code === 3)) {
       console.warn("CORS issue detected. Retrying playback without Web Audio API analysis...");
       // Disable CORS analysis; the unified source effect will reload and
       // continue playback after React removes the crossOrigin attribute.
@@ -273,14 +288,6 @@ export default function AudioPlayer() {
       if (isPlaying) {
         // If it's a source not supported error, it might be an expired URL from cache.
         // Try to refresh the URL once before skipping to the next song.
-        if (code === 4 && currentSong && currentSong.url && !audioRef.current._hasRetriedUrl) {
-          console.log("Attempting to refresh song URL...");
-          audioRef.current._hasRetriedUrl = true;
-          // playSong will fetch a fresh URL and update currentSong, triggering a reload.
-          playSong(currentSong);
-          return;
-        }
-
         console.log("Skipping to next song in 1.5 seconds...");
         setIsPlaying(false);
         setTimeout(() => {
