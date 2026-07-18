@@ -21,6 +21,10 @@ export default function LyricsView({ engineRef, lyrics = [], activeLineIndex = -
     };
 
     const loop = (now) => {
+      if (minFrameMs > 0 && now - lastFrame < minFrameMs) {
+        animationId = requestAnimationFrame(loop);
+        return;
+      }
       tick(now);
       animationId = requestAnimationFrame(loop);
     };
@@ -35,7 +39,7 @@ export default function LyricsView({ engineRef, lyrics = [], activeLineIndex = -
     return () => {
       if (animationId) cancelAnimationFrame(animationId);
     };
-  }, [isPlaying, engineRef, advancedLyricConfig?.globalOffset, advancedLyricConfig?.wordSweepFps, activeLineIndex]);
+  }, [isPlaying, engineRef, advancedLyricConfig?.globalOffset, advancedLyricConfig?.wordSweepFps]);
 
   // ? MonetPosterLayout ??????????????????
   // ???? Layout ??? React render?

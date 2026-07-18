@@ -5,7 +5,7 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.2.0';
+export const APP_VERSION = 'v1.6.0';
 
 export function isVersionLessThan(current, latest) {
   const parse = (v) => v.replace(/^v/, '').split('.').map(Number);
@@ -85,6 +85,7 @@ export function AppProvider({ children }) {
   const visualizerConfig = profile.visualizer || DEFAULT_PROFILE.visualizer;
   const desktopLyricsConfig = profile.desktopLyrics || DEFAULT_PROFILE.desktopLyrics;
   const audioConfig = profile.audio || DEFAULT_PROFILE.audio;
+  const cacheConfig = audioConfig.cache || DEFAULT_PROFILE.audio.cache;
   const playbackConfig = profile.playback || DEFAULT_PROFILE.playback;
   const renderingConfig = profile.rendering || DEFAULT_PROFILE.rendering;
   const shortcuts = profile.shortcuts || DEFAULT_PROFILE.shortcuts;
@@ -102,8 +103,10 @@ export function AppProvider({ children }) {
     dominant: '#ff4081'
   });
 
+  const currentCoverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl || currentSong?.album?.picUrl || '';
+
   useEffect(() => {
-    if (!currentSong || !currentSong.coverUrl) {
+    if (!currentSong || !currentCoverUrl) {
       setExtractedColors({
         warm: '#ff4081',
         cold: '#00b0ff',
@@ -113,7 +116,7 @@ export function AppProvider({ children }) {
     }
     
     let isMounted = true;
-    extractWarmColdColors(currentSong.coverUrl).then(colors => {
+    extractWarmColdColors(currentCoverUrl).then(colors => {
       if (isMounted) {
         setExtractedColors(colors);
       }
@@ -121,7 +124,7 @@ export function AppProvider({ children }) {
     return () => {
       isMounted = false;
     };
-  }, [currentSong?.id, currentSong?.coverUrl]);
+  }, [currentSong?.id, currentCoverUrl]);
 
   const immersiveColor = useMemo(() => {
     const pref = advancedLyricConfig?.colorPreference || 'warm';
@@ -140,6 +143,7 @@ export function AppProvider({ children }) {
     playlistIndex,
     playMode: profile.playback?.playMode || DEFAULT_PROFILE.playback.playMode,
     audioQuality: profile.audio?.quality || 'exhigh',
+    cacheConfig: profile.audio?.cache || DEFAULT_PROFILE.audio.cache,
     recentlyPlayed,
     progress,
     currentSong
@@ -164,10 +168,34 @@ export function AppProvider({ children }) {
     });
   }, [updateProfile]);
 
+  const progressPersistRef = useRef({ lastWriteAt: 0, timerId: null, pending: 0 });
+  const volumePersistTimerRef = useRef(null);
+
+  useEffect(() => () => {
+    if (progressPersistRef.current.timerId) window.clearTimeout(progressPersistRef.current.timerId);
+    if (volumePersistTimerRef.current) window.clearTimeout(volumePersistTimerRef.current);
+  }, []);
+
   const persistProgress = useCallback((nextProgress) => {
     const numeric = Number(nextProgress) || 0;
     setProgress(numeric);
-    updateProfile({ lastSession: { progress: numeric } });
+    progressPersistRef.current.pending = numeric;
+    const now = Date.now();
+    const persist = () => {
+      const pending = progressPersistRef.current.pending;
+      progressPersistRef.current.lastWriteAt = Date.now();
+      progressPersistRef.current.timerId = null;
+      updateProfile({ lastSession: { progress: pending } });
+    };
+    if (now - progressPersistRef.current.lastWriteAt > 1200) {
+      if (progressPersistRef.current.timerId) {
+        window.clearTimeout(progressPersistRef.current.timerId);
+        progressPersistRef.current.timerId = null;
+      }
+      persist();
+    } else if (!progressPersistRef.current.timerId) {
+      progressPersistRef.current.timerId = window.setTimeout(persist, 1200);
+    }
   }, [updateProfile]);
 
   const persistDuration = useCallback((nextDuration) => {
@@ -210,7 +238,11 @@ export function AppProvider({ children }) {
   const setVolume = useCallback((nextVolume) => {
     const numeric = Math.max(0, Math.min(1, Number(nextVolume) || 0));
     setVolumeState(numeric);
-    updateProfile({ audio: { volume: numeric, muted: numeric === 0 } });
+    if (volumePersistTimerRef.current) window.clearTimeout(volumePersistTimerRef.current);
+    volumePersistTimerRef.current = window.setTimeout(() => {
+      updateProfile({ audio: { volume: numeric, muted: numeric === 0 } });
+      volumePersistTimerRef.current = null;
+    }, 120);
   }, [updateProfile]);
 
   // Load account status on mount.
@@ -305,6 +337,9 @@ export function AppProvider({ children }) {
     updateProfile({ audio: next });
     if (Object.prototype.hasOwnProperty.call(next, 'volume')) setVolumeState(Number(next.volume));
   }, [audioConfig, updateProfile]);
+  const saveCacheConfig = useCallback((cfg) => {
+    updateProfile({ audio: { cache: cfg } });
+  }, [updateProfile]);
   const savePlaybackConfig = useCallback((cfg) => updateProfile({ playback: cfg }), [updateProfile]);
   const saveRenderingConfig = useCallback((cfg) => updateProfile({ rendering: cfg }), [updateProfile]);
   const saveShortcuts = useCallback((cfg) => updateProfile({ shortcuts: cfg }), [updateProfile]);
@@ -461,32 +496,116 @@ export function AppProvider({ children }) {
 
   // Short-lived URL cache to avoid slow API re-fetches when switching songs quickly
   const songUrlCacheRef = useRef(new Map());
+  const songUrlInFlightRef = useRef(new Map());
+
+  const pruneSongUrlCache = useCallback(() => {
+    while (songUrlCacheRef.current.size > 80) {
+      const firstKey = songUrlCacheRef.current.keys().next().value;
+      songUrlCacheRef.current.delete(firstKey);
+    }
+  }, []);
+
+  const getCacheLimitBytes = (cfg) => {
+    const gb = Math.max(1, Math.min(10, Number(cfg?.maxSizeGb || 1)));
+    return gb * 1024 * 1024 * 1024;
+  };
+
+  const cacheAudioInBackground = useCallback((song, quality, url) => {
+    const cfg = stateRef.current.cacheConfig || DEFAULT_PROFILE.audio.cache;
+    if (!cfg?.enabled || cfg.audio === false || !url || !/^https?:\/\//i.test(url)) return;
+    window.electronAPI?.cacheAudio?.({
+      songId: song.id,
+      quality,
+      url,
+      cacheDir: cfg.directory || '',
+      maxBytes: getCacheLimitBytes(cfg)
+    }).catch(() => {});
+  }, []);
+
+  const cacheCoverInBackground = useCallback((song) => {
+    const cfg = stateRef.current.cacheConfig || DEFAULT_PROFILE.audio.cache;
+    const remoteCover = song?.originalCoverUrl || song?.al?.picUrl || song?.album?.picUrl || song?.coverUrl;
+    if (!cfg?.enabled || !song?.id || !remoteCover || !/^https?:\/\//i.test(remoteCover)) return;
+    window.electronAPI?.cacheCover?.({
+      songId: song.id,
+      url: remoteCover,
+      cacheDir: cfg.directory || '',
+      maxBytes: getCacheLimitBytes(cfg)
+    }).then(cached => {
+      if (!cached?.url || stateRef.current.currentSong?.id !== song.id) return;
+      setCurrentSongAndPersist({
+        ...stateRef.current.currentSong,
+        originalCoverUrl: remoteCover,
+        coverUrl: cached.url
+      });
+    }).catch(() => {});
+  }, [setCurrentSongAndPersist]);
+
+  const getPlayableSongUrl = useCallback(async (song, quality, forceRefreshUrl = false) => {
+    if (!song?.id) return null;
+    const urlCacheKey = `${song.id}_${quality}`;
+    const now = Date.now();
+    const cfg = stateRef.current.cacheConfig || DEFAULT_PROFILE.audio.cache;
+
+    if (cfg?.enabled && cfg.audio !== false && window.electronAPI?.getCachedAudio) {
+      const cachedAudio = await window.electronAPI.getCachedAudio({
+        songId: song.id,
+        quality,
+        cacheDir: cfg.directory || ''
+      }).catch(() => null);
+      if (cachedAudio?.url) {
+        songUrlCacheRef.current.set(urlCacheKey, { url: cachedAudio.url, time: now });
+        pruneSongUrlCache();
+        return cachedAudio.url;
+      }
+    }
+
+    const cachedEntry = songUrlCacheRef.current.get(urlCacheKey);
+
+    if (!forceRefreshUrl && cachedEntry && now - cachedEntry.time < 15 * 60 * 1000) {
+      return cachedEntry.url;
+    }
+
+    if (!forceRefreshUrl && song.url && song.urlCachedAt && now - Number(song.urlCachedAt) < 15 * 60 * 1000) {
+      songUrlCacheRef.current.set(urlCacheKey, { url: song.url, time: Number(song.urlCachedAt) });
+      pruneSongUrlCache();
+      cacheAudioInBackground(song, quality, song.url);
+      return song.url;
+    }
+
+    if (forceRefreshUrl) {
+      songUrlCacheRef.current.delete(urlCacheKey);
+      songUrlInFlightRef.current.delete(urlCacheKey);
+    }
+
+    if (!songUrlInFlightRef.current.has(urlCacheKey)) {
+      const requestPromise = api.getSongUrls(song.id, quality)
+        .then(urlRes => {
+          const songUrl = urlRes.data?.[0]?.url || null;
+          if (songUrl) {
+            songUrlCacheRef.current.set(urlCacheKey, { url: songUrl, time: Date.now() });
+            pruneSongUrlCache();
+            cacheAudioInBackground(song, quality, songUrl);
+          }
+          return songUrl;
+        })
+        .finally(() => {
+          songUrlInFlightRef.current.delete(urlCacheKey);
+        });
+      songUrlInFlightRef.current.set(urlCacheKey, requestPromise);
+    }
+
+    return songUrlInFlightRef.current.get(urlCacheKey);
+  }, [cacheAudioInBackground, pruneSongUrlCache]);
 
   // Playback Control logic
-  const playSong = useCallback(async (song, newQueue = null, resumeProgress = null) => {
+  const playSong = useCallback(async (song, newQueue = null, resumeProgress = null, options = {}) => {
     if (!song) return;
     const { audioQuality, playlist } = stateRef.current;
+    const forceRefreshUrl = options?.forceRefreshUrl === true;
 
     try {
-      const urlCacheKey = `${song.id}_${audioQuality}`;
-      const cachedEntry = songUrlCacheRef.current.get(urlCacheKey);
-      let songUrl;
-
-      // Use cached URL if it's less than 2 minutes old
-      if (cachedEntry && Date.now() - cachedEntry.time < 2 * 60 * 1000) {
-        songUrl = cachedEntry.url;
-      } else {
-        const urlRes = await api.getSongUrls(song.id, audioQuality);
-        songUrl = urlRes.data[0]?.url;
-        if (songUrl) {
-          songUrlCacheRef.current.set(urlCacheKey, { url: songUrl, time: Date.now() });
-          // Keep cache small
-          if (songUrlCacheRef.current.size > 50) {
-            const firstKey = songUrlCacheRef.current.keys().next().value;
-            songUrlCacheRef.current.delete(firstKey);
-          }
-        }
-      }
+      const songUrl = await getPlayableSongUrl(song, audioQuality, forceRefreshUrl);
 
       if (!songUrl) {
         alert('\u65e0\u6cd5\u83b7\u53d6\u8be5\u6b4c\u66f2\u7684\u64ad\u653e\u6e90\uff08\u53ef\u80fd\u662fVIP\u6b4c\u66f2\u6216\u7248\u6743\u9650\u5236\uff09');
@@ -498,8 +617,10 @@ export function AppProvider({ children }) {
         url: songUrl,
         title: song.name || song.title,
         artist: song.ar?.map(a => a.name).join(' / ') || song.artists?.map(a => a.name).join(' / ') || song.artist || '\u672a\u77e5\u6b4c\u624b',
-        coverUrl: song.al?.picUrl || song.album?.picUrl || song.coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg',
-        durationMs: song.dt || song.duration || song.durationMs || 0
+        coverUrl: song.coverUrl || song.al?.picUrl || song.album?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg',
+        originalCoverUrl: song.originalCoverUrl || song.al?.picUrl || song.album?.picUrl || song.coverUrl || '',
+        durationMs: song.dt || song.duration || song.durationMs || 0,
+        urlCachedAt: Date.now()
       };
 
       if (resumeProgress !== null) {
@@ -526,6 +647,7 @@ export function AppProvider({ children }) {
         }
       }
       setCurrentSongAndPersist(songWithUrl);
+      cacheCoverInBackground(songWithUrl);
       setIsPlaying(true);
       addToRecent(songWithUrl);
 
@@ -542,15 +664,7 @@ export function AppProvider({ children }) {
           }
           const nextSong = currentPlaylist[nextIdx];
           if (nextSong) {
-            const nextCacheKey = `${nextSong.id}_${audioQuality}`;
-            if (!songUrlCacheRef.current.has(nextCacheKey)) {
-              api.getSongUrls(nextSong.id, audioQuality).then(res => {
-                const nextUrl = res.data[0]?.url;
-                if (nextUrl) {
-                  songUrlCacheRef.current.set(nextCacheKey, { url: nextUrl, time: Date.now() });
-                }
-              }).catch(() => {}); // silently ignore pre-fetch failures
-            }
+            getPlayableSongUrl(nextSong, audioQuality).catch(() => {});
           }
         }
       } catch (_) { /* ignore pre-fetch errors */ }
@@ -558,7 +672,52 @@ export function AppProvider({ children }) {
       console.error('Error starting song playback:', error);
       alert('\u64ad\u653e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');
     }
-  }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent]);
+  }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent, getPlayableSongUrl, cacheCoverInBackground]);
+
+  useEffect(() => {
+    if (!currentSong?.id || !cacheConfig?.enabled) return undefined;
+    let cancelled = false;
+    window.electronAPI?.getCachedCover?.({
+      songId: currentSong.id,
+      cacheDir: cacheConfig.directory || ''
+    }).then(cached => {
+      if (cancelled) return;
+      if (cached?.url && currentSong.coverUrl !== cached.url) {
+        setCurrentSongAndPersist({ ...currentSong, coverUrl: cached.url });
+        return;
+      }
+      if (!cached?.url) cacheCoverInBackground(currentSong);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentSong?.id, cacheConfig?.enabled, cacheConfig?.directory, cacheCoverInBackground, setCurrentSongAndPersist]);
+
+  useEffect(() => {
+    if (!currentSong?.id) return undefined;
+    const quality = audioQuality;
+    const cachedAt = Number(currentSong.urlCachedAt || 0);
+    const hasFreshUrl = currentSong.url && cachedAt && Date.now() - cachedAt < 15 * 60 * 1000;
+    if (hasFreshUrl) {
+      songUrlCacheRef.current.set(`${currentSong.id}_${quality}`, { url: currentSong.url, time: cachedAt });
+      pruneSongUrlCache();
+      return undefined;
+    }
+
+    let cancelled = false;
+    getPlayableSongUrl(currentSong, quality).then(songUrl => {
+      if (cancelled || !songUrl) return;
+      const latestSong = stateRef.current.currentSong;
+      if (latestSong?.id !== currentSong.id) return;
+      setCurrentSongAndPersist({
+        ...latestSong,
+        url: songUrl,
+        urlCachedAt: Date.now()
+      });
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSong?.id, audioQuality, getPlayableSongUrl, pruneSongUrlCache, setCurrentSongAndPersist]);
 
   const setAudioQuality = useCallback((quality) => {
     const { currentSong, progress } = stateRef.current;
@@ -569,10 +728,18 @@ export function AppProvider({ children }) {
   }, [updateProfile, playSong]);
 
   const togglePlay = useCallback(() => {
-    const { currentSong } = stateRef.current;
+    const { currentSong, progress } = stateRef.current;
     if (!currentSong) return;
+    if (!isPlaying) {
+      const cachedAt = Number(currentSong.urlCachedAt || 0);
+      const staleUrl = !currentSong.url || !cachedAt || Date.now() - cachedAt > 15 * 60 * 1000;
+      if (staleUrl) {
+        playSong(currentSong, null, progress, { forceRefreshUrl: true });
+        return;
+      }
+    }
     setIsPlaying(prev => !prev);
-  }, [setIsPlaying]);
+  }, [isPlaying, playSong, setIsPlaying]);
 
   const playNext = useCallback(() => {
     const { playlist, playlistIndex, playMode } = stateRef.current;
@@ -751,6 +918,8 @@ export function AppProvider({ children }) {
 
     audioConfig,
     saveAudioConfig,
+    cacheConfig,
+    saveCacheConfig,
     playbackConfig,
     savePlaybackConfig,
     renderingConfig,
@@ -775,13 +944,13 @@ export function AppProvider({ children }) {
     likedPlaylistId, currentSong, playlist, playlistIndex, isPlaying, volume, progress, duration, playMode,
     recentlyPlayed, isQueueOpen, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
     visualizerMode, appearanceConfig, coverConfig, backgroundConfig, advancedLyricConfig, visualizerConfig,
-    desktopLyricsConfig, audioConfig, playbackConfig, renderingConfig, shortcuts, userPlaylists, audioQuality,
+    desktopLyricsConfig, audioConfig, cacheConfig, playbackConfig, renderingConfig, shortcuts, userPlaylists, audioQuality,
     resumeTime, audioElement, setUser, setCurrentSongAndPersist, setPlaylistAndPersist, setPlaylistIndexAndPersist,
     isFirstTimeSetupComplete, requestAppClose,
     setVolume, persistProgress, persistDuration, setColorMode, setLayoutMode, setTheme, saveCustomThemeColors,
     saveNavbarConfig, saveLyricStyle, saveVisualizerMode, saveAppearanceConfig, saveCoverConfig, saveBackgroundConfig,
     saveAdvancedLyricConfig, saveVisualizerConfig, saveDesktopLyricsConfig, mergeDesktopLyricsConfigFromIpc,
-    saveAudioConfig, savePlaybackConfig, saveRenderingConfig, saveShortcuts, persistResumeTime,
+    saveAudioConfig, saveCacheConfig, savePlaybackConfig, saveRenderingConfig, saveShortcuts, persistResumeTime,
     navigateTo, goBack, goForward, checkUserLogin, toggleLike, playSong, togglePlay, playNext, playPrev, setAudioQuality, addToRecent, logout,
     extractedColors, immersiveColor, updateInfo, checkForUpdates
   ]);

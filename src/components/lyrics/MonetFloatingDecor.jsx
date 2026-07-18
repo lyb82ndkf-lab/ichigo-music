@@ -40,6 +40,7 @@ export default function MonetFloatingDecor() {
     }
 
     let lastTime = performance.now();
+    let lastFrameTime = 0;
     let frameCount = 0;
     let burstCooldown = 0;
 
@@ -81,6 +82,9 @@ export default function MonetFloatingDecor() {
     }
 
     const draw = (time) => {
+      animationId = requestAnimationFrame(draw);
+      if (time - lastFrameTime < 1000 / 30) return;
+      lastFrameTime = time;
       // Cap dt to max 2 frames worth — prevents giant leap when app returns from background
       const rawDt = (time - lastTime) / 16.66;
       const dt = Math.min(rawDt, 2.0);
@@ -109,7 +113,7 @@ export default function MonetFloatingDecor() {
           if (burstCooldown > 0) burstCooldown -= dt;
           if (bassAvg > 220 && burstCooldown <= 0) {
             burstCooldown = 30; // ~0.5s cooldown
-            for (let i = 0; i < 60; i++) {
+            for (let i = 0; i < 30; i++) {
               meteors.push(createParticle(canvas, true));
             }
           }
@@ -134,7 +138,7 @@ export default function MonetFloatingDecor() {
       });
 
       // Maintain particle count if settings changed
-      const targetCount = configRef.current?.decorParticleAmount ?? 40;
+      const targetCount = Math.min(configRef.current?.decorParticleAmount ?? 40, 80);
       if (particles.length < targetCount) {
         particles.push(createParticle(canvas));
       } else if (particles.length > targetCount) {
@@ -167,7 +171,6 @@ export default function MonetFloatingDecor() {
       }
       
       ctx.globalAlpha = 1.0;
-      animationId = requestAnimationFrame(draw);
     };
 
     animationId = requestAnimationFrame(draw);

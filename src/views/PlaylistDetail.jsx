@@ -8,6 +8,7 @@ export default function PlaylistDetail() {
   const [playlist, setPlaylist] = useState(null);
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState([]);
   const [hotComments, setHotComments] = useState([]);
@@ -36,23 +37,60 @@ export default function PlaylistDetail() {
   useEffect(() => {
     if (!viewData?.id) return;
     
+    let cancelled = false;
     const fetchDetails = async () => {
       setLoading(true);
+      setLoadingMore(false);
       setShowComments(false);
       try {
         const detailRes = await api.getPlaylistDetail(viewData.id);
+        if (cancelled) return;
         setPlaylist(detailRes.playlist);
 
-        const tracksRes = await api.getPlaylistTracks(viewData.id, 1000);
-        setSongs(tracksRes.songs || detailRes.playlist?.tracks || []);
+        const pageSize = 500;
+        const expectedTotal = Number(detailRes.playlist?.trackCount || detailRes.playlist?.trackIds?.length || 0);
+        const mergeSongs = (prev, next) => {
+          const seen = new Set(prev.map(song => song.id));
+          const merged = [...prev];
+          for (const song of next) {
+            if (!song?.id || seen.has(song.id)) continue;
+            seen.add(song.id);
+            merged.push(song);
+          }
+          return merged;
+        };
+
+        const tracksRes = await api.getPlaylistTracks(viewData.id, pageSize, 0);
+        if (cancelled) return;
+        const firstSongs = tracksRes.songs || detailRes.playlist?.tracks || [];
+        setSongs(firstSongs);
+        setLoading(false);
+
+        let offset = firstSongs.length;
+        if (expectedTotal > offset) setLoadingMore(true);
+        while (!cancelled && expectedTotal > offset) {
+          const res = await api.getPlaylistTracks(viewData.id, pageSize, offset);
+          if (cancelled) return;
+          const nextSongs = res.songs || [];
+          if (nextSongs.length === 0) break;
+          setSongs(prev => mergeSongs(prev, nextSongs));
+          offset += nextSongs.length;
+          if (nextSongs.length < pageSize) break;
+        }
       } catch (err) {
         console.error('Failed to load playlist:', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setLoadingMore(false);
+        }
       }
     };
 
     fetchDetails();
+    return () => {
+      cancelled = true;
+    };
   }, [viewData]);
 
   // Load comments if toggled
@@ -153,6 +191,11 @@ export default function PlaylistDetail() {
               {showComments ? '隐藏歌曲热评' : '歌曲热评'}
             </button>
           </div>
+          {loadingMore && (
+            <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+              Loading {songs.length}/{playlist.trackCount || songs.length}
+            </div>
+          )}
         </div>
       </div>
 

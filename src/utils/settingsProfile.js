@@ -139,11 +139,13 @@ export const DEFAULT_PROFILE = {
     backgroundBlur: 32,
     backgroundDarken: 50,
     visualizerStyle: 'bars',
+    visualizerStyleByMode: {},
     globalOffset: 0,
     inactiveLyricBlur: 0.4,
     showDecor: true,
     wordSweepFps: 60,
     lyricSources: 'amll,qq,kugou',
+    lyricGlowIntensity: 1,
     boldFirstLine: true,
     rubySize: 14,
     wordAnimation: 'float',
@@ -267,6 +269,13 @@ export const DEFAULT_PROFILE = {
     quality: 'exhigh',
     volume: 0.8,
     muted: false,
+    cache: {
+      enabled: true,
+      audio: true,
+      lyrics: true,
+      directory: '',
+      maxSizeGb: 1
+    },
     equalizer: {
       enabled: false,
       preset: 'none',

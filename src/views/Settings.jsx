@@ -4,7 +4,7 @@ import { api } from '../utils/api';
 import Login from './Login';
 import ShortcutRow from '../components/ShortcutRow';
 import { DEFAULT_PROFILE, EQ_PRESETS, exportProfile, importProfile, resetProfile } from '../utils/settingsProfile';
-import { Airplay, CheckCircle, Command, Image, Menu, Monitor, Music4, Palette, Power, Sliders, UserCheck } from 'lucide-react';
+import { Airplay, CheckCircle, Command, HardDrive, Image, Menu, Monitor, Music4, Palette, Power, Sliders, UserCheck } from 'lucide-react';
 
 const T = {
   title: 'ICHIGOMusic \u8bbe\u7f6e',
@@ -39,7 +39,7 @@ function Toggle({ checked, onChange }) { return <input type="checkbox" checked={
 function Segment({ options, value, onChange }) { return <div className="segmented-control">{options.map((item) => { const optionValue = typeof item === 'object' ? item.value : item; const label = typeof item === 'object' ? item.label : item; return <button key={String(optionValue)} type="button" className={value === optionValue ? 'active' : ''} onClick={() => onChange(optionValue)}>{label}</button>; })}</div>; }
 
 export default function Settings() {
-  const { user, logout, profile, theme, setTheme, colorMode, setColorMode, layoutMode, setLayoutMode, customThemeColors, saveCustomThemeColors, navbarConfig, saveNavbarConfig, advancedLyricConfig, saveAdvancedLyricConfig, coverConfig, saveCoverConfig, desktopLyricsConfig, saveDesktopLyricsConfig, audioConfig, saveAudioConfig, renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts, audioQuality, setAudioQuality, viewData, appearanceConfig, saveAppearanceConfig } = useApp();
+  const { user, logout, profile, theme, setTheme, colorMode, setColorMode, layoutMode, setLayoutMode, customThemeColors, saveCustomThemeColors, navbarConfig, saveNavbarConfig, advancedLyricConfig, saveAdvancedLyricConfig, coverConfig, saveCoverConfig, desktopLyricsConfig, saveDesktopLyricsConfig, audioConfig, saveAudioConfig, cacheConfig, saveCacheConfig, renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts, audioQuality, setAudioQuality, viewData, appearanceConfig, saveAppearanceConfig } = useApp();
   const [activeTab, setActiveTab] = useState(() => viewData?.tab || (user ? 'theme' : 'account'));
 
   useEffect(() => {
@@ -56,8 +56,9 @@ export default function Settings() {
   const updateImmersive = (patch) => saveAdvancedLyricConfig({ ...advancedLyricConfig, ...patch });
   const updateCover = (patch) => saveCoverConfig({ ...coverConfig, ...patch });
   const updateAudio = (patch) => saveAudioConfig({ ...audioConfig, ...patch });
+  const updateCache = (patch) => saveCacheConfig({ ...(cacheConfig || DEFAULT_PROFILE.audio.cache), ...patch });
   const updateRendering = (patch) => saveRenderingConfig({ ...renderingConfig, ...patch });
-  const tabs = [{ key: 'theme', label: T.themeTab, icon: Palette }, { key: 'desktop', label: T.desktopTab, icon: Airplay }, { key: 'audio', label: T.audioTab, icon: Sliders }, { key: 'shortcuts', label: T.shortcutsTab, icon: Command }, { key: 'navbar', label: T.navbarTab, icon: Menu }, { key: 'account', label: T.accountTab, icon: UserCheck }];
+  const tabs = [{ key: 'theme', label: T.themeTab, icon: Palette }, { key: 'desktop', label: T.desktopTab, icon: Airplay }, { key: 'audio', label: T.audioTab, icon: Sliders }, { key: 'cache', label: '缓存', icon: HardDrive }, { key: 'shortcuts', label: T.shortcutsTab, icon: Command }, { key: 'navbar', label: T.navbarTab, icon: Menu }, { key: 'account', label: T.accountTab, icon: UserCheck }];
 
   const handleApplyCustomTheme = () => { setTheme('custom'); saveCustomThemeColors({ primary: customPrimary, bgStart: customBgStart, bgEnd: customBgEnd }); };
   const handleToggleNavbarItem = (index) => { const next = [...navbarConfig]; next[index] = { ...next[index], show: !next[index].show }; saveNavbarConfig(next); };
@@ -68,11 +69,53 @@ export default function Settings() {
 
   const { checkForUpdates } = useApp();
   const [checking, setChecking] = useState(false);
+  const [defaultCacheDir, setDefaultCacheDir] = useState('');
+  const [cacheStats, setCacheStats] = useState(null);
+
+  useEffect(() => {
+    let mounted = true;
+    window.electronAPI?.getDefaultCacheDirectory?.().then(dir => {
+      if (mounted) setDefaultCacheDir(dir || '');
+    }).catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== 'cache') return;
+    let mounted = true;
+    window.electronAPI?.getCacheStats?.({ cacheDir: cacheConfig?.directory || '' }).then(stats => {
+      if (mounted) setCacheStats(stats);
+    }).catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab, cacheConfig?.directory, cacheConfig?.enabled, cacheConfig?.maxSizeGb]);
 
   const handleManualCheck = async () => {
     setChecking(true);
     await checkForUpdates(true);
     setChecking(false);
+  };
+
+  const handleSelectCacheDir = async () => {
+    const dir = await window.electronAPI?.selectCacheDirectory?.();
+    if (dir) updateCache({ directory: dir });
+  };
+
+  const handleClearCache = async () => {
+    if (!window.confirm('确认清空音频和歌词缓存吗？')) return;
+    await window.electronAPI?.clearAppCache?.({ cacheDir: cacheConfig?.directory || '' });
+    const stats = await window.electronAPI?.getCacheStats?.({ cacheDir: cacheConfig?.directory || '' }).catch(() => null);
+    setCacheStats(stats);
+  };
+
+  const formatBytes = (bytes = 0) => {
+    if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${bytes} B`;
   };
 
   const renderVersionUpdateSection = () => (
@@ -107,8 +150,8 @@ export default function Settings() {
         <div className="settings-content">
           <SettingRow label="歌词模式">
             <Segment options={[
-              { value: 'regular', label: '常规逐字' },
-              { value: 'talk', label: '混乱模式' },
+              { value: 'regular', label: '常规滚动' },
+              { value: 'talk', label: '逐字模式' },
               { value: 'streamer', label: '气泡模式' },
               { value: 'cloudstep', label: '云阶模式' },
               { value: 'spatial', label: '空间画布' },
@@ -446,9 +489,14 @@ export default function Settings() {
   );
   const applyEqPreset = (preset) => updateAudio({ equalizer: { ...audioConfig.equalizer, enabled: preset !== 'none', preset, bands: EQ_PRESETS[preset] || audioConfig.equalizer?.bands || EQ_PRESETS.none } });
   const renderAudioTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Sliders size={18} />{T.qualityEq}</h3><div className="settings-content"><SettingRow label={T.quality}><select className="setting-select" value={audioQuality} onChange={(e)=>setAudioQuality(e.target.value)}><option value="standard">{T.standard}</option><option value="higher">{T.higher}</option><option value="exhigh">{T.exhigh}</option><option value="lossless">{T.lossless}</option><option value="hires">Hi-Res</option><option value="jymaster">{T.master}</option></select></SettingRow><SettingRow label={T.enableEq}><Toggle checked={audioConfig.equalizer?.enabled} onChange={(v)=>updateAudio({equalizer:{...audioConfig.equalizer,enabled:v}})}/></SettingRow><SettingRow label={T.eqPreset}><Segment options={Object.keys(EQ_PRESETS).map(k=>({value:k,label:k==='none'?T.none:k}))} value={audioConfig.equalizer?.preset || 'none'} onChange={applyEqPreset}/></SettingRow><div className="eq-bands">{eqBands.map(band=><label key={band} className="eq-band"><span>{band}</span><input type="range" min="-12" max="12" step="1" value={audioConfig.equalizer?.bands?.[band] ?? 0} onChange={(e)=>updateAudio({equalizer:{...audioConfig.equalizer,preset:'custom',bands:{...(audioConfig.equalizer?.bands || EQ_PRESETS.none),[band]:Number(e.target.value)}}})}/><em>{audioConfig.equalizer?.bands?.[band] ?? 0}dB</em></label>)}</div></div></div><div className="settings-section"><h3 className="settings-title"><Sliders size={18} />{T.reverbRender}</h3><div className="settings-content"><SettingRow label={T.reverb}><Toggle checked={audioConfig.reverb?.enabled} onChange={(v)=>updateAudio({reverb:{...audioConfig.reverb,enabled:v}})}/></SettingRow><SettingRow label={T.reverbPreset}><Segment options={['none','hall','room','plate','spring','stadium']} value={audioConfig.reverb?.preset || 'none'} onChange={(v)=>updateAudio({reverb:{...audioConfig.reverb,enabled:v!=='none',preset:v}})}/></SettingRow><SettingRow label={`${T.mix}\uff1a${audioConfig.reverb?.mix ?? 0.3}`}><input className="setting-slider" type="range" min="0" max="1" step="0.05" value={audioConfig.reverb?.mix ?? 0.3} onChange={(e)=>updateAudio({reverb:{...audioConfig.reverb,mix:Number(e.target.value)}})}/></SettingRow><SettingRow label={`${T.decay}\uff1a${audioConfig.reverb?.decay ?? 1.5}s`}><input className="setting-slider" type="range" min="0.1" max="10" step="0.1" value={audioConfig.reverb?.decay ?? 1.5} onChange={(e)=>updateAudio({reverb:{...audioConfig.reverb,decay:Number(e.target.value)}})}/></SettingRow><SettingRow label={T.compressor}><Toggle checked={audioConfig.compressor?.enabled} onChange={(v)=>updateAudio({compressor:{...audioConfig.compressor,enabled:v}})}/></SettingRow><SettingRow label={T.spatial}><Segment options={[{value:'stereo',label:T.stereo},{value:'crossfeed',label:T.crossfeed},{value:'mono',label:T.mono}]} value={audioConfig.spatial?.mode || 'stereo'} onChange={(v)=>updateAudio({spatial:{...audioConfig.spatial,enabled:v!=='stereo',mode:v}})}/></SettingRow><SettingRow label={T.backend}><Segment options={[{value:'web audio',label:'Web Audio'},{value:'html5',label:'HTML5'}]} value={renderingConfig.audioBackend || 'web audio'} onChange={(v)=>updateRendering({audioBackend:v})}/></SettingRow><SettingRow label={T.decoder}><Segment options={['auto','wasm','native']} value={renderingConfig.decoderMode || 'auto'} onChange={(v)=>updateRendering({decoderMode:v})}/></SettingRow><SettingRow label={T.fps}><Segment options={[{value:24,label:'24'},{value:30,label:'30'},{value:60,label:'60'},{value:120,label:'120'},{value:0,label:'无限制'}]} value={renderingConfig.visualizerFps ?? 30} onChange={(v)=>updateRendering({visualizerFps:v})}/></SettingRow><SettingRow label="GPU 硬件加速" hint="开启以获得极低延迟与超高帧率渲染（需重启应用生效）"><Toggle checked={renderingConfig.hardwareAcceleration !== false} onChange={(v)=>{updateRendering({hardwareAcceleration:v}); window.electronAPI?.setHardwareAcceleration?.(v);}}/></SettingRow></div></div></div>;
+  const renderCacheTab = () => {
+    const cfg = cacheConfig || DEFAULT_PROFILE.audio.cache;
+    const activeDir = cfg.directory || defaultCacheDir || '安装目录\\ichigomusic-cache';
+    return <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><HardDrive size={18} />播放缓存区</h3><div className="settings-content"><SettingRow label="启用缓存"><Toggle checked={cfg.enabled !== false} onChange={(v)=>updateCache({enabled:v})}/></SettingRow><SettingRow label="缓存内容"><Segment options={[{value:'all',label:'音频 + 歌词'},{value:'lyrics',label:'仅歌词'},{value:'audio',label:'仅音频'}]} value={cfg.audio === false ? 'lyrics' : cfg.lyrics === false ? 'audio' : 'all'} onChange={(v)=>updateCache({audio:v!=='lyrics',lyrics:v!=='audio'})}/></SettingRow><SettingRow label={`最大占用：${cfg.maxSizeGb || 1} GB`}><input className="setting-slider" type="range" min="1" max="10" step="1" value={cfg.maxSizeGb || 1} onChange={(e)=>updateCache({maxSizeGb:Number(e.target.value)})}/></SettingRow><SettingRow label="缓存目录" hint={cfg.directory ? '自定义路径' : '默认安装目录'}><div className="cache-path-row"><input className="settings-text-input" value={activeDir} readOnly/><button className="setting-btn compact" onClick={handleSelectCacheDir}>选择目录</button><button className="setting-btn compact" onClick={()=>updateCache({directory:''})}>恢复默认</button></div></SettingRow><SettingRow label="当前占用"><div className="cache-stats-row"><span>{cacheStats ? `${formatBytes(cacheStats.size)} / ${cacheStats.files} 个文件` : '统计中...'}</span><button className="setting-btn danger compact" onClick={handleClearCache}>清空缓存</button></div></SettingRow></div></div></div>;
+  };
   const renderShortcutsTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Command size={18} />{T.shortcutsTitle}</h3><div className="settings-content"><SettingRow label="启用快捷键" hint="全局开启或关闭快捷键绑定"><Toggle checked={shortcuts?.enabled !== false} onChange={(v) => saveShortcuts({ ...shortcuts, enabled: v })} /></SettingRow></div></div>{(shortcuts?.enabled !== false) && (<div className="settings-section"><h3 className="settings-title"><Command size={18} />快捷键绑定列表</h3><div className="settings-content shortcut-list">{shortcutLabels.map(([key,label,desc])=><ShortcutRow key={key} label={label} description={desc} value={shortcuts?.[key]} onChange={(value)=>saveShortcuts({...shortcuts,[key]:value})} onReset={()=>saveShortcuts({...shortcuts,[key]:DEFAULT_PROFILE.shortcuts[key]})}/>)}<button className="setting-btn danger" onClick={()=>saveShortcuts(DEFAULT_PROFILE.shortcuts)}>{T.resetShortcuts}</button></div></div>)}</div>;
   const renderNavbarTab = () => <div className="settings-section"><h3 className="settings-title"><Menu size={18} />{T.navItems}</h3><div className="settings-content">{navbarConfig.map((item,index)=><SettingRow key={item.key} label={item.name} hint={item.key}><Toggle checked={item.show} onChange={()=>handleToggleNavbarItem(index)}/></SettingRow>)}</div></div>;
   const renderAccountTab = () => <div className="settings-section"><h3 className="settings-title"><UserCheck size={18} />{T.account}</h3><div className="settings-content">{user ? <div className="account-card"><img src={user.avatarUrl} alt={user.nickname}/><div><h3>{user.nickname}</h3><p>{T.uid}: {user.userId}</p></div><button className="setting-btn danger" onClick={logout}><Power size={16}/>{T.logout}</button></div> : <div className="settings-stack"><Login onLoginSuccess={()=>setActiveTab('theme')}/><div className="settings-section inset"><h4>{T.cookieLogin}</h4><p className="settings-desc">{T.cookieDesc}</p><textarea className="settings-textarea" rows={4} value={cookieInput} onChange={(e)=>setCookieInput(e.target.value)} placeholder="MUSIC_U=xxxxx; __csrf=yyyyy;"/><button className="setting-btn active" onClick={handleCookieLogin}>{T.importCookie}</button></div></div>}</div></div>;
-  const renderActiveTab = () => activeTab === 'theme' ? renderThemeTab() : activeTab === 'desktop' ? renderDesktopTab() : activeTab === 'audio' ? renderAudioTab() : activeTab === 'shortcuts' ? renderShortcutsTab() : activeTab === 'navbar' ? renderNavbarTab() : renderAccountTab();
+  const renderActiveTab = () => activeTab === 'theme' ? renderThemeTab() : activeTab === 'desktop' ? renderDesktopTab() : activeTab === 'audio' ? renderAudioTab() : activeTab === 'cache' ? renderCacheTab() : activeTab === 'shortcuts' ? renderShortcutsTab() : activeTab === 'navbar' ? renderNavbarTab() : renderAccountTab();
   return <div className="view-container"><h2 style={{ fontFamily: 'var(--font-title)', fontSize: 20, fontWeight: 700, marginBottom: 24 }}>{T.title}</h2><div className="settings-shell"><aside className="settings-tabs">{tabs.map(tab=>{const Icon=tab.icon; return <button key={tab.key} className={activeTab===tab.key?'active':''} onClick={()=>setActiveTab(tab.key)}><Icon size={18}/><span>{tab.label}</span></button>;})}</aside><main className="settings-panel">{renderActiveTab()}</main></div></div>;
 }

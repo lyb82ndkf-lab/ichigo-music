@@ -1550,6 +1550,65 @@ body {
   transform: scale(1.1);
 }
 
+.settings-section input[type="color"] {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 2px solid rgba(255,255,255,0.18);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.settings-section input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-section input[type="color"]::-webkit-color-swatch {
+  border: 0;
+  border-radius: 50%;
+}
+
+.setting-btn.compact,
+.settings-section > .setting-btn.active {
+  min-height: 0;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.settings-text-input {
+  min-width: 0;
+  height: 34px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.045);
+  color: var(--text-main);
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+.cache-path-row,
+.cache-stats-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.cache-path-row .settings-text-input {
+  flex: 1;
+}
+
+.cache-stats-row {
+  justify-content: space-between;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* Global Visualizer Canvas Container */
 .global-visualizer-container {
   position: absolute;
@@ -2704,11 +2763,14 @@ body {
 
 .layout-modern #progress-fill {
   height: 100%;
-  width: 0%;
+  width: 100%;
   background: linear-gradient(90deg, rgba(255,255,255,0.92), rgba(var(--primary-rgb, 255,64,129), 0.74));
   border-radius: 999px;
-  transition: width 0.12s linear;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.08s linear;
   box-shadow: 0 0 16px rgba(var(--primary-rgb, 255,64,129), 0.18);
+  will-change: transform;
 }
 
 .layout-modern #progress-thumb {
@@ -2722,9 +2784,78 @@ body {
   transition: opacity 0.16s, transform 0.16s;
 }
 
-.layout-modern #progress-bar:hover #progress-thumb {
+.layout-modern #progress-bar:hover #progress-thumb,
+.layout-modern #progress-bar.seeking #progress-thumb {
   opacity: 1;
   transform: translate(-50%, -50%) scale(1);
+}
+
+.progress-lyric-preview {
+  position: absolute;
+  bottom: 16px;
+  width: 230px;
+  transform: translateX(-50%);
+  padding: 12px 14px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--primary) 22%, rgba(18, 10, 18, 0.92));
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  color: var(--text-active);
+  pointer-events: none;
+  z-index: 80;
+}
+
+.progress-preview-count {
+  font-size: 11px;
+  color: rgba(255,255,255,0.68);
+  margin-bottom: 5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-preview-text {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-preview-translation {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.25;
+  color: rgba(255,255,255,0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-preview-line {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 7px;
+  margin-top: 9px;
+  color: rgba(255,255,255,0.62);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-preview-meter {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.28);
+  overflow: hidden;
+}
+
+.progress-preview-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: rgba(255,255,255,0.92);
 }
 
 
@@ -2987,19 +3118,27 @@ body {
 .settings-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: 14px;
 }
 
 .settings-grid-3 .settings-field {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
-  padding: 12px;
+  gap: 10px;
+  padding: 14px;
   border-bottom: none;
-  background: var(--glass-bg);
-  border-radius: var(--border-radius-md);
-  border: 1px solid var(--card-border);
+  background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025));
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--card-border), rgba(255,255,255,0.2) 35%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 10px 28px rgba(0,0,0,0.12);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+}
+
+.settings-grid-3 .settings-field:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--primary), var(--card-border) 55%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.075), rgba(255,255,255,0.035));
 }
 
 .settings-grid-3 .settings-field-control {
@@ -3009,8 +3148,22 @@ body {
 
 .settings-grid-3 .settings-field-control > input[type="color"] {
   width: 100%;
-  height: 38px;
+  height: 42px;
   cursor: pointer;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.18);
+  padding: 3px;
+  background: rgba(0,0,0,0.22);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.18);
+}
+
+.settings-grid-3 .settings-field-control > input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-grid-3 .settings-field-control > input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 7px;
 }
 
 .settings-field {
