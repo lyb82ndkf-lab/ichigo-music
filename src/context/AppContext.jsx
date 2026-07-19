@@ -5,7 +5,9 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.6.6';
+export const APP_VERSION = 'v1.6.7';
+
+const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
 export function isVersionLessThan(current, latest) {
   const parse = (v) => v.replace(/^v/, '').split('.').map(Number);
@@ -680,9 +682,59 @@ export function AppProvider({ children }) {
   // Playback Control logic
   const playSong = useCallback(async (song, newQueue = null, resumeProgress = null, options = {}) => {
     if (!song) return;
-    const { audioQuality, playlist, audioElement } = stateRef.current;
+    const { audioQuality, playlist, audioElement, currentSong } = stateRef.current;
     const forceRefreshUrl = options?.forceRefreshUrl === true;
+    const failedSongIds = new Set(options?.failedSongIds || []);
     const playSequence = ++playSequenceRef.current;
+
+    const queueForFallback = Array.isArray(newQueue) && newQueue.length > 0 ? newQueue : playlist;
+    const fallbackStartIndex = queueForFallback.findIndex(item => sameSongId(item.id, song.id));
+    const playNextAvailableAfterFailure = () => {
+      if (!queueForFallback.length || fallbackStartIndex === -1) return false;
+      const nextFailedSongIds = new Set(failedSongIds);
+      nextFailedSongIds.add(String(song.id));
+      for (let offset = 1; offset < queueForFallback.length; offset += 1) {
+        const nextIndex = (fallbackStartIndex + offset) % queueForFallback.length;
+        const candidate = queueForFallback[nextIndex];
+        if (!candidate?.id || nextFailedSongIds.has(String(candidate.id))) continue;
+        setPlaylistAndPersist(queueForFallback);
+        setPlaylistIndexAndPersist(nextIndex);
+        setTimeout(() => {
+          playSong(candidate, queueForFallback, null, { failedSongIds: Array.from(nextFailedSongIds) });
+        }, 0);
+        return true;
+      }
+      return false;
+    };
+
+    const currentUrlCachedAt = Number(currentSong?.urlCachedAt || 0);
+    const currentUrlIsFresh = currentSong?.url && currentUrlCachedAt && Date.now() - currentUrlCachedAt < 15 * 60 * 1000;
+    const audioCurrentSrc = audioElement?.currentSrc || audioElement?.src || '';
+    const shouldReplayCurrentSource = (
+      resumeProgress === null &&
+      !forceRefreshUrl &&
+      sameSongId(currentSong?.id, song?.id) &&
+      currentUrlIsFresh &&
+      audioElement &&
+      audioCurrentSrc === currentSong.url
+    );
+
+    if (shouldReplayCurrentSource) {
+      if (newQueue) {
+        setPlaylistAndPersist(newQueue);
+        const idx = newQueue.findIndex(item => sameSongId(item.id, song.id));
+        setPlaylistIndexAndPersist(idx);
+      }
+      persistResumeTime(null);
+      try {
+        audioElement.currentTime = 0;
+        const replayPromise = audioElement.play?.();
+        if (replayPromise?.catch) replayPromise.catch(() => {});
+      } catch {}
+      setIsPlaying(true);
+      addToRecent(currentSong);
+      return;
+    }
 
     try {
       setIsPlaying(false);
@@ -700,6 +752,9 @@ export function AppProvider({ children }) {
 
       if (!songUrl) {
         alert('\u65e0\u6cd5\u83b7\u53d6\u8be5\u6b4c\u66f2\u7684\u64ad\u653e\u6e90\uff08\u53ef\u80fd\u662fVIP\u6b4c\u66f2\u6216\u7248\u6743\u9650\u5236\uff09');
+        if (!playNextAvailableAfterFailure()) {
+          setIsPlaying(false);
+        }
         return;
       }
 
@@ -741,10 +796,10 @@ export function AppProvider({ children }) {
 
       if (newQueue) {
         setPlaylistAndPersist(newQueue);
-        const idx = newQueue.findIndex(item => item.id === song.id);
+        const idx = newQueue.findIndex(item => sameSongId(item.id, song.id));
         setPlaylistIndexAndPersist(idx);
       } else {
-        const existingIdx = playlist.findIndex(item => item.id === song.id);
+        const existingIdx = playlist.findIndex(item => sameSongId(item.id, song.id));
         if (existingIdx !== -1) {
           setPlaylistIndexAndPersist(existingIdx);
         } else {
@@ -777,6 +832,9 @@ export function AppProvider({ children }) {
     } catch (error) {
       console.error('Error starting song playback:', error);
       alert('\u64ad\u653e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');
+      if (!playNextAvailableAfterFailure()) {
+        setIsPlaying(false);
+      }
     }
   }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent, getPlayableSongUrl, cacheCoverInBackground, fetchSongCoverFromDetail]);
 

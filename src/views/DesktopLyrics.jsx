@@ -11,6 +11,9 @@ const t = {
 };
 
 const getSweepClipBleedPx = (fontSize) => Math.max(3, Math.ceil(fontSize * 0.08));
+const UNLOCK_HOT_ZONE_WIDTH = 180;
+const UNLOCK_HOT_ZONE_TOP_BLEED = 48;
+const UNLOCK_HOT_ZONE_BOTTOM_BLEED = 18;
 const getLinesSignature = (lines = []) => {
   if (!Array.isArray(lines) || lines.length === 0) return '0';
   const first = lines[0];
@@ -137,20 +140,24 @@ export default function DesktopLyrics() {
   const isHoveredRef = useRef(false);
   isHoveredRef.current = isHovered;
 
-  // Track absolute mouse coordinates relative to the inner bounding box purely for visual hover state
+  // Track absolute mouse coordinates relative to the inner bounding box.
+  // When locked, only the small area around the top-center unlock pill should
+  // reveal controls/border and temporarily accept mouse events.
   const handleGlobalMouseMove = (e) => {
     if (!innerRef.current) return;
     const rect = innerRef.current.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const halfHotZoneWidth = UNLOCK_HOT_ZONE_WIDTH / 2;
     const isInUnlockHotZone = (
-      e.clientX >= rect.left + rect.width * 0.32 &&
-      e.clientX <= rect.right - rect.width * 0.32 &&
-      e.clientY >= Math.max(0, rect.top - 48) &&
-      e.clientY <= rect.top + 34
+      e.clientX >= centerX - halfHotZoneWidth &&
+      e.clientX <= centerX + halfHotZoneWidth &&
+      e.clientY >= Math.max(0, rect.top - UNLOCK_HOT_ZONE_TOP_BLEED) &&
+      e.clientY <= rect.top + UNLOCK_HOT_ZONE_BOTTOM_BLEED
     );
-    const isInside = (
+    const isInsideDragSurface = (
       e.clientX >= rect.left &&
       e.clientX <= rect.right &&
-      e.clientY >= (rect.top - 48) && // Expand hover area to include the absolute positioned top button
+      e.clientY >= rect.top &&
       e.clientY <= rect.bottom
     );
 
@@ -159,7 +166,11 @@ export default function DesktopLyrics() {
       window.electronAPI?.setDesktopLyricsLock?.(!isInUnlockHotZone);
     }
 
-    if (isInside) {
+    const shouldShowControls = configRef.current.locked
+      ? isInUnlockHotZone
+      : (isInUnlockHotZone || isInsideDragSurface);
+
+    if (shouldShowControls) {
       if (!isHoveredRef.current) setIsHovered(true);
     } else {
       if (isHoveredRef.current) setIsHovered(false);

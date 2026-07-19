@@ -409,6 +409,10 @@ function toggleDesktopLyrics() {
 
   desktopLyricsWindow.setIgnoreMouseEvents(true, { forward: true });
 
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('desktop-lyrics-visibility-change', true);
+  }
+
   if (app.isPackaged) {
     desktopLyricsWindow.loadURL(`http://localhost:${apiPort}/?desktop-lyrics=true`);
   } else {

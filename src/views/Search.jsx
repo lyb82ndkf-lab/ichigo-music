@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
-import { Search as SearchIcon, Play, Trash2, Clock, Music, FolderHeart, Award, User, Video } from 'lucide-react';
+import { Search as SearchIcon, Play, Trash2, Clock, Music, FolderHeart, Award, User, Video, Heart } from 'lucide-react';
 
 const tabs = [
   { key: 'songs', type: 1, name: '单曲', icon: Music },
@@ -12,7 +12,7 @@ const tabs = [
 ];
 
 export default function Search() {
-  const { navigateTo, playSong, viewData } = useApp();
+  const { navigateTo, playSong, viewData, likedSongIds, toggleLike } = useApp();
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [hotSearches, setHotSearches] = useState([]);
@@ -236,6 +236,7 @@ export default function Search() {
                   <th>歌名</th>
                   <th>歌手</th>
                   <th>专辑</th>
+                  <th>{'\u559c\u6b22'}</th>
                   <th>时长</th>
                 </tr>
               </thead>
@@ -243,6 +244,7 @@ export default function Search() {
                 {safeSongs.map((song) => {
                   const artists = getSongArtists(song);
                   const album = getSongAlbum(song);
+                  const isLiked = likedSongIds?.has(song.id) || likedSongIds?.has(String(song.id)) || likedSongIds?.has(Number(song.id));
                   return (
                   <tr key={song.id} className="song-row" onDoubleClick={() => playSong(song, safeSongs)}>
                     <td>
@@ -287,6 +289,20 @@ export default function Search() {
                       >
                         {album?.name || '\u672a\u77e5'}
                       </span>
+                    </td>
+                    <td>
+                      <button
+                        className={`player-like-btn ${isLiked ? 'liked' : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleLike(song.id);
+                        }}
+                        onDoubleClick={(e) => e.stopPropagation()}
+                        title={isLiked ? '\u53d6\u6d88\u559c\u6b22' : '\u559c\u6b22'}
+                        style={{ width: 30, height: 30 }}
+                      >
+                        <Heart size={15} fill={isLiked ? 'currentColor' : 'none'} />
+                      </button>
                     </td>
                     <td style={{ color: 'var(--text-muted)' }}>{formatDuration(song.dt || song.duration || song.durationMs || 0)}</td>
                   </tr>
