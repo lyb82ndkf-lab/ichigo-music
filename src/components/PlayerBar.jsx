@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ResilientCover from './ResilientCover';
 import { 
   Play, 
   Pause, 
@@ -57,21 +58,21 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
   };
 
   const handleProgressChange = (e) => {
-    if (audioElement && duration) {
+    if (audioElement && effectiveDuration) {
       const percentage = parseFloat(e.target.value);
-      const newTime = (percentage / 100) * duration;
+      const newTime = (percentage / 100) * effectiveDuration;
       audioElement.currentTime = newTime;
     }
   };
 
   const updateProgressPreview = (e) => {
-    if (!duration || !Array.isArray(lyrics) || lyrics.length === 0) {
+    if (!effectiveDuration || !Array.isArray(lyrics) || lyrics.length === 0) {
       setProgressPreview(null);
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const targetTime = percent * duration;
+    const targetTime = percent * effectiveDuration;
     let index = -1;
     for (let i = lyrics.length - 1; i >= 0; i -= 1) {
       if (targetTime >= Number(lyrics[i].time || 0)) {
@@ -82,8 +83,8 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
     if (index < 0) index = 0;
     const line = lyrics[index];
     const start = Number(line?.time || 0);
-    const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : duration;
-    const end = Math.max(start + 0.2, Math.min(duration || nextStart, nextStart || (start + Number(line?.duration || 5))));
+    const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : effectiveDuration;
+    const end = Math.max(start + 0.2, Math.min(effectiveDuration || nextStart, nextStart || (start + Number(line?.duration || 5))));
     setProgressPreview({
       x: Math.max(120, Math.min(rect.width - 120, e.clientX - rect.left)),
       index,
@@ -124,7 +125,8 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
     }
   };
 
-  const progressPercent = duration ? (progress / duration) * 100 : 0;
+  const effectiveDuration = duration > 0 ? duration : Number(currentSong?.durationMs || currentSong?.dt || 0) / 1000;
+  const progressPercent = effectiveDuration ? (progress / effectiveDuration) * 100 : 0;
   const isLiked = currentSong ? likedSongIds.has(currentSong.id) : false;
 
   return (
@@ -133,7 +135,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
       <div className="player-song-info">
         {currentSong ? (
           <>
-            <img 
+            <ResilientCover
               src={currentSong?.coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg'} 
               alt={currentSong?.title || 'Unknown'} 
               className={`player-cover ${isPlaying ? 'playing' : ''}`}
@@ -266,7 +268,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
               <div className="progress-handle"></div>
             </div>
           </div>
-          <span>{formatTime(duration)}</span>
+          <span>{formatTime(effectiveDuration)}</span>
         </div>
       </div>
 

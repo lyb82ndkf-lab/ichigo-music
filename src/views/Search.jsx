@@ -12,7 +12,7 @@ const tabs = [
 ];
 
 export default function Search() {
-  const { navigateTo, playSong } = useApp();
+  const { navigateTo, playSong, viewData } = useApp();
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [hotSearches, setHotSearches] = useState([]);
@@ -38,6 +38,11 @@ export default function Search() {
       setHistory(JSON.parse(localHistory));
     }
   }, []);
+
+  useEffect(() => {
+    const keyword = viewData?.keyword?.trim();
+    if (keyword) executeSearch(keyword, activeTab.type);
+  }, [viewData?.keyword]);
 
   // Trigger search when tab changes if keyword is present
   useEffect(() => {
@@ -107,7 +112,7 @@ export default function Search() {
   return (
     <div className="view-container">
       {/* Search Bar Input */}
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+      <div className="search-page-input" style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
         <div className="search-input-wrap">
           <SearchIcon size={18} color="var(--text-muted)" />
           <input

@@ -263,6 +263,11 @@ export default function AudioPlayer() {
     }
   };
 
+  const handleDurationChange = () => {
+    const mediaDuration = Number(audioRef.current?.duration);
+    if (Number.isFinite(mediaDuration) && mediaDuration > 0) setDuration(mediaDuration);
+  };
+
   // If the audio source fails to load, handle CORS or skip to next song
   const handleAudioError = (e) => {
     console.error("Audio playback error event:", e);
@@ -320,6 +325,7 @@ export default function AudioPlayer() {
       onPause={handlePause}
       onTimeUpdate={handleTimeUpdate}
       onLoadedMetadata={handleLoadedMetadata}
+      onDurationChange={handleDurationChange}
       onCanPlay={() => { if (isPlaying) { setupWebAudio(); safePlay(); } }}
       onError={handleAudioError}
       onEnded={handleEnded}
