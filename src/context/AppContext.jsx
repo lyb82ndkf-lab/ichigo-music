@@ -5,7 +5,7 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.6.0';
+export const APP_VERSION = 'v1.6.5';
 
 export function isVersionLessThan(current, latest) {
   const parse = (v) => v.replace(/^v/, '').split('.').map(Number);
@@ -651,21 +651,20 @@ export function AppProvider({ children }) {
       setIsPlaying(true);
       addToRecent(songWithUrl);
 
-      // Pre-fetch URL for the next song in the background to make playNext instant
+      // Download a short look-ahead window so next/skip playback can start from disk.
       try {
         const { playlist: currentPlaylist, playlistIndex: currentIdx, playMode: currentMode } = stateRef.current;
         if (currentPlaylist.length > 1) {
-          let nextIdx;
-          if (currentMode === 'random') {
-            nextIdx = Math.floor(Math.random() * currentPlaylist.length);
-          } else {
-            const songIdx = currentPlaylist.findIndex(item => item.id === song.id);
-            nextIdx = songIdx !== -1 ? (songIdx + 1) % currentPlaylist.length : (currentIdx + 1) % currentPlaylist.length;
-          }
-          const nextSong = currentPlaylist[nextIdx];
-          if (nextSong) {
-            getPlayableSongUrl(nextSong, audioQuality).catch(() => {});
-          }
+          const songIdx = currentPlaylist.findIndex(item => item.id === song.id);
+          const baseIdx = songIdx !== -1 ? songIdx : currentIdx;
+          const candidates = currentMode === 'random'
+            ? currentPlaylist.filter(item => item.id !== song.id).slice(0, 3)
+            : [1, 2, 3].map(offset => currentPlaylist[(baseIdx + offset) % currentPlaylist.length]);
+          candidates.filter(Boolean).forEach(nextSong => {
+            getPlayableSongUrl(nextSong, audioQuality).then(url => {
+              if (url) cacheCoverInBackground(nextSong);
+            }).catch(() => {});
+          });
         }
       } catch (_) { /* ignore pre-fetch errors */ }
     } catch (error) {

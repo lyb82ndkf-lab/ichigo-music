@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Home, Settings, User as UserIcon, Search, Minus, Square, X } from 'lucide-react';
 
 export default function ModernTopControls() {
-  const { navigateTo, user, requestAppClose } = useApp();
+  const { navigateTo, user, requestAppClose, currentView, viewData } = useApp();
   const searchInputRef = useRef(null);
 
   const handleSearch = (e) => {
@@ -12,6 +12,12 @@ export default function ModernTopControls() {
       e.target.blur();
     }
   };
+
+  React.useEffect(() => {
+    if (currentView === 'search' && viewData?.keyword && searchInputRef.current) {
+      searchInputRef.current.value = viewData.keyword;
+    }
+  }, [currentView, viewData?.keyword]);
 
   return (
     <div id="modern-unified-topbar">

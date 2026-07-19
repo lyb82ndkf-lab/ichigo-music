@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import ResilientCover from './ResilientCover';
 import { Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1, ListMusic, Volume2, VolumeX } from 'lucide-react';
 
 export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
@@ -37,6 +38,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
   };
 
   const progressRef = useRef(null);
+  const effectiveDuration = duration > 0 ? duration : Number(currentSong?.durationMs || currentSong?.dt || 0) / 1000;
 
   const formatTime = (time) => {
     if (!time || isNaN(time)) return '00:00';
@@ -46,17 +48,17 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
   };
 
   const seekFromClientX = (clientX) => {
-    if (!progressRef.current || !duration) return;
+    if (!progressRef.current || !effectiveDuration) return;
     const rect = progressRef.current.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    if (audioElement) audioElement.currentTime = percent * duration;
+    if (audioElement) audioElement.currentTime = percent * effectiveDuration;
   };
 
   const getLyricPreview = (clientX) => {
-    if (!progressRef.current || !duration || !Array.isArray(lyrics) || lyrics.length === 0) return null;
+    if (!progressRef.current || !effectiveDuration || !Array.isArray(lyrics) || lyrics.length === 0) return null;
     const rect = progressRef.current.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const targetTime = percent * duration;
+    const targetTime = percent * effectiveDuration;
     let index = -1;
     for (let i = lyrics.length - 1; i >= 0; i -= 1) {
       if (targetTime >= Number(lyrics[i].time || 0)) {
@@ -67,8 +69,8 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
     if (index < 0) index = 0;
     const line = lyrics[index];
     const start = Number(line?.time || 0);
-    const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : duration;
-    const end = Math.max(start + 0.2, Math.min(duration || nextStart, nextStart || (start + Number(line?.duration || 5))));
+    const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : effectiveDuration;
+    const end = Math.max(start + 0.2, Math.min(effectiveDuration || nextStart, nextStart || (start + Number(line?.duration || 5))));
     const lineProgress = Math.max(0, Math.min(1, (targetTime - start) / Math.max(0.2, end - start)));
     return {
       x: Math.max(120, Math.min(rect.width - 120, clientX - rect.left)),
@@ -105,7 +107,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
 
-  const progressPercent = duration ? (progress / duration) * 100 : 0;
+  const progressPercent = effectiveDuration ? (progress / effectiveDuration) * 100 : 0;
   const coverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
   const isLiked = currentSong ? likedSongIds.has(currentSong.id) : false;
   const primaryArtist = currentSong?.ar?.[0] || currentSong?.artists?.[0] || null;
@@ -130,7 +132,13 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
         
       <div id="player-controls">
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-            <div className="control-cover" style={{ backgroundImage: `url(${coverUrl})`, cursor: 'pointer' }} onClick={() => { setIsQueueOpen(false); onToggleLyrics?.(); }} title="\u70b9\u51fb\u8fdb\u5165\u6c89\u6d78\u6a21\u5f0f" />
+            <ResilientCover
+              src={coverUrl}
+              alt={currentSong?.name || '专辑封面'}
+              className="control-cover"
+              style={{ cursor: 'pointer' }}
+              onClick={() => { setIsQueueOpen(false); onToggleLyrics?.(); }}
+            />
             <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
               <span
                 onClick={handleSongClick}
@@ -163,7 +171,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
             <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '8px', fontVariantNumeric: 'tabular-nums' }}>
-              {formatTime(progress)} / {formatTime(duration)}
+              {formatTime(progress)} / {formatTime(effectiveDuration)}
             </span>
             <button className="ctrl-btn" onClick={handlePlayMode} title="播放模式">
               {playMode === 'random' ? <Shuffle size={18} /> : playMode === 'single' ? <Repeat1 size={18} /> : <Repeat size={18} />}

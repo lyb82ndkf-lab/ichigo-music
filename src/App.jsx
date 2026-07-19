@@ -186,8 +186,13 @@ function AppContent() {
         }
       }
 
+      const mediaClockReady = isPlaying
+        && audioElement.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+        && Number.isFinite(audioElement.duration)
+        && audioElement.duration > 0
+        && !audioElement.paused;
       window.electronAPI.sendLyricsUpdate({
-        isPlaying: isPlaying,
+        isPlaying: mediaClockReady,
         audioTime: adjustedSnapshot,
         systemTime: Date.now(),
         lines: lyrics || [], // Send full lyrics array for scrolling rail

@@ -238,11 +238,7 @@ export default function DesktopLyrics() {
 
   // Keep every lyric on a fixed-height rail slot. Measuring the active DOM node
   // caused the coordinate origin to change whenever hidden rows were mounted.
-  const lyricSlotHeight = Math.ceil(
-    (config.fontSize || 36) * 1.2
-    + (config.showTranslation !== false ? (config.translationSize || 22) + 8 : 0)
-    + 16
-  );
+  const lyricSlotHeight = Math.ceil((config.fontSize || 36) * 1.18 + (config.translationSize || 22) * 0.82 + 10);
   // Shared token-level sweep animation loop. It uses the same display-token
   // model as immersive lyrics, so YRC/QRC/KRC and fallback LRC all reveal on the
   // same per-grapheme timing path.
@@ -253,7 +249,7 @@ export default function DesktopLyrics() {
       const currentConfig = configRef.current;
       if (currentSync.lines && currentSync.lines.length > 0) {
         let virtualTime = currentSync.audioTime;
-        if (currentSync.isPlaying) {
+        if (currentSync.isPlaying && currentSync.audioTime > 0) {
           virtualTime += (Date.now() - currentSync.systemTime) / 1000;
         }
         const adjustedTime = virtualTime + currentSync.globalOffset;
@@ -396,7 +392,8 @@ export default function DesktopLyrics() {
           height: 'fit-content',
           borderRadius: 12,
           border: (!config.locked || isHovered) ? `2px dashed ${activeAccent}` : '2px solid transparent',
-          background: (!config.locked && isHovered) ? 'rgba(0, 0, 0, 0.28)' : (isHovered ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.01)'),
+          background: (!config.locked && isHovered) ? `rgba(0, 0, 0, ${0.28 * (config.opacity ?? 1)})` : (isHovered ? `rgba(0, 0, 0, ${0.15 * (config.opacity ?? 1)})` : 'transparent'),
+          opacity: config.opacity ?? 1,
           transition: 'all 0.25s ease',
           boxSizing: 'border-box',
           padding: '16px 28px',
@@ -465,8 +462,10 @@ export default function DesktopLyrics() {
                       height: `${lyricSlotHeight}px`,
                       padding: margin,
                       boxSizing: 'border-box',
-                      transition: 'transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.24s ease',
-                      transform: `translateY(calc(-50% + ${relativeIndex * lyricSlotHeight}px)) scale(${scale})`,
+                      '--desktop-line-transform': `translateY(calc(-50% + ${relativeIndex * lyricSlotHeight}px)) scale(${scale})`,
+                      transition: 'transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease',
+                      animation: relativeIndex > 0 ? 'desktopLyricEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1)' : undefined,
+                      transform: 'var(--desktop-line-transform)',
                       transformOrigin: config.alignment === 'left' ? 'center left' : (config.alignment === 'right' ? 'center right' : 'center center'),
                       opacity, 
                       filter: 'none',
