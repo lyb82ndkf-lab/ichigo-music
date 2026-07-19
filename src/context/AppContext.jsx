@@ -5,7 +5,7 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.6.5';
+export const APP_VERSION = 'v1.6.6';
 
 export function isVersionLessThan(current, latest) {
   const parse = (v) => v.replace(/^v/, '').split('.').map(Number);
@@ -146,7 +146,8 @@ export function AppProvider({ children }) {
     cacheConfig: profile.audio?.cache || DEFAULT_PROFILE.audio.cache,
     recentlyPlayed,
     progress,
-    currentSong
+    currentSong,
+    audioElement
   };
 
   const setUser = useCallback((nextUser) => {
@@ -497,6 +498,8 @@ export function AppProvider({ children }) {
   // Short-lived URL cache to avoid slow API re-fetches when switching songs quickly
   const songUrlCacheRef = useRef(new Map());
   const songUrlInFlightRef = useRef(new Map());
+  const coverCacheInFlightRef = useRef(new Map());
+  const playSequenceRef = useRef(0);
 
   const pruneSongUrlCache = useCallback(() => {
     while (songUrlCacheRef.current.size > 80) {
@@ -522,24 +525,100 @@ export function AppProvider({ children }) {
     }).catch(() => {});
   }, []);
 
-  const cacheCoverInBackground = useCallback((song) => {
+  const fetchSongCoverFromDetail = useCallback(async (songId) => {
+    if (!songId) return null;
+    try {
+      const detail = await api.getSongDetails(songId);
+      const fullSong = detail?.songs?.[0] || null;
+      const coverUrl = fullSong?.al?.picUrl || fullSong?.album?.picUrl || fullSong?.coverUrl || '';
+      return coverUrl ? { coverUrl, fullSong } : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const resolveSongCover = useCallback((song) => {
     const cfg = stateRef.current.cacheConfig || DEFAULT_PROFILE.audio.cache;
-    const remoteCover = song?.originalCoverUrl || song?.al?.picUrl || song?.album?.picUrl || song?.coverUrl;
-    if (!cfg?.enabled || !song?.id || !remoteCover || !/^https?:\/\//i.test(remoteCover)) return;
-    window.electronAPI?.cacheCover?.({
-      songId: song.id,
-      url: remoteCover,
-      cacheDir: cfg.directory || '',
-      maxBytes: getCacheLimitBytes(cfg)
-    }).then(cached => {
-      if (!cached?.url || stateRef.current.currentSong?.id !== song.id) return;
-      setCurrentSongAndPersist({
-        ...stateRef.current.currentSong,
-        originalCoverUrl: remoteCover,
-        coverUrl: cached.url
+    const directCover = song?.coverUrl || '';
+    const isLocalCover = /^(file|data|blob):/i.test(directCover);
+    if (isLocalCover && (!cfg?.enabled || !song?.id || !window.electronAPI?.getCachedCover)) {
+      return Promise.resolve({ url: directCover, remoteUrl: song?.originalCoverUrl || '' });
+    }
+
+    const knownRemoteCover = song?.originalCoverUrl
+      || song?.al?.picUrl
+      || song?.album?.picUrl
+      || (/^https?:\/\//i.test(directCover) && !/109951163026279185/.test(directCover) ? directCover : '');
+    if (!cfg?.enabled || !song?.id || !window.electronAPI?.getCachedCover) {
+      return Promise.resolve({ url: knownRemoteCover || directCover, remoteUrl: knownRemoteCover });
+    }
+
+    const cacheKey = `${song.id}:${cfg.directory || 'default'}`;
+    const existingRequest = coverCacheInFlightRef.current.get(cacheKey);
+    if (existingRequest) return existingRequest;
+
+    const request = (async () => {
+      const cached = await window.electronAPI.getCachedCover({
+        songId: song.id,
+        cacheDir: cfg.directory || ''
+      }).catch(() => null);
+      if (cached?.url) return { url: cached.url, remoteUrl: knownRemoteCover };
+
+      let remoteUrl = knownRemoteCover;
+      if (!remoteUrl) {
+        const detailCover = await fetchSongCoverFromDetail(song.id);
+        remoteUrl = detailCover?.coverUrl || '';
+      }
+      if (!remoteUrl || !window.electronAPI?.cacheCover) {
+        return { url: remoteUrl || directCover, remoteUrl };
+      }
+
+      const stored = await window.electronAPI.cacheCover({
+        songId: song.id,
+        url: remoteUrl,
+        cacheDir: cfg.directory || '',
+        maxBytes: getCacheLimitBytes(cfg)
+      }).catch(() => null);
+      return { url: stored?.url || remoteUrl, remoteUrl };
+    })().finally(() => {
+      coverCacheInFlightRef.current.delete(cacheKey);
+    });
+
+    coverCacheInFlightRef.current.set(cacheKey, request);
+    return request;
+  }, [fetchSongCoverFromDetail]);
+
+  const cacheCoverInBackground = useCallback((song) => {
+    if (!song?.id) return;
+    resolveSongCover(song).then(({ url, remoteUrl }) => {
+      if (!url) return;
+
+      const current = stateRef.current.currentSong;
+      if (current?.id === song.id && (current.coverUrl !== url || (!current.originalCoverUrl && remoteUrl))) {
+        setCurrentSongAndPersist({
+          ...current,
+          originalCoverUrl: remoteUrl || current.originalCoverUrl || '',
+          coverUrl: url
+        });
+      }
+
+      const recent = stateRef.current.recentlyPlayed || [];
+      let changed = false;
+      const nextRecent = recent.map(item => {
+        if (item.id !== song.id || (item.coverUrl === url && (item.originalCoverUrl || '') === (remoteUrl || ''))) return item;
+        changed = true;
+        return {
+          ...item,
+          originalCoverUrl: remoteUrl || item.originalCoverUrl || '',
+          coverUrl: url
+        };
       });
+      if (changed) {
+        setRecentlyPlayed(nextRecent);
+        updateProfile({ recentlyPlayed: nextRecent });
+      }
     }).catch(() => {});
-  }, [setCurrentSongAndPersist]);
+  }, [resolveSongCover, setCurrentSongAndPersist, updateProfile]);
 
   const getPlayableSongUrl = useCallback(async (song, quality, forceRefreshUrl = false) => {
     if (!song?.id) return null;
@@ -601,25 +680,53 @@ export function AppProvider({ children }) {
   // Playback Control logic
   const playSong = useCallback(async (song, newQueue = null, resumeProgress = null, options = {}) => {
     if (!song) return;
-    const { audioQuality, playlist } = stateRef.current;
+    const { audioQuality, playlist, audioElement } = stateRef.current;
     const forceRefreshUrl = options?.forceRefreshUrl === true;
+    const playSequence = ++playSequenceRef.current;
 
     try {
+      setIsPlaying(false);
+      if (audioElement) {
+        try {
+          audioElement.pause();
+          audioElement.currentTime = 0;
+          audioElement.removeAttribute('src');
+          audioElement.load();
+        } catch {}
+      }
+
       const songUrl = await getPlayableSongUrl(song, audioQuality, forceRefreshUrl);
+      if (playSequence !== playSequenceRef.current) return;
 
       if (!songUrl) {
         alert('\u65e0\u6cd5\u83b7\u53d6\u8be5\u6b4c\u66f2\u7684\u64ad\u653e\u6e90\uff08\u53ef\u80fd\u662fVIP\u6b4c\u66f2\u6216\u7248\u6743\u9650\u5236\uff09');
         return;
       }
 
+      let coverSourceSong = song;
+      let coverUrl = song.coverUrl || song.originalCoverUrl || song.al?.picUrl || song.album?.picUrl || '';
+      if (!coverUrl || /109951163026279185/.test(String(coverUrl))) {
+        const detailCover = await fetchSongCoverFromDetail(song.id);
+        if (playSequence !== playSequenceRef.current) return;
+        if (detailCover?.coverUrl) {
+          coverUrl = detailCover.coverUrl;
+          coverSourceSong = {
+            ...(detailCover.fullSong || {}),
+            ...song,
+            al: song.al || detailCover.fullSong?.al,
+            album: song.album || detailCover.fullSong?.album
+          };
+        }
+      }
+
       const songWithUrl = {
-        ...song,
+        ...coverSourceSong,
         url: songUrl,
-        title: song.name || song.title,
-        artist: song.ar?.map(a => a.name).join(' / ') || song.artists?.map(a => a.name).join(' / ') || song.artist || '\u672a\u77e5\u6b4c\u624b',
-        coverUrl: song.coverUrl || song.al?.picUrl || song.album?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg',
-        originalCoverUrl: song.originalCoverUrl || song.al?.picUrl || song.album?.picUrl || song.coverUrl || '',
-        durationMs: song.dt || song.duration || song.durationMs || 0,
+        title: coverSourceSong.name || coverSourceSong.title,
+        artist: coverSourceSong.ar?.map(a => a.name).join(' / ') || coverSourceSong.artists?.map(a => a.name).join(' / ') || coverSourceSong.artist || '\u672a\u77e5\u6b4c\u624b',
+        coverUrl: coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg',
+        originalCoverUrl: coverUrl || coverSourceSong.originalCoverUrl || coverSourceSong.al?.picUrl || coverSourceSong.album?.picUrl || coverSourceSong.coverUrl || '',
+        durationMs: coverSourceSong.dt || coverSourceSong.duration || coverSourceSong.durationMs || 0,
         urlCachedAt: Date.now()
       };
 
@@ -671,7 +778,7 @@ export function AppProvider({ children }) {
       console.error('Error starting song playback:', error);
       alert('\u64ad\u653e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');
     }
-  }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent, getPlayableSongUrl, cacheCoverInBackground]);
+  }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent, getPlayableSongUrl, cacheCoverInBackground, fetchSongCoverFromDetail]);
 
   useEffect(() => {
     if (!currentSong?.id || !cacheConfig?.enabled) return undefined;
@@ -689,6 +796,11 @@ export function AppProvider({ children }) {
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [currentSong?.id, cacheConfig?.enabled, cacheConfig?.directory, cacheCoverInBackground, setCurrentSongAndPersist]);
+
+  useEffect(() => {
+    if (!cacheConfig?.enabled || recentlyPlayed.length === 0) return;
+    recentlyPlayed.slice(0, 5).forEach(cacheCoverInBackground);
+  }, [cacheConfig?.enabled, cacheConfig?.directory, recentlyPlayed, cacheCoverInBackground]);
 
   useEffect(() => {
     if (!currentSong?.id) return undefined;
@@ -871,6 +983,7 @@ export function AppProvider({ children }) {
     playMode,
     setPlayMode: setPlayModeAndPersist,
     recentlyPlayed,
+    resolveSongCover,
     isQueueOpen,
     setIsQueueOpen,
 
@@ -951,6 +1064,7 @@ export function AppProvider({ children }) {
     saveAdvancedLyricConfig, saveVisualizerConfig, saveDesktopLyricsConfig, mergeDesktopLyricsConfigFromIpc,
     saveAudioConfig, saveCacheConfig, savePlaybackConfig, saveRenderingConfig, saveShortcuts, persistResumeTime,
     navigateTo, goBack, goForward, checkUserLogin, toggleLike, playSong, togglePlay, playNext, playPrev, setAudioQuality, addToRecent, logout,
+    resolveSongCover,
     extractedColors, immersiveColor, updateInfo, checkForUpdates
   ]);
 

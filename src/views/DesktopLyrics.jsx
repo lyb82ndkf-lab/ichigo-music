@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { parseDisplayTokens } from '../components/lyrics/MonetLyricsEngine';
+import { calculateDesktopLyricLayout } from '../utils/desktopLyricLayout';
 
 const t = {
   locked: 'Locked',
@@ -81,6 +82,7 @@ export default function DesktopLyrics() {
   const [windowSize, setWindowSize] = useState({ width: 1000, height: 150 });
   const wordsRefs = useRef([]);
   const innerRef = useRef(null);
+  const unlockHotZoneRef = useRef(false);
   const syncDataRef = useRef(syncData);
   const configRef = useRef(config);
   const activeTokensRef = useRef([]);
@@ -139,13 +141,24 @@ export default function DesktopLyrics() {
   const handleGlobalMouseMove = (e) => {
     if (!innerRef.current) return;
     const rect = innerRef.current.getBoundingClientRect();
+    const isInUnlockHotZone = (
+      e.clientX >= rect.left + rect.width * 0.32 &&
+      e.clientX <= rect.right - rect.width * 0.32 &&
+      e.clientY >= Math.max(0, rect.top - 48) &&
+      e.clientY <= rect.top + 34
+    );
     const isInside = (
       e.clientX >= rect.left &&
       e.clientX <= rect.right &&
-      e.clientY >= (rect.top - 30) && // Expand hover area to include the absolute positioned top button
+      e.clientY >= (rect.top - 48) && // Expand hover area to include the absolute positioned top button
       e.clientY <= rect.bottom
     );
-    
+
+    if (configRef.current.locked && isInUnlockHotZone !== unlockHotZoneRef.current) {
+      unlockHotZoneRef.current = isInUnlockHotZone;
+      window.electronAPI?.setDesktopLyricsLock?.(!isInUnlockHotZone);
+    }
+
     if (isInside) {
       if (!isHoveredRef.current) setIsHovered(true);
     } else {
@@ -155,7 +168,11 @@ export default function DesktopLyrics() {
 
   // Reset hover state when cursor leaves the window boundary or window loses focus
   useEffect(() => {
-    const handleMouseLeaveWindow = () => setIsHovered(false);
+    const handleMouseLeaveWindow = () => {
+      setIsHovered(false);
+      unlockHotZoneRef.current = false;
+      if (configRef.current.locked) window.electronAPI?.setDesktopLyricsLock?.(true);
+    };
     document.addEventListener('mouseleave', handleMouseLeaveWindow);
     window.addEventListener('blur', handleMouseLeaveWindow);
     return () => {
@@ -211,8 +228,8 @@ export default function DesktopLyrics() {
       });
       if (typeof cleanup === 'function') cleanupFns.push(cleanup);
     }
-    document.body.style.background = 'rgba(0,0,0,0.01)'; // Prevent Windows DWM from un-compositing the transparent click-through window
-    document.documentElement.style.background = 'rgba(0,0,0,0.01)';
+    document.body.style.background = 'transparent';
+    document.documentElement.style.background = 'transparent';
     return () => cleanupFns.forEach((cleanup) => cleanup());
   }, []);
 
@@ -238,7 +255,12 @@ export default function DesktopLyrics() {
 
   // Keep every lyric on a fixed-height rail slot. Measuring the active DOM node
   // caused the coordinate origin to change whenever hidden rows were mounted.
-  const lyricSlotHeight = Math.ceil((config.fontSize || 36) * 1.18 + (config.translationSize || 22) * 0.82 + 10);
+  const hasActiveTranslation = config.showTranslation !== false && !!activeLineForTokens?.translation;
+  const { lyricSlotHeight, getLineOffset } = calculateDesktopLyricLayout({
+    fontSize: config.fontSize || 36,
+    translationSize: config.translationSize || 22,
+    hasTranslation: hasActiveTranslation
+  });
   // Shared token-level sweep animation loop. It uses the same display-token
   // model as immersive lyrics, so YRC/QRC/KRC and fallback LRC all reveal on the
   // same per-grapheme timing path.
@@ -368,13 +390,13 @@ export default function DesktopLyrics() {
         justifyContent: 'center',
         WebkitAppRegion: config.locked ? 'no-drag' : 'drag',
         overflow: 'hidden',
-        background: 'rgba(0, 0, 0, 0.01)', // Must not be purely transparent to avoid Electron bug
+        background: 'transparent',
         boxSizing: 'border-box',
         padding: '30px 48px',
         position: 'relative',
         userSelect: 'none',
         WebkitUserSelect: 'none',
-        pointerEvents: config.locked ? 'none' : 'auto'
+        pointerEvents: 'auto'
       }}
     >
       <div
@@ -392,7 +414,7 @@ export default function DesktopLyrics() {
           height: 'fit-content',
           borderRadius: 12,
           border: (!config.locked || isHovered) ? `2px dashed ${activeAccent}` : '2px solid transparent',
-          background: (!config.locked && isHovered) ? `rgba(0, 0, 0, ${0.28 * (config.opacity ?? 1)})` : (isHovered ? `rgba(0, 0, 0, ${0.15 * (config.opacity ?? 1)})` : 'transparent'),
+          background: (!config.locked && isHovered) ? `rgba(0, 0, 0, ${0.22 * (config.opacity ?? 1)})` : 'transparent',
           opacity: config.opacity ?? 1,
           transition: 'all 0.25s ease',
           boxSizing: 'border-box',
@@ -449,8 +471,7 @@ export default function DesktopLyrics() {
                 if (!isVisible) return null;
                 const relativeIndex = idx - localActiveIdx;
                 
-                // Keep active margins normal, shrink non-active margins
-                const margin = isActive ? '8px 0' : '2px 0';
+                const yOffset = getLineOffset(relativeIndex);
                 
                 return (
                   <div 
@@ -460,17 +481,18 @@ export default function DesktopLyrics() {
                       top: '50%',
                       left: 0,
                       height: `${lyricSlotHeight}px`,
-                      padding: margin,
+                      padding: 0,
                       boxSizing: 'border-box',
-                      '--desktop-line-transform': `translateY(calc(-50% + ${relativeIndex * lyricSlotHeight}px)) scale(${scale})`,
+                      '--desktop-line-transform': `translateY(calc(-50% + ${yOffset}px)) scale(${scale})`,
                       transition: 'transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease',
                       animation: relativeIndex > 0 ? 'desktopLyricEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1)' : undefined,
                       transform: 'var(--desktop-line-transform)',
                       transformOrigin: config.alignment === 'left' ? 'center left' : (config.alignment === 'right' ? 'center right' : 'center center'),
                       opacity, 
                       filter: 'none',
-                      display: 'flex', 
-                      flexDirection: 'column', 
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
                       alignItems,
                       width: '100%',
                       pointerEvents
@@ -532,7 +554,7 @@ export default function DesktopLyrics() {
                         fontWeight: config.fontWeight || 700,
                         fontFamily: `"${fontFamily}", "Microsoft YaHei", "Noto Sans SC", sans-serif`,
                         color: activeAccent,
-                        marginTop: 4,
+                        marginTop: 2,
                         textShadow: `${shadow}${glow}`,
                         WebkitTextStroke: stroke,
                         textAlign

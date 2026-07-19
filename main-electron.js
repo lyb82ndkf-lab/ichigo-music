@@ -392,6 +392,7 @@ function toggleDesktopLyrics() {
     x: desktopLyricsPos ? desktopLyricsPos.x : undefined,
     y: desktopLyricsPos ? desktopLyricsPos.y : undefined,
     transparent: true,
+    backgroundColor: '#00000000',
     frame: false,
     alwaysOnTop: true,
     skipTaskbar: true,

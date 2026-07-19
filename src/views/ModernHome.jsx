@@ -1,17 +1,30 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Compass, TrendingUp, Heart, History, Settings, Play, Music } from 'lucide-react';
 import GlassNavCard from '../components/GlassNavCard';
+import ResilientCover from '../components/ResilientCover';
 import { useLyricEngine } from '../hooks/useLyricEngine';
 
 function GlassTile({ song }) {
-  const { playSong, navigateTo } = useApp();
-  const coverUrl = song?.coverUrl || song?.al?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
+  const { playSong, navigateTo, resolveSongCover } = useApp();
+  const directCover = song?.coverUrl || song?.al?.picUrl || '';
+  const [coverUrl, setCoverUrl] = useState('');
   const primaryArtist = song?.ar?.[0] || song?.artists?.[0] || null;
-  
+
+  useEffect(() => {
+    let cancelled = false;
+    setCoverUrl('');
+    resolveSongCover(song).then(result => {
+      if (!cancelled) setCoverUrl(result?.url || directCover);
+    }).catch(() => {
+      if (!cancelled) setCoverUrl(directCover);
+    });
+    return () => { cancelled = true; };
+  }, [song?.id, directCover, resolveSongCover]);
+
   return (
     <div className="home-glass-tile" onClick={() => playSong(song)}>
-      <img src={coverUrl} alt="cover" className="tile-cover" />
+      <ResilientCover src={coverUrl} alt="cover" className="tile-cover" />
       <div className="tile-info">
         <div className="tile-name">{song.name}</div>
         <div
