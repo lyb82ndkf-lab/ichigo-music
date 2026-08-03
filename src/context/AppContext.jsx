@@ -5,7 +5,7 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.6.7';
+export const APP_VERSION = 'v1.6.8';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
