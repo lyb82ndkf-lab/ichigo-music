@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import ResilientCover from './ResilientCover';
+import CachedCover from './CachedCover';
 import { Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1, ListMusic, Volume2, VolumeX } from 'lucide-react';
 
 export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
@@ -108,7 +108,6 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
   };
 
   const progressPercent = effectiveDuration ? (progress / effectiveDuration) * 100 : 0;
-  const coverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
   const isLiked = currentSong ? likedSongIds.has(currentSong.id) : false;
   const primaryArtist = currentSong?.ar?.[0] || currentSong?.artists?.[0] || null;
   const albumId = currentSong?.al?.id || currentSong?.album?.id;
@@ -132,8 +131,8 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
         
       <div id="player-controls">
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-            <ResilientCover
-              src={coverUrl}
+            <CachedCover
+              song={currentSong}
               alt={currentSong?.name || '专辑封面'}
               className="control-cover"
               style={{ cursor: 'pointer' }}

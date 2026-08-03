@@ -14,6 +14,7 @@ import ModernPlayerBar from './components/ModernPlayerBar';
 import ModernTopControls from './components/ModernTopControls';
 import { shortcutMatches } from './components/ShortcutRow';
 import MiniQueuePopover from './components/MiniQueuePopover';
+import { useCachedCoverUrl } from './components/CachedCover';
 
 import DesktopLyrics from './views/DesktopLyrics';
 import { useLyricEngine } from './hooks/useLyricEngine';
@@ -103,7 +104,8 @@ function AppContent() {
     });
   };
 
-  const immersiveCoverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl || currentSong?.album?.picUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
+  const cachedImmersiveCoverUrl = useCachedCoverUrl(currentSong);
+  const immersiveCoverUrl = cachedImmersiveCoverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
   const immersiveBgMode = advancedLyricConfig.backgroundMode || 'cover';
   const configuredBgBlur = advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 32;
   const bgBlur = Math.min(configuredBgBlur, 48);

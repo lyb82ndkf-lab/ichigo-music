@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import ResilientCover from './ResilientCover';
+import CachedCover from './CachedCover';
 import { 
   Play, 
   Pause, 
@@ -135,9 +135,9 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
       <div className="player-song-info">
         {currentSong ? (
           <>
-            <ResilientCover
-              src={currentSong?.coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg'} 
-              alt={currentSong?.title || 'Unknown'} 
+            <CachedCover
+              song={currentSong}
+              alt={currentSong?.title || 'Unknown'}
               className={`player-cover ${isPlaying ? 'playing' : ''}`}
               onClick={onToggleLyrics}
             />

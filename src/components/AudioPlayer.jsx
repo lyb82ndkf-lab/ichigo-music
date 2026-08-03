@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { isLocalMediaSource } from '../utils/audioSource';
 
 export default function AudioPlayer() {
   const {
@@ -105,7 +106,7 @@ export default function AudioPlayer() {
       setDuration(0);
       zeroTimeRecoveryRef.current = { key: currentSong.url, attempts: 0 };
       setAudioSource(currentSong.url);
-      setCrossOriginMode('anonymous');
+      setCrossOriginMode(isLocalMediaSource(currentSong.url) ? null : 'anonymous');
     } else {
       setAudioSource('');
     }
@@ -164,7 +165,8 @@ export default function AudioPlayer() {
 
   // Initialize Web Audio API Analyser
   const setupWebAudio = () => {
-    if (!audioRef.current || crossOriginMode === null) return;
+    const localMedia = isLocalMediaSource(audioSource);
+    if (!audioRef.current || (crossOriginMode === null && !localMedia)) return;
 
     try {
       let audioCtx = audioContextRef.current;
@@ -208,7 +210,7 @@ export default function AudioPlayer() {
   };
 
   useEffect(() => {
-    if (!isPlaying || !audioSource || crossOriginMode === null) return;
+    if (!isPlaying || !audioSource || (crossOriginMode === null && !isLocalMediaSource(audioSource))) return;
     setupWebAudio();
   }, [isPlaying, audioSource, crossOriginMode]);
 

@@ -3,6 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Compass, TrendingUp, Heart, History, Settings, Play, Music } from 'lucide-react';
 import GlassNavCard from '../components/GlassNavCard';
 import ResilientCover from '../components/ResilientCover';
+import CachedCover from '../components/CachedCover';
 import { useLyricEngine } from '../hooks/useLyricEngine';
 
 function GlassTile({ song }) {
@@ -83,10 +84,10 @@ export default function ModernHome() {
         <div className="home-hero-inner" style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
           {coverUrl ? (
             <div className="hero-cover-container" style={{ flexShrink: 0, position: 'relative' }}>
-              <img 
-                src={coverUrl} 
-                alt="cover" 
-                style={{ width: '160px', height: '160px', borderRadius: '20px', objectFit: 'cover', boxShadow: '0 24px 48px rgba(0,0,0,0.4)', zIndex: 2, position: 'relative' }} 
+              <CachedCover
+                song={currentSong}
+                alt="cover"
+                style={{ width: '160px', height: '160px', borderRadius: '20px', objectFit: 'cover', boxShadow: '0 24px 48px rgba(0,0,0,0.4)', zIndex: 2, position: 'relative' }}
               />
               <div 
                 className="hero-cover-glow" 
