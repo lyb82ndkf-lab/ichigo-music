@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import CachedCover from './CachedCover';
-import { 
-  Play, 
-  Pause, 
-  SkipForward, 
-  SkipBack, 
-  Volume2, 
-  VolumeX, 
-  Maximize2, 
+import {
+  Play,
+  Pause,
+  SkipForward,
+  SkipBack,
+  Volume2,
+  VolumeX,
+  Maximize2,
   Minimize2,
   Heart,
   Shuffle,
@@ -16,7 +16,7 @@ import {
   Repeat1,
   ListMusic,
   Trash2,
-  Tv
+  Tv,
 } from 'lucide-react';
 
 export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] }) {
@@ -406,13 +406,39 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
           </div>
         </div>
 
-        <button 
-          className="control-btn" 
+        <button
+          className="control-btn"
           onClick={onToggleLyrics}
           title={isLyricsOpen ? "收起全屏" : "展开全屏"}
         >
           {isLyricsOpen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
         </button>
+
+        {false && (<button
+          className={`control-btn ${listenState.roomId ? 'active' : ''}`}
+          onClick={() => setIsListenModalOpen(true)}
+          style={{
+            color: listenState.roomId ? 'var(--primary)' : 'inherit',
+            position: 'relative'
+          }}
+          title="一起听模式"
+        >
+          <Radio size={18} />
+          {listenState.roomId && (
+            <span
+              style={{
+                position: 'absolute',
+                top: '2px',
+                right: '2px',
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--primary)',
+                boxShadow: '0 0 6px var(--primary)'
+              }}
+            />
+          )}
+        </button>)}
       </div>
 
       {/* Queue Drawer Popup Panel */}
@@ -480,6 +506,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
           </div>
         </div>
       )}
+
     </div>
   );
 }

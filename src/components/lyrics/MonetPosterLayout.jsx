@@ -43,6 +43,8 @@ export default function MonetPosterLayout({
   const scrollTimeoutRef = useRef(null);
 
   const handleWheel = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     // 鼠标滚轮翻页预览歌词，每次滚动约 1.5 秒的时间跨度
     const delta = e.deltaY > 0 ? 1.5 : -1.5;
     setManualScrollOffset(prev => prev + delta);
@@ -51,7 +53,7 @@ export default function MonetPosterLayout({
     // 停止滚动 3 秒后自动恢复跟随播放进度
     scrollTimeoutRef.current = setTimeout(() => {
       setManualScrollOffset(0);
-    }, 3000);
+    }, 2200);
   };
 
   const handleLyricClick = (line) => {

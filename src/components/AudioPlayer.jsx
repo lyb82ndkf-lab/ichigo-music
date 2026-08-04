@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { isLocalMediaSource } from '../utils/audioSource';
+import { api } from '../utils/api';
 
 export default function AudioPlayer() {
   const {
@@ -30,6 +31,35 @@ export default function AudioPlayer() {
   const lastLoadedKeyRef = useRef('');
   const zeroTimeRecoveryRef = useRef({ key: '', attempts: 0 });
   const urlRefreshAttemptRef = useRef({ songId: null, count: 0 });
+  const scrobbleRef = useRef({ songId: null, reported: false, inFlight: false });
+
+  const reportScrobble = (playedSeconds, force = false) => {
+    const song = currentSong;
+    const audio = audioRef.current;
+    if (!song?.id || !audio) return;
+    if (scrobbleRef.current.songId !== song.id) {
+      scrobbleRef.current = { songId: song.id, reported: false, inFlight: false };
+    }
+    const total = Number.isFinite(audio.duration) && audio.duration > 0
+      ? audio.duration
+      : Number(song.durationMs || song.dt || song.duration || 0) / 1000;
+    const played = Math.max(0, Number(playedSeconds) || 0);
+    const threshold = total > 0 ? Math.min(30, Math.max(1, total * 0.5)) : 30;
+    if ((!force && played < threshold) || played <= 0 || scrobbleRef.current.reported || scrobbleRef.current.inFlight) return;
+    scrobbleRef.current.inFlight = true;
+    api.scrobble({
+      id: song.id,
+      time: Math.min(played, total > 0 ? total : played),
+      total: total > 0 ? total : played,
+      sourceid: song.id,
+      name: song.name || song.title,
+      artist: song.artist || song.ar?.map(item => item.name).join(' / ') || song.artists?.map(item => item.name).join(' / '),
+      level: 'exhigh'
+    }).catch(() => {}).finally(() => {
+      scrobbleRef.current.inFlight = false;
+      scrobbleRef.current.reported = true;
+    });
+  };
 
   // Clean up global window references on unmount
   useEffect(() => {
@@ -245,6 +275,7 @@ export default function AudioPlayer() {
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       setProgress(audioRef.current.currentTime);
+      reportScrobble(audioRef.current.currentTime);
     }
   };
 
@@ -307,6 +338,7 @@ export default function AudioPlayer() {
   };
 
   const handleEnded = () => {
+    reportScrobble(audioRef.current?.currentTime || audioRef.current?.duration || 0, true);
     if (playMode === 'single') {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;

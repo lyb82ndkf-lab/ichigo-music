@@ -1,10 +1,7 @@
 // 一起听状态
 
-const createOption = require('../util/option.js')
+const listentogether = require('./listentogether')
+
 module.exports = (query, request) => {
-  return request(
-    `/api/listen/together/status/get`,
-    {},
-    createOption(query, 'weapi'),
-  )
+  return listentogether.statusGet(query, request)
 }

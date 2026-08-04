@@ -1,5 +1,5 @@
 // main-electron.js - Electron main desktop application process
-import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog } from 'electron';
+import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard } from 'electron';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import net from 'net';
@@ -590,6 +590,9 @@ function createWindow() {
   ipcMain.on('open-external', (event, url) => {
     shell.openExternal(url);
   });
+
+  ipcMain.removeHandler('read-clipboard-text');
+  ipcMain.handle('read-clipboard-text', () => clipboard.readText());
 
   ipcMain.removeHandler('get-default-cache-directory');
   ipcMain.handle('get-default-cache-directory', async () => getDefaultCacheDirectory());

@@ -4,10 +4,10 @@ import CachedCover from './CachedCover';
 import { Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1, ListMusic, Volume2, VolumeX } from 'lucide-react';
 
 export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
-  const { 
+  const {
     currentSong,
-    isPlaying, 
-    togglePlay, 
+    isPlaying,
+    togglePlay,
     playNext,
     playPrev,
     progress,
@@ -178,6 +178,31 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
             <button className="ctrl-btn" onClick={() => currentSong && toggleLike(currentSong.id)} style={{ color: isLiked ? '#ef4444' : '' }}>
               <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
             </button>
+            {false && (<button
+              className={`ctrl-btn ${listenState.roomId ? 'active' : ''}`}
+              onClick={() => setIsListenModalOpen(true)}
+              style={{
+                color: listenState.roomId ? 'var(--primary, #ec4899)' : '',
+                position: 'relative'
+              }}
+              title="一起听模式"
+            >
+              <Radio size={18} className={listenState.roomId ? 'animate-pulse' : ''} />
+              {listenState.roomId && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: '2px',
+                    right: '2px',
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ec4899',
+                    boxShadow: '0 0 6px #ec4899'
+                  }}
+                />
+              )}
+            </button>)}
             <button className={`ctrl-btn ${isQueueOpen ? 'active' : ''}`} onClick={() => setIsQueueOpen(!isQueueOpen)}>
               <ListMusic size={18} />
             </button>
@@ -264,6 +289,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
           <div id="progress-fill" style={{ transform: `scaleX(${Math.max(0, Math.min(1, progressPercent / 100))})` }} />
           <div id="progress-thumb" style={{ left: `${progressPercent}%` }} />
         </div>
+
       </div>
   );
 }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Compass, TrendingUp, Heart, History, Settings, Play, Music } from 'lucide-react';
+import { Compass, TrendingUp, Heart, History, Settings, Play, Music, Radio } from 'lucide-react';
 import GlassNavCard from '../components/GlassNavCard';
 import ResilientCover from '../components/ResilientCover';
 import CachedCover from '../components/CachedCover';
@@ -146,7 +146,8 @@ export default function ModernHome() {
         <GlassNavCard icon={<Heart />} label="LIKED SONGS" title="我喜欢的音乐" sub="你的私人珍藏" color="liked" onClick={() => navigateTo('liked')} />
         <GlassNavCard icon={<History />} label="RECENT" title="最近播放" sub="时光机" color="recent" onClick={() => navigateTo('recent')} />
         <GlassNavCard icon={<Settings />} label="SETTINGS" title="设置" sub="应用偏好" color="settings" onClick={() => navigateTo('settings')} />
-      </div>
+        <GlassNavCard icon={<Radio />} label="LISTEN TOGETHER" title="一起听" sub="和朋友同步听歌" color="listen" onClick={() => navigateTo('listen-together')} />
+       </div>
 
       {recentlyPlayed && recentlyPlayed.length > 0 && (
         <div className="home-rail">

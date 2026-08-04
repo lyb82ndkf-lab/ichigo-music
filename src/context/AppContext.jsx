@@ -5,7 +5,7 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.6.8';
+export const APP_VERSION = 'v1.6.9';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
@@ -897,7 +897,7 @@ export function AppProvider({ children }) {
   }, [updateProfile, playSong]);
 
   const togglePlay = useCallback(() => {
-    const { currentSong, progress } = stateRef.current;
+    const { currentSong, progress, audioElement } = stateRef.current;
     if (!currentSong) return;
     if (!isPlaying) {
       const cachedAt = Number(currentSong.urlCachedAt || 0);
@@ -906,9 +906,22 @@ export function AppProvider({ children }) {
         playSong(currentSong, null, progress, { forceRefreshUrl: true });
         return;
       }
+      // Resume the restored media element in the click handler itself. Waiting
+      // for the state effect can miss Chromium's user-gesture playback window.
+      const source = audioElement?.currentSrc || audioElement?.src || '';
+      if (!source) {
+        playSong(currentSong, null, progress);
+        return;
+      }
+      const request = audioElement.play?.();
+      if (request?.catch) {
+        request.catch(() => playSong(currentSong, null, progress, { forceRefreshUrl: true }));
+      }
+      setIsPlaying(true);
+      return;
     }
     setIsPlaying(prev => !prev);
-  }, [isPlaying, playSong, setIsPlaying]);
+  }, [isPlaying, playSong, setIsPlaying, audioElement]);
 
   const playNext = useCallback(() => {
     const { playlist, playlistIndex, playMode } = stateRef.current;

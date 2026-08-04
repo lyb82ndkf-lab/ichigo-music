@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   readProfile: () => ipcRenderer.sendSync('read-profile'),
   writeProfile: (data) => ipcRenderer.sendSync('write-profile', data),
   openExternal: (url) => ipcRenderer.send('open-external', url),
+  readClipboardText: () => ipcRenderer.invoke('read-clipboard-text'),
   getDefaultCacheDirectory: () => ipcRenderer.invoke('get-default-cache-directory'),
   selectCacheDirectory: () => ipcRenderer.invoke('select-cache-directory'),
   getCachedAudio: (data) => ipcRenderer.invoke('get-cached-audio', data),

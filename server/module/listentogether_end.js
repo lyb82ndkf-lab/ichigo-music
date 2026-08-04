@@ -1,9 +1,7 @@
 // 一起听 结束房间
 
-const createOption = require('../util/option.js')
+const listentogether = require('./listentogether')
+
 module.exports = (query, request) => {
-  const data = {
-    roomId: query.roomId,
-  }
-  return request(`/api/listen/together/end/v2`, data, createOption(query))
+  return listentogether.end(query, request)
 }

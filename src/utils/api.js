@@ -80,6 +80,19 @@ export const api = {
 
   // Song details & URLs
   getSongUrls: (ids, level = 'exhigh') => request(`/song/url/v1?id=${ids}&level=${level}&timestamp=${Date.now()}`),
+  scrobble: ({ id, time, total, sourceid, name, artist, level = 'exhigh' }) => {
+    const params = new URLSearchParams({
+      id: String(id),
+      time: String(Math.max(1, Math.round(Number(time) || 0))),
+      total: String(Math.max(1, Math.round(Number(total) || Number(time) || 1))),
+      sourceid: String(sourceid || id),
+      name: String(name || ''),
+      artist: String(artist || ''),
+      level: String(level),
+      timestamp: String(Date.now())
+    });
+    return request(`/scrobble/v1?${params.toString()}`, { timeout: 12000 });
+  },
   getSongDetails: (ids) => request(`/song/detail?ids=${ids}`),
   getLyrics: (id) => request(`/lyric?id=${id}`),
   getMatchedLyrics: ({ id, title, artist, album, durationMs, sources = 'amll,qq,kugou' }) => {

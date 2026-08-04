@@ -1,16 +1,17 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { api } from '../utils/api';
 import {
   Music,
   Search,
   ListMusic,
   Heart,
   History,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  Radio
 } from 'lucide-react';
 
 const navNameMap = {
+  'listen-together': '一起听',
   discover: '发现音乐',
   search: '搜索音乐',
   leaderboards: '排行榜',
@@ -27,6 +28,7 @@ function safeNavName(item) {
 }
 
 const iconMap = {
+  'listen-together': Radio,
   discover: Music,
   search: Search,
   leaderboards: ListMusic,

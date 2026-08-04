@@ -1,9 +1,7 @@
 // 一起听创建房间
 
-const createOption = require('../util/option.js')
+const listentogether = require('./listentogether')
+
 module.exports = (query, request) => {
-  const data = {
-    refer: 'songplay_more',
-  }
-  return request(`/api/listen/together/room/create`, data, createOption(query))
+  return listentogether.roomCreate(query, request)
 }

@@ -18,6 +18,8 @@ import { useCachedCoverUrl } from './components/CachedCover';
 
 import DesktopLyrics from './views/DesktopLyrics';
 import { useLyricEngine } from './hooks/useLyricEngine';
+import { useListenTogether } from './hooks/useListenTogether';
+import ListenInvitePrompt from './components/ListenInvitePrompt';
 
 // Views are route-split so startup only pays for the current screen.
 const Discover = lazy(() => import('./views/Discover'));
@@ -31,6 +33,7 @@ const MyLiked = lazy(() => import('./views/MyLiked'));
 const RecentlyPlayed = lazy(() => import('./views/RecentlyPlayed'));
 const Settings = lazy(() => import('./views/Settings'));
 const ModernHome = lazy(() => import('./views/ModernHome'));
+const ListenTogether = lazy(() => import('./views/ListenTogether'));
 
 // Icons
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';
@@ -43,6 +46,7 @@ function AppContent() {
     canGoBack,
     canGoForward,
     currentSong,
+    progress,
     isPlaying,
     audioElement,
     viewData,
@@ -77,6 +81,38 @@ function AppContent() {
     advancedLyricConfig?.lyricSources || 'amll,qq,kugou',
     cacheConfig
   );
+  const listenState = useListenTogether();
+  const [listenInvite, setListenInvite] = useState(null);
+  const lastClipboardInviteRef = useRef('');
+
+  useEffect(() => {
+    const parseInvite = (text) => {
+      const raw = String(text || '').trim();
+      if (!raw || !/listenRoom=/i.test(raw)) return null;
+      try {
+        const url = new URL(raw);
+        const roomId = url.searchParams.get('listenRoom');
+        if (!roomId) return null;
+        return { roomId, inviterId: url.searchParams.get('inviterId') || '' };
+      } catch {
+        const roomId = raw.match(/[?&]listenRoom=([^&\s]+)/i)?.[1];
+        if (!roomId) return null;
+        return { roomId: decodeURIComponent(roomId), inviterId: raw.match(/[?&]inviterId=([^&\s]+)/i)?.[1] || '' };
+      }
+    };
+    const readClipboard = async () => {
+      const text = await (window.electronAPI?.readClipboardText ? window.electronAPI.readClipboardText().catch(() => '') : '');
+      const invite = parseInvite(text);
+      if (!invite || listenState.roomId === invite.roomId) return;
+      const key = `${invite.roomId}:${invite.inviterId}`;
+      if (lastClipboardInviteRef.current === key) return;
+      lastClipboardInviteRef.current = key;
+      setListenInvite(invite);
+    };
+    const timer = setInterval(readClipboard, 1200);
+    readClipboard();
+    return () => clearInterval(timer);
+  }, [listenState.roomId]);
 
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isImmersiveSettingsOpen, setIsImmersiveSettingsOpen] = useState(false);
@@ -346,10 +382,12 @@ function AppContent() {
         return <Settings key="settings" />;
       case 'home':
         return <ModernHome key="home" />;
+      case 'listen-together':
+        return <ListenTogether key="listen-together" listenState={listenState} currentSong={currentSong} lyrics={lyrics} currentTime={progress} />;
       default:
         return layoutMode === 'modern' ? <ModernHome key="home" /> : <Discover key="discover" />;
     }
-  }, [currentView, viewData, layoutMode]);
+  }, [currentView, viewData, layoutMode, listenState, currentSong, lyrics, progress]);
 
   return (
     <div
@@ -366,7 +404,7 @@ function AppContent() {
         <Sidebar />
         
         {/* Main Workspace */}
-        <main className="app-main">
+        <main className={`app-main ${currentView === 'listen-together' ? 'listen-route-main' : ''}`}>
           {/* Navigation Controls in Header */}
           <header className="main-header">
             <div className="history-controls" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -420,7 +458,7 @@ function AppContent() {
           </header>
           
           {/* View Component Wrapper */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div className="view-scroll-container" style={{ flex: 1, overflowY: currentView === 'listen-together' ? 'hidden' : 'auto' }}>
             <Suspense fallback={<div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>}>
               {viewComponent}
             </Suspense>
@@ -442,6 +480,16 @@ function AppContent() {
         {layoutMode === 'modern' && (
           <MiniQueuePopover isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
         )}
+
+        <ListenInvitePrompt
+          invite={listenInvite}
+          onDismiss={() => setListenInvite(null)}
+          onJoin={async () => {
+            const joined = await listenState.joinRoom(listenInvite.roomId, listenInvite.inviterId);
+            if (joined) navigateTo('listen-together');
+            setListenInvite(null);
+          }}
+        />
 
         {/* Full Screen Interactive Lyrics Overlay (Monet Mode) */}
         {isLyricsOpen && (

@@ -41,6 +41,7 @@ export const EQ_PRESETS = {
 const DEFAULT_BANDS = EQ_PRESETS.none;
 
 const CANONICAL_NAV_NAMES = {
+  'listen-together': '一起听',
   discover: '发现音乐',
   search: '搜索音乐',
   leaderboards: '排行榜',
@@ -511,6 +512,14 @@ function normalizeProfile(profile) {
       ...item,
       name: CANONICAL_NAV_NAMES[item?.key] || item.name
     }));
+
+  if (!normalized.navbarItems.some(item => item.key === 'listen-together')) {
+    normalized.navbarItems.splice(Math.max(0, normalized.navbarItems.length - 1), 0, {
+      key: 'listen-together',
+      name: CANONICAL_NAV_NAMES['listen-together'],
+      show: true
+    });
+  }
 
   return normalized;
 }

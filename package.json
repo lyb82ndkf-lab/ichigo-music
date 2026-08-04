@@ -1,6 +1,6 @@
 {
   "name": "ichigomusic",
-  "version": "1.6.8",
+  "version": "1.6.9",
   "description": "A beautiful music player with desktop lyrics and particle visualizers.",
   "author": "Antigravity",
   "private": true,
@@ -32,7 +32,10 @@
     "safe-decode-uri-component": "^1.2.1",
     "tunnel": "^0.0.6",
     "xml2js": "^0.6.2",
-    "yargs": "^18.0.0"
+    "yargs": "^18.0.0",
+    "ws": "^8.17.1",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",
@@ -62,7 +65,8 @@
     ],
     "win": {
       "target": [
-        "nsis"
+        "nsis",
+        "dir"
       ],
       "icon": "build/icon.png"
     },
