@@ -127,7 +127,7 @@ export default function Settings() {
         <SettingRow label="当前应用版本">
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>{APP_VERSION}</span>
         </SettingRow>
-        <SettingRow label="检查最新更新" hint="获取 GitHub releases 页面最新版本">
+        <SettingRow label="检查最新更新" hint="在软件内检查、下载并安装新版本">
           <button 
             className={`setting-btn ${checking ? '' : 'active'}`} 
             onClick={handleManualCheck}
@@ -160,7 +160,6 @@ export default function Settings() {
           </SettingRow>
           <SettingRow label={`${T.lyricSize}：${advancedLyricConfig.fontSize || 28}px`}><input className="setting-slider" type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 28} onChange={(e)=>updateImmersive({fontSize:Number(e.target.value)})}/></SettingRow>
           <SettingRow label={`${T.translationSize}：${advancedLyricConfig.translationSize || 18}px`}><input className="setting-slider" type="range" min="12" max="36" value={advancedLyricConfig.translationSize || 18} onChange={(e)=>updateImmersive({translationSize:Number(e.target.value)})}/></SettingRow>
-          <SettingRow label={`${T.visibleLines}：${advancedLyricConfig.visibleLines || 5}`}><input className="setting-slider" type="range" min="1" max="9" step="2" value={advancedLyricConfig.visibleLines || 5} onChange={(e)=>updateImmersive({visibleLines:Number(e.target.value)})}/></SettingRow>
           <SettingRow label={T.position}><Segment options={[{value:'top',label:T.top},{value:'center',label:T.center}]} value={advancedLyricConfig.position || 'center'} onChange={(v)=>updateImmersive({position:v})}/></SettingRow>
           <SettingRow label={T.curve}><Segment options={[{value:'smooth',label:T.smooth},{value:'rapid',label:T.rapid},{value:'gentle',label:T.gentle}]} value={advancedLyricConfig.animationCurve || 'smooth'} onChange={(v)=>updateImmersive({animationCurve:v})}/></SettingRow>
           <SettingRow label={T.fade}><Toggle checked={advancedLyricConfig.fade !== false} onChange={(v)=>updateImmersive({fade:v})}/></SettingRow>

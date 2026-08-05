@@ -5,7 +5,7 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.6.9';
+export const APP_VERSION = 'v1.7.0';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
@@ -347,17 +347,37 @@ export function AppProvider({ children }) {
   const saveRenderingConfig = useCallback((cfg) => updateProfile({ rendering: cfg }), [updateProfile]);
   const saveShortcuts = useCallback((cfg) => updateProfile({ shortcuts: cfg }), [updateProfile]);
 
-  const [updateInfo, setUpdateInfo] = useState({ show: false, latestVersion: '' });
+  const [updateInfo, setUpdateInfo] = useState({ show: false, latestVersion: '', assetName: '', notes: '', downloading: false, downloaded: false, progress: 0, error: '' });
+
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onUpdateDownloadProgress?.((progress) => {
+      setUpdateInfo(prev => ({ ...prev, downloading: true, progress: Number(progress?.percent || 0), error: '' }));
+    });
+    return () => unsubscribe?.();
+  }, []);
 
   const checkForUpdates = useCallback(async (isManual = false) => {
     try {
-      const res = await fetch('https://api.github.com/repos/lyb82ndkf-lab/ichigo-music/releases/latest');
-      if (!res.ok) throw new Error('API request failed');
-      const data = await res.json();
-      const latestTag = data.tag_name;
+      const data = window.electronAPI?.checkForUpdates
+        ? await window.electronAPI.checkForUpdates()
+        : await fetch('https://api.github.com/repos/lyb82ndkf-lab/ichigo-music/releases/latest').then(res => {
+          if (!res.ok) throw new Error('API request failed');
+          return res.json().then(release => ({
+            version: String(release.tag_name || '').replace(/^v/i, ''),
+            tagName: release.tag_name || '',
+            notes: release.body || '',
+            assets: release.assets || []
+          }));
+        });
+      const latestTag = data.tagName || data.version;
       if (latestTag && isVersionLessThan(APP_VERSION, latestTag)) {
-        setUpdateInfo({ show: true, latestVersion: latestTag });
-        return { hasUpdate: true, latestVersion: latestTag };
+        const browserAsset = data.assetName ? data : {
+          ...data,
+          assetName: data.assets?.find(asset => /setup.*\.exe$/i.test(asset.name))?.name || data.assets?.find(asset => /\.exe$/i.test(asset.name))?.name || '',
+          assetUrl: data.assets?.find(asset => /setup.*\.exe$/i.test(asset.name))?.browser_download_url || ''
+        };
+        setUpdateInfo({ show: true, latestVersion: latestTag, assetName: browserAsset.assetName || '', assetUrl: browserAsset.assetUrl || '', notes: browserAsset.notes || '', downloading: false, downloaded: false, progress: 0, error: '' });
+        return { hasUpdate: true, latestVersion: latestTag, ...browserAsset };
       } else {
         if (isManual) {
           alert('当前已是最新版本！');
@@ -370,6 +390,27 @@ export function AppProvider({ children }) {
         alert('检查更新失败，请稍后重试。');
       }
       return { error: true };
+    }
+  }, []);
+
+  const downloadUpdate = useCallback(async () => {
+    setUpdateInfo(prev => ({ ...prev, downloading: true, progress: 0, error: '' }));
+    try {
+      if (!window.electronAPI?.downloadUpdate) throw new Error('当前环境不支持应用内更新');
+      const result = await window.electronAPI.downloadUpdate({ assetName: updateInfo.assetName });
+      setUpdateInfo(prev => ({ ...prev, downloading: false, downloaded: true, progress: 100, error: '' }));
+      return result;
+    } catch (error) {
+      setUpdateInfo(prev => ({ ...prev, downloading: false, error: error.message || '下载安装包失败' }));
+      return null;
+    }
+  }, [updateInfo.assetName]);
+
+  const installUpdate = useCallback(async () => {
+    try {
+      await window.electronAPI?.installUpdate?.();
+    } catch (error) {
+      setUpdateInfo(prev => ({ ...prev, error: error.message || '启动安装失败' }));
     }
   }, []);
 
@@ -1121,7 +1162,9 @@ export function AppProvider({ children }) {
     immersiveColor,
     updateInfo,
     setUpdateInfo,
-    checkForUpdates
+    checkForUpdates,
+    downloadUpdate,
+    installUpdate
   }), [
     profile, updateProfile, currentView, viewData, historyIndex, viewHistory.length, user, likedSongIds,
     likedPlaylistId, currentSong, playlist, playlistIndex, isPlaying, volume, progress, duration, playMode,
@@ -1136,7 +1179,7 @@ export function AppProvider({ children }) {
     saveAudioConfig, saveCacheConfig, savePlaybackConfig, saveRenderingConfig, saveShortcuts, persistResumeTime,
     navigateTo, goBack, goForward, checkUserLogin, toggleLike, playSong, togglePlay, playNext, playPrev, setAudioQuality, addToRecent, logout,
     resolveSongCover,
-    extractedColors, immersiveColor, updateInfo, checkForUpdates
+    extractedColors, immersiveColor, updateInfo, checkForUpdates, downloadUpdate, installUpdate
   ]);
 
   return (

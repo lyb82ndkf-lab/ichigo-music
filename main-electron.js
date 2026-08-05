@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import net from 'net';
 import fs from 'fs';
+import { spawn } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,6 +17,8 @@ let apiPort = 3000;
 let tray = null;
 let mediaIcons = null;
 let isPlayingState = false;
+let downloadedUpdatePath = '';
+const UPDATE_REPOSITORY = 'lyb82ndkf-lab/ichigo-music';
 
 // Get coordinates config path
 const getPositionConfigPath = () => {
@@ -46,6 +49,43 @@ const savePerformanceConfig = (cfg) => {
     fs.writeFileSync(configPath, JSON.stringify(cfg), 'utf8');
   } catch (err) {
     console.error('Failed to save performance config:', err);
+  }
+};
+
+const githubRequest = async (url) => {
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'ICHIGOMusic-Updater'
+    }
+  });
+  if (!response.ok) throw new Error(`GitHub request failed: ${response.status}`);
+  return response.json();
+};
+
+const getLatestRelease = async () => {
+  const release = await githubRequest(`https://api.github.com/repos/${UPDATE_REPOSITORY}/releases/latest`);
+  const assets = Array.isArray(release.assets) ? release.assets : [];
+  const installer = assets.find(asset => /setup.*\.exe$/i.test(asset.name))
+    || assets.find(asset => /\.exe$/i.test(asset.name));
+  return {
+    version: String(release.tag_name || '').replace(/^v/i, ''),
+    tagName: release.tag_name || '',
+    name: release.name || '',
+    notes: release.body || '',
+    publishedAt: release.published_at || '',
+    assetName: installer?.name || '',
+    assetUrl: installer?.browser_download_url || '',
+    assetSize: Number(installer?.size || 0)
+  };
+};
+
+const isAllowedUpdateUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && (url.hostname === 'github.com' || url.hostname.endsWith('.githubusercontent.com'));
+  } catch {
+    return false;
   }
 };
 
@@ -495,6 +535,57 @@ function createWindow() {
     mainWindow.close();
   });
   ipcMain.on('window-hide', () => mainWindow.hide());
+
+  ipcMain.removeHandler('check-for-updates');
+  ipcMain.handle('check-for-updates', async () => getLatestRelease());
+
+  ipcMain.removeHandler('download-update');
+  ipcMain.handle('download-update', async (_event, { assetName } = {}) => {
+    const release = await getLatestRelease();
+    if (!release.assetUrl || (assetName && release.assetName !== assetName) || !isAllowedUpdateUrl(release.assetUrl)) {
+      throw new Error('未找到可用的 Windows 安装包');
+    }
+    const tempPath = path.join(app.getPath('temp'), `ICHIGOMusic-${release.version}-setup.exe`);
+    const response = await fetch(release.assetUrl, { headers: { 'User-Agent': 'ICHIGOMusic-Updater' } });
+    if (!response.ok || !response.body) throw new Error(`下载安装包失败：${response.status}`);
+    const total = Number(response.headers.get('content-length') || release.assetSize || 0);
+    const reader = response.body.getReader();
+    const file = await fs.promises.open(tempPath, 'w');
+    let received = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = Buffer.from(value);
+        await file.write(chunk);
+        received += chunk.length;
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('update-download-progress', {
+            received,
+            total,
+            percent: total > 0 ? Math.min(100, Math.round(received / total * 100)) : 0
+          });
+        }
+      }
+    } finally {
+      await file.close();
+    }
+    downloadedUpdatePath = tempPath;
+    return { downloaded: true, path: tempPath, version: release.version };
+  });
+
+  ipcMain.removeHandler('install-update');
+  ipcMain.handle('install-update', async () => {
+    if (!downloadedUpdatePath || !fs.existsSync(downloadedUpdatePath)) throw new Error('安装包尚未下载完成');
+    const installerPath = downloadedUpdatePath;
+    app.isQuitting = true;
+    setTimeout(() => {
+      const child = spawn(installerPath, [], { detached: true, stdio: 'ignore', windowsHide: false });
+      child.unref();
+      app.quit();
+    }, 250);
+    return { started: true };
+  });
 
   // Desktop lyrics IPC
   ipcMain.on('toggle-desktop-lyrics', () => toggleDesktopLyrics());

@@ -70,8 +70,10 @@ function AppContent() {
     navigateTo,
     immersiveColor,
     cacheConfig,
-    updateInfo,
-    setUpdateInfo
+      updateInfo,
+      setUpdateInfo,
+      downloadUpdate,
+      installUpdate
   } = useApp();
 
   const { engineRef, lyrics, activeLineIndex } = useLyricEngine(
@@ -1065,11 +1067,10 @@ function AppContent() {
             <UpdatePromptModal
               currentVersion={APP_VERSION}
               latestVersion={updateInfo.latestVersion}
+              updateInfo={updateInfo}
               onClose={() => setUpdateInfo({ show: false, latestVersion: '' })}
-              onUpdate={() => {
-                window.electronAPI?.openExternal?.('https://github.com/lyb82ndkf-lab/ichigo-music/releases');
-                setUpdateInfo({ show: false, latestVersion: '' });
-              }}
+              onUpdate={downloadUpdate}
+              onInstall={installUpdate}
             />
           )}
         </AnimatePresence>

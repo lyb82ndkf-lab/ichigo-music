@@ -134,9 +134,12 @@ export default function MonetPosterLayout({
   ), [lyrics, advancedLyricConfig?.showTranslation]);
 
   const visibleLines = useMemo(() => {
-    const configuredLines = advancedLyricConfig?.visibleLines || 5;
-    const linesToKeep = Math.max(1, Math.min(configuredLines, 5));
-    const half = Math.floor(linesToKeep / 2);
+    // Render a viewport-sized window instead of a fixed five-line slice.
+    // The rail clips only what is physically outside the available height.
+    const estimatedLineHeight = Math.max(dimensions.fontPx * 1.5, 1);
+    const linesToKeep = Math.max(9, Math.ceil(dimensions.railHeight / estimatedLineHeight) + 8);
+    const before = Math.floor(linesToKeep / 2);
+    const after = Math.max(1, linesToKeep - before - 1);
     const baseTime = currentTime ?? currentTimeRef?.current ?? 0;
     const displayTime = Math.max(0, baseTime + manualScrollOffset);
     
@@ -152,8 +155,8 @@ export default function MonetPosterLayout({
         }
       }
     }
-    return buildVisibleWindow(displayLyrics, effectiveActiveIndex, displayTime, { before: half, after: half });
-  }, [displayLyrics, activeLineIndex, currentTime, manualScrollOffset, advancedLyricConfig?.visibleLines]);
+    return buildVisibleWindow(displayLyrics, effectiveActiveIndex, displayTime, { before, after });
+  }, [displayLyrics, activeLineIndex, currentTime, manualScrollOffset, dimensions.fontPx, dimensions.railHeight]);
 
   // Active Intro Key logic for transitions on song change
   const [introKey, setIntroKey] = useState(currentSong?.id || 'initial');
@@ -330,16 +333,10 @@ export default function MonetPosterLayout({
               glowIntensity={advancedLyricConfig?.lyricGlowIntensity ?? 1}
               activeAnchorRatio={(() => {
                 if (showCover) {
-                  // coverAlignedRatio places the active line exactly at the cover center.
-                  // But the rail starts BELOW the song-info block, so lines ABOVE the
-                  // active line get clipped by the rail's top edge.
-                  // We push the anchor down by ~2 line-heights worth of rail space
-                  // so there is room for 2 previous lines above the active line.
-                  const approxLineH = dimensions.fontPx * 1.4 * 2 + 28; // ~2 wrapped rows + gap
-                  const lineCorrection = approxLineH / Math.max(dimensions.railHeight, 1);
-                  // lyricsPositionY slider: default 50 = no extra offset; >50 = push down more
+                  // The active line itself is the anchor: align its visual center
+                  // with the album-cover center, without the old two-line offset.
                   const userExtraOffset = ((advancedLyricConfig?.lyricsPositionY ?? 50) - 50) / 100;
-                  return Math.min(0.82, Math.max(0.25, coverAlignedRatio + lineCorrection + userExtraOffset));
+                  return Math.min(0.82, Math.max(0.18, coverAlignedRatio + userExtraOffset));
                 } else {
                   return (advancedLyricConfig?.lyricsPositionY ?? 50) / 100;
                 }

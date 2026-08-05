@@ -11,9 +11,17 @@ const normalizeUser = (user) => user ? {
   nickname: user.nickname || user.name || '访客',
   avatarUrl: user.avatarUrl || ''
 } : guestUser;
+const serializeSong = (song) => song?.id ? {
+  id: song.id,
+  name: song.name || song.title || '',
+  title: song.title || song.name || '',
+  artist: song.artist || song.ar?.map(item => item.name).join(' / ') || song.artists?.map(item => item.name).join(' / ') || '',
+  coverUrl: song.coverUrl || song.al?.picUrl || song.album?.picUrl || '',
+  durationMs: song.durationMs || song.dt || song.duration || 0
+} : null;
 
 export function useListenTogether() {
-  const { user, currentSong, isPlaying, progress, playSong, togglePlay, playlist, audioElement } = useApp();
+  const { user, currentSong, isPlaying, progress, playSong, setIsPlaying, playlist, audioElement } = useApp();
   const [roomId, setRoomId] = useState(null);
   const [inviterId, setInviterId] = useState(null);
   const [isHost, setIsHost] = useState(false);
@@ -26,8 +34,9 @@ export function useListenTogether() {
   const lastMessageIdRef = useRef(0);
   const lastRemoteSongRef = useRef(null);
   const remoteActionRef = useRef(false);
+  const lastRemoteUpdatedAtRef = useRef(0);
 
-  stateRef.current = { roomId, user, currentSong, isPlaying, progress, playlist, isHost, audioElement, sourceUrl: audioElement?.currentSrc || audioElement?.src || currentSong?.url || '' };
+  stateRef.current = { roomId, user, currentSong, isPlaying, progress, playlist, isHost, audioElement, sourceUrl: currentSong?.url || audioElement?.currentSrc || audioElement?.src || '' };
 
   const refreshRoomStatus = useCallback(async () => {
     const { roomId: activeRoom, user: activeUser } = stateRef.current;
@@ -40,33 +49,61 @@ export function useListenTogether() {
   const applyRemoteState = useCallback(async (remote) => {
     const state = remote?.playState;
     if (!state || stateRef.current.isHost || !state.currentSongId) return;
+    const updatedAt = Number(state.updatedAt || 0);
+    if (updatedAt && updatedAt < lastRemoteUpdatedAtRef.current) return;
+    if (updatedAt) lastRemoteUpdatedAtRef.current = updatedAt;
     const songId = String(state.currentSongId);
     const localId = String(stateRef.current.currentSong?.id || '');
     const sourceUrl = String(state.sourceUrl || '');
     const localSourceUrl = String(stateRef.current.currentSong?.url || '');
     const sourceNeedsUpdate = sourceUrl && sourceUrl !== localSourceUrl;
     if ((songId !== localId || sourceNeedsUpdate) && (songId !== String(lastRemoteSongRef.current || '') || sourceNeedsUpdate)) {
-      lastRemoteSongRef.current = songId;
-      const result = await api.getSongDetails(songId).catch(() => null);
-      const song = result?.songs?.[0];
+      const result = state.song?.id ? null : await api.getSongDetails(songId).catch(() => null);
+      const song = state.song?.id ? state.song : result?.songs?.[0];
       if (song) {
+        lastRemoteSongRef.current = songId;
         remoteActionRef.current = true;
-        await playSong(sourceUrl ? { ...song, url: sourceUrl, urlCachedAt: Date.now() } : song, null, Number(state.progress || 0), { remoteSync: true });
-        remoteActionRef.current = false;
+        const elapsed = String(state.playStatus).toUpperCase() === 'PLAY'
+          ? Math.max(0, (Date.now() - Number(state.updatedAt || Date.now())) / 1000)
+          : 0;
+        const syncedProgress = Number(state.progress || 0) + elapsed;
+        try {
+          await playSong(sourceUrl ? { ...song, url: sourceUrl, urlCachedAt: Date.now() } : song, null, syncedProgress, { remoteSync: true });
+          const shouldPlay = String(state.playStatus).toUpperCase() === 'PLAY';
+          setIsPlaying(shouldPlay);
+          if (!shouldPlay) stateRef.current.audioElement?.pause?.();
+          else window.setTimeout(() => {
+            const request = stateRef.current.audioElement?.play?.();
+            request?.catch?.(() => {});
+          }, 80);
+        } finally {
+          remoteActionRef.current = false;
+        }
       }
       return;
     }
     const audio = stateRef.current.audioElement;
-    if (audio && Math.abs(Number(audio.currentTime || 0) - Number(state.progress || 0)) > 2) {
-      audio.currentTime = Number(state.progress || 0);
+    const elapsed = String(state.playStatus).toUpperCase() === 'PLAY'
+      ? Math.max(0, (Date.now() - Number(state.updatedAt || Date.now())) / 1000)
+      : 0;
+    const syncedProgress = Number(state.progress || 0) + elapsed;
+    if (audio && Math.abs(Number(audio.currentTime || 0) - syncedProgress) > 2) {
+      audio.currentTime = syncedProgress;
     }
     const shouldPlay = String(state.playStatus).toUpperCase() === 'PLAY';
-    if (shouldPlay !== Boolean(stateRef.current.isPlaying) && !remoteActionRef.current) {
-      remoteActionRef.current = true;
-      togglePlay();
-      setTimeout(() => { remoteActionRef.current = false; }, 100);
+    if (!remoteActionRef.current) {
+      if (shouldPlay) {
+        setIsPlaying(true);
+        if (audio && audio.paused) {
+          const request = audio.play?.();
+          request?.catch?.(() => {});
+        }
+      } else {
+        audio?.pause?.();
+        setIsPlaying(false);
+      }
     }
-  }, [playSong, togglePlay]);
+  }, [playSong, setIsPlaying]);
 
   const pollRoom = useCallback(async () => {
     const { roomId: activeRoom, user: activeUser } = stateRef.current;
@@ -95,18 +132,38 @@ export function useListenTogether() {
   useEffect(() => {
     if (!roomId) return undefined;
     const timer = setInterval(() => {
-      const { currentSong: song, isPlaying: playing, progress: currentProgress, user: activeUser } = stateRef.current;
-      listenApi.sendHeartbeat({
-        roomId,
-        user: normalizeUser(activeUser),
+      const { currentSong: song, isPlaying: playing, progress: currentProgress, user: activeUser, isHost: host } = stateRef.current;
+      const payload = { roomId, user: normalizeUser(activeUser) };
+      if (host) Object.assign(payload, {
         songId: song?.id || 0,
         playStatus: playing ? 'PLAY' : 'PAUSE',
         progress: Number(currentProgress || 0),
-        sourceUrl: stateRef.current.sourceUrl || activeUser?.sourceUrl || ''
-      }).catch(() => {});
+        sourceUrl: stateRef.current.sourceUrl || '',
+        song: serializeSong(song)
+      });
+      listenApi.sendHeartbeat(payload).catch(() => {});
     }, 1800);
     return () => clearInterval(timer);
   }, [roomId]);
+
+  // Publish song/play-pause changes immediately; the heartbeat remains as a
+  // recovery channel for reconnects and progress drift.
+  useEffect(() => {
+    const state = stateRef.current;
+    if (!roomId || !isHost || !currentSong?.id) return undefined;
+    const timer = window.setTimeout(() => {
+      listenApi.sendHeartbeat({
+        roomId,
+        user: normalizeUser(user),
+        songId: currentSong.id,
+        playStatus: isPlaying ? 'PLAY' : 'PAUSE',
+        progress: Number(progress || 0),
+        sourceUrl: state.sourceUrl || currentSong.url || '',
+        song: serializeSong(currentSong)
+      }).catch(() => {});
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [roomId, isHost, currentSong?.id, currentSong?.url, isPlaying]);
 
   useEffect(() => {
     if (!roomId || typeof WebSocket === 'undefined') return undefined;
@@ -147,7 +204,7 @@ export function useListenTogether() {
       setIsHost(true);
       setSyncStatus('host');
       setMessage('房间已创建，邀请朋友加入吧');
-      await listenApi.sendHeartbeat({ roomId: id, user: normalizeUser(user), songId: currentSong?.id || 0, playStatus: isPlaying ? 'PLAY' : 'PAUSE', progress, sourceUrl: stateRef.current.sourceUrl || currentSong?.url || '' });
+      await listenApi.sendHeartbeat({ roomId: id, user: normalizeUser(user), songId: currentSong?.id || 0, playStatus: isPlaying ? 'PLAY' : 'PAUSE', progress, sourceUrl: stateRef.current.sourceUrl || currentSong?.url || '', song: serializeSong(currentSong) });
       if (playlist.length) listenApi.syncPlaylist({ roomId: id, userId: user?.userId, displayList: playlist.map(song => song.id), randomList: playlist.map(song => song.id) }).catch(() => {});
       return id;
     } catch (error) {
@@ -186,7 +243,8 @@ export function useListenTogether() {
       targetSongId: targetSongId || state.currentSong?.id,
       progress: state.progress,
       playStatus: commandType === 'PAUSE' ? 'PAUSE' : 'PLAY',
-      sourceUrl: state.sourceUrl || state.currentSong?.url || ''
+      sourceUrl: state.sourceUrl || state.currentSong?.url || '',
+      song: serializeSong(state.currentSong)
     });
   }, []);
 
@@ -202,7 +260,7 @@ export function useListenTogether() {
   const exitRoom = useCallback(async () => {
     const activeRoom = stateRef.current.roomId;
     if (activeRoom && stateRef.current.isHost) await listenApi.endRoom(activeRoom).catch(() => {});
-    setRoomId(null); setInviterId(null); setIsHost(false); setRoomUsers([]); setMessages([]); setSyncStatus('idle'); setMessage(''); lastMessageIdRef.current = 0;
+    setRoomId(null); setInviterId(null); setIsHost(false); setRoomUsers([]); setMessages([]); setSyncStatus('idle'); setMessage(''); lastMessageIdRef.current = 0; lastRemoteUpdatedAtRef.current = 0; lastRemoteSongRef.current = null;
   }, []);
 
   const getShareUrl = useCallback(() => roomId ? `http://8.137.169.120:16666/?listenRoom=${encodeURIComponent(roomId)}&inviterId=${encodeURIComponent(inviterId || user?.userId || '')}` : '', [roomId, inviterId, user]);

@@ -189,7 +189,10 @@ export function buildWordGraphemeTimings(wordText, startTime, durationSec) {
 export function parseDisplayTokens(line) {
   if (!line || !line.text) return [];
   if (!line.words || line.words.length === 0) {
-    const graphemes = splitGraphemes(line.text);
+    // Keep contiguous Latin words together when a source has no word timing.
+    // Splitting "beautiful" into character-sized flex items lets the bubble
+    // wrap it as "beautifu" + "l" at the right edge.
+    const graphemes = line.text.match(/[A-Za-z0-9]+(?:['’\-][A-Za-z0-9]+)*|\s+|./gu) || splitGraphemes(line.text);
     const lineStart = Number(line.time || 0);
     const lineDuration = Math.max(0.4, Number(line.duration || 0) || 5);
     const unitDuration = lineDuration / Math.max(1, graphemes.length);

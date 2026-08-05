@@ -54,10 +54,14 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
         }
 
         if (currentTime < token.startTime) {
+          // Keep unrevealed tokens out of layout so the bubble starts at the
+          // translation width (when present) and grows with the lyric.
+          el.style.display = 'none';
           el.style.opacity = '0';
           el.style.transform = 'translateY(10px) scale(0.96)';
           el.style.color = 'rgba(255,255,255,0.58)';
         } else {
+          el.style.display = 'inline-block';
           const progress = token.timed
             ? Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)))
             : 1;
@@ -139,7 +143,9 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
           fontWeight: 600,
           color: '#fff',
           lineHeight: 1.4,
-          wordBreak: 'break-word',
+          wordBreak: 'normal',
+          overflowWrap: 'normal',
+          hyphens: 'none',
           display: 'flex',
           flexWrap: 'wrap',
           alignItems: 'baseline'
@@ -149,8 +155,9 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
               key={token.key}
               ref={el => { wordsRefs.current[idx] = el; }}
               style={{
-                display: 'inline-block',
+                display: isPassed || !token.timed ? 'inline-block' : 'none',
                 whiteSpace: 'pre',
+                flex: '0 0 auto',
                 opacity: isPassed ? 1 : 0,
                 transform: isPassed ? 'translateY(0px) scale(1)' : 'translateY(10px) scale(0.96)',
                 color: isPassed ? '#fff' : 'rgba(255,255,255,0.58)',
