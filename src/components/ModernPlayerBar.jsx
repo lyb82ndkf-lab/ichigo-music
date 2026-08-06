@@ -21,6 +21,8 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
     setIsQueueOpen,
     volume,
     setVolume,
+    audioQuality,
+    setAudioQuality,
     desktopLyricsConfig,
     navigateTo
   } = useApp();
@@ -28,6 +30,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
   const [prevVolume, setPrevVolume] = useState(0.8);
   const [isSeeking, setIsSeeking] = useState(false);
   const [progressPreview, setProgressPreview] = useState(null);
+  const [showQualityMenu, setShowQualityMenu] = useState(false);
   const handleVolumeToggle = () => {
     if (volume > 0) {
       setPrevVolume(volume);
@@ -36,6 +39,24 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
       setVolume(prevVolume);
     }
   };
+
+  const qualityLabel = {
+    standard: '标准',
+    higher: '较高',
+    exhigh: '极高',
+    lossless: '无损',
+    hires: 'Hi-Res',
+    jymaster: '超清母带'
+  }[audioQuality] || '极高';
+
+  const qualityOptions = [
+    { key: 'jymaster', label: '超清母带' },
+    { key: 'hires', label: 'Hi-Res' },
+    { key: 'lossless', label: '无损' },
+    { key: 'exhigh', label: '极高' },
+    { key: 'higher', label: '较高' },
+    { key: 'standard', label: '标准' }
+  ];
 
   const progressRef = useRef(null);
   const effectiveDuration = duration > 0 ? duration : Number(currentSong?.durationMs || currentSong?.dt || 0) / 1000;
@@ -178,6 +199,18 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
             <button className="ctrl-btn" onClick={() => currentSong && toggleLike(currentSong.id)} style={{ color: isLiked ? '#ef4444' : '' }}>
               <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
             </button>
+            <div style={{ position: 'relative' }}>
+              <button className="ctrl-btn" onClick={() => setShowQualityMenu(value => !value)} title="切换音质" style={{ width: 38, fontSize: 10, fontWeight: 700, color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: 6 }}>
+                {qualityLabel}
+              </button>
+              {showQualityMenu && (
+                <div style={{ position: 'absolute', bottom: 40, right: 0, minWidth: 92, padding: 6, display: 'flex', flexDirection: 'column', gap: 3, zIndex: 120, border: '1px solid var(--card-border)', borderRadius: 8, background: 'var(--overlay-bg)', boxShadow: '0 8px 24px rgba(0,0,0,.45)', backdropFilter: 'blur(18px)' }}>
+                  {qualityOptions.map(option => (
+                    <button key={option.key} onClick={() => { setAudioQuality(option.key); setShowQualityMenu(false); }} style={{ border: 0, borderRadius: 5, padding: '5px 8px', cursor: 'pointer', color: audioQuality === option.key ? 'var(--primary-text)' : 'var(--text-main)', background: audioQuality === option.key ? 'var(--primary)' : 'transparent', fontSize: 11 }}>{option.label}</button>
+                  ))}
+                </div>
+              )}
+            </div>
             {false && (<button
               className={`ctrl-btn ${listenState.roomId ? 'active' : ''}`}
               onClick={() => setIsListenModalOpen(true)}

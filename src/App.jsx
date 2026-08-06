@@ -17,6 +17,7 @@ import MiniQueuePopover from './components/MiniQueuePopover';
 import { useCachedCoverUrl } from './components/CachedCover';
 
 import DesktopLyrics from './views/DesktopLyrics';
+import ListenTogether from './views/ListenTogether';
 import { useLyricEngine } from './hooks/useLyricEngine';
 import { useListenTogether } from './hooks/useListenTogether';
 import ListenInvitePrompt from './components/ListenInvitePrompt';
@@ -33,7 +34,6 @@ const MyLiked = lazy(() => import('./views/MyLiked'));
 const RecentlyPlayed = lazy(() => import('./views/RecentlyPlayed'));
 const Settings = lazy(() => import('./views/Settings'));
 const ModernHome = lazy(() => import('./views/ModernHome'));
-const ListenTogether = lazy(() => import('./views/ListenTogether'));
 
 // Icons
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';

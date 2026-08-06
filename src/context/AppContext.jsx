@@ -5,7 +5,7 @@ import { extractWarmColdColors } from '../utils/colorExtractor';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.7.0';
+export const APP_VERSION = 'v1.7.2';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
@@ -580,7 +580,7 @@ export function AppProvider({ children }) {
     }
   }, []);
 
-  const resolveSongCover = useCallback((song) => {
+  const resolveSongCover = useCallback((song, forceRefresh = false) => {
     const cfg = stateRef.current.cacheConfig || DEFAULT_PROFILE.audio.cache;
     const directCover = song?.coverUrl || '';
     const isLocalCover = /^(file|data|blob):/i.test(directCover);
@@ -596,12 +596,12 @@ export function AppProvider({ children }) {
       return Promise.resolve({ url: knownRemoteCover || directCover, remoteUrl: knownRemoteCover });
     }
 
-    const cacheKey = `${song.id}:${cfg.directory || 'default'}`;
+    const cacheKey = `${song.id}:${cfg.directory || 'default'}${forceRefresh ? ':refresh' : ''}`;
     const existingRequest = coverCacheInFlightRef.current.get(cacheKey);
     if (existingRequest) return existingRequest;
 
     const request = (async () => {
-      const cached = await window.electronAPI.getCachedCover({
+      const cached = !forceRefresh && await window.electronAPI.getCachedCover({
         songId: song.id,
         cacheDir: cfg.directory || ''
       }).catch(() => null);
@@ -688,7 +688,8 @@ export function AppProvider({ children }) {
       return cachedEntry.url;
     }
 
-    if (!forceRefreshUrl && song.url && song.urlCachedAt && now - Number(song.urlCachedAt) < 15 * 60 * 1000) {
+    if (!forceRefreshUrl && song.url && song.urlCachedAt && now - Number(song.urlCachedAt) < 15 * 60 * 1000
+      && (!song.urlQuality || song.urlQuality === quality)) {
       songUrlCacheRef.current.set(urlCacheKey, { url: song.url, time: Number(song.urlCachedAt) });
       pruneSongUrlCache();
       cacheAudioInBackground(song, quality, song.url);
@@ -823,7 +824,8 @@ export function AppProvider({ children }) {
         coverUrl: coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg',
         originalCoverUrl: coverUrl || coverSourceSong.originalCoverUrl || coverSourceSong.al?.picUrl || coverSourceSong.album?.picUrl || coverSourceSong.coverUrl || '',
         durationMs: coverSourceSong.dt || coverSourceSong.duration || coverSourceSong.durationMs || 0,
-        urlCachedAt: Date.now()
+        urlCachedAt: Date.now(),
+        urlQuality: audioQuality
       };
 
       if (resumeProgress !== null) {
@@ -933,7 +935,9 @@ export function AppProvider({ children }) {
     const { currentSong, progress } = stateRef.current;
     updateProfile({ audio: { quality } });
     if (currentSong) {
-      playSong(currentSong, null, progress);
+      // A quality change must bypass the previous URL and request the new
+      // level from /song/url/v1 instead of reusing the old cached source.
+      playSong(currentSong, null, progress, { forceRefreshUrl: true });
     }
   }, [updateProfile, playSong]);
 
