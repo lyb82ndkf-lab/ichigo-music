@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { parseDisplayTokens } from './MonetLyricsEngine';
+import { subscribeLyricClock } from '../../utils/lyricClock';
 
 // Pre-compute seeded random positions so they stay stable during resizing
 function seededRandom(seed) {
@@ -19,7 +20,6 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
   useEffect(() => {
     if (!isActive) return undefined;
 
-    let animationId;
     const update = () => {
       const currentTime = (engineRef.current?.getCurrentTime?.() || 0) + globalOffset;
 
@@ -47,11 +47,10 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
         }
       });
 
-      animationId = requestAnimationFrame(update);
     };
 
     update();
-    return () => cancelAnimationFrame(animationId);
+    return subscribeLyricClock(update);
   }, [isActive, tokens, engineRef, globalOffset, fontPx, themeColor]);
 
   if (!isActive) {
@@ -149,6 +148,13 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
       animId = requestAnimationFrame(tick);
       
       const analyser = window.ichigoAnalyser;
+      if (configRef.current?.visualizerEnabled === false || configRef.current?.visualizerStyleByMode?.spatial === 'off' || (configRef.current?.visualizerStyleByMode?.spatial === undefined && configRef.current?.visualizerStyle === 'off')) {
+        parent.style.setProperty('--pulse-x', '1');
+        parent.style.setProperty('--pulse-y', '1');
+        parent.style.setProperty('--pulse-z', '1');
+        animId = requestAnimationFrame(tick);
+        return;
+      }
       let dataArray = null;
       let bufferLength = 128;
       if (analyser) {
@@ -177,13 +183,15 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
       const spreadY = configRef.current?.spatialSpreadY ?? 1.0;
       const spreadZ = configRef.current?.spatialSpreadZ ?? 1.0;
 
-      const targetPulseX = 1.0 + (bass / 255) * 0.45 * spreadX;    
-      const targetPulseY = 1.0 + (mid / 255) * 0.45 * spreadY;     
-      const targetPulseZ = 1.0 + (treble / 255) * 0.8 * spreadZ;    
+      const intensity = Math.max(0.2, Number(configRef.current?.visualizerIntensity ?? 1));
+      const targetPulseX = 1.0 + (bass / 255) * 0.45 * spreadX * intensity;
+      const targetPulseY = 1.0 + (mid / 255) * 0.45 * spreadY * intensity;
+      const targetPulseZ = 1.0 + (treble / 255) * 0.8 * spreadZ * intensity;
+      const smoothing = Math.max(0.04, Math.min(0.8, Number(configRef.current?.visualizerSmoothing ?? 0.16)));
 
-      pulseX += (targetPulseX - pulseX) * 0.15;
-      pulseY += (targetPulseY - pulseY) * 0.15;
-      pulseZ += (targetPulseZ - pulseZ) * 0.15;
+      pulseX += (targetPulseX - pulseX) * smoothing;
+      pulseY += (targetPulseY - pulseY) * smoothing;
+      pulseZ += (targetPulseZ - pulseZ) * smoothing;
 
       parent.style.setProperty('--pulse-x', pulseX.toFixed(3));
       parent.style.setProperty('--pulse-y', pulseY.toFixed(3));
@@ -216,7 +224,10 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
         height: '100%', 
         overflow: 'hidden',
         position: 'relative',
-        perspective: '1200px'
+        perspective: '1200px',
+        opacity: Number(advancedLyricConfig?.visualizerOpacity ?? 0.82),
+        transform: `translateY(${Number(advancedLyricConfig?.visualizerOffsetY || 0)}px) scale(${Number(advancedLyricConfig?.visualizerScale || 1)})`,
+        transformOrigin: 'center center'
       }}
     >
       <div 

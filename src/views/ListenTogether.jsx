@@ -6,6 +6,7 @@ const artistName = (song) => song?.ar?.map(item => item.name).join(' / ') || son
 
 function SetupPanel({ listenState }) {
   const [roomInput, setRoomInput] = useState('');
+  const [roomTokenInput, setRoomTokenInput] = useState('');
   const [inviterInput, setInviterInput] = useState('');
   const [copied, setCopied] = useState(false);
   const { createRoom, joinRoom, isConnecting, message, getShareUrl } = listenState;
@@ -16,8 +17,10 @@ function SetupPanel({ listenState }) {
     if (room) {
       setRoomInput(room);
       const inviter = params.get('inviterId') || '';
+      const roomToken = params.get('roomToken') || '';
       setInviterInput(inviter);
-      joinRoom(room, inviter);
+      setRoomTokenInput(roomToken);
+      joinRoom(room, inviter, roomToken);
     }
   }, [joinRoom]);
 
@@ -40,8 +43,9 @@ function SetupPanel({ listenState }) {
         <button className="listen-primary-btn" onClick={createRoom} disabled={isConnecting}><Radio size={17} />{isConnecting ? '正在创建...' : '创建听歌房间'}</button>
         <div className="listen-join-row">
           <input value={roomInput} onChange={event => setRoomInput(event.target.value)} placeholder="输入房间 ID" aria-label="房间 ID" />
+          <input value={roomTokenInput} onChange={event => setRoomTokenInput(event.target.value)} placeholder="Room Token" aria-label="Room Token" />
           <input value={inviterInput} onChange={event => setInviterInput(event.target.value)} placeholder="邀请者 ID（可选）" aria-label="邀请者 ID" />
-          <button className="listen-secondary-btn" onClick={() => joinRoom(roomInput.trim(), inviterInput.trim())} disabled={!roomInput.trim() || isConnecting}><LogIn size={16} />加入</button>
+          <button className="listen-secondary-btn" onClick={() => joinRoom(roomInput.trim(), inviterInput.trim(), roomTokenInput.trim())} disabled={!roomInput.trim() || isConnecting}><LogIn size={16} />加入</button>
         </div>
       </div>
       {getShareUrl() && <button className="listen-copy-btn" onClick={copyRoomLink}><Copy size={14} />{copied ? '已复制房间链接' : '复制房间链接'}</button>}

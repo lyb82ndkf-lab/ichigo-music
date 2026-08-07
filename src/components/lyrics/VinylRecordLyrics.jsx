@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { parseDisplayTokens } from './MonetLyricsEngine';
+import { subscribeLyricClock } from '../../utils/lyricClock';
 
 const VinylTimedText = React.memo(({ line, isActive, isPassed, engineRef, globalOffset, fontPx, themeColor }) => {
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
@@ -13,7 +14,6 @@ const VinylTimedText = React.memo(({ line, isActive, isPassed, engineRef, global
   useEffect(() => {
     if (!isActive) return undefined;
 
-    let animationId;
     const update = () => {
       const currentTime = (engineRef.current?.getCurrentTime?.() || 0) + globalOffset;
 
@@ -41,11 +41,10 @@ const VinylTimedText = React.memo(({ line, isActive, isPassed, engineRef, global
         }
       });
 
-      animationId = requestAnimationFrame(update);
     };
 
     update();
-    return () => cancelAnimationFrame(animationId);
+    return subscribeLyricClock(update);
   }, [isActive, tokens, engineRef, globalOffset, fontPx, themeColor]);
 
   if (!isActive) {
@@ -108,6 +107,10 @@ export default function VinylRecordLyrics({
       animId = requestAnimationFrame(draw);
       
       const analyser = window.ichigoAnalyser;
+      if (advancedLyricConfig?.visualizerEnabled === false || advancedLyricConfig?.visualizerStyleByMode?.vinyl === 'off' || (advancedLyricConfig?.visualizerStyleByMode?.vinyl === undefined && advancedLyricConfig?.visualizerStyle === 'off')) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        return;
+      }
       let dataArray = null;
       let bufferLength = 128;
       if (analyser) {
@@ -142,7 +145,8 @@ export default function VinylRecordLyrics({
       const grooveCount = advancedLyricConfig?.vinylGrooveCount ?? 12;
       const baseWidth = advancedLyricConfig?.vinylGrooveWidth ?? 1.0;
       const maxWidth = advancedLyricConfig?.vinylGrooveMaxWidth ?? 4.0;
-      const opacity = advancedLyricConfig?.vinylGrooveOpacity ?? 0.6;
+      const opacity = (advancedLyricConfig?.vinylGrooveOpacity ?? 0.6) * (advancedLyricConfig?.visualizerOpacity ?? 0.82);
+      const intensity = Math.max(0.2, Number(advancedLyricConfig?.visualizerIntensity ?? 1));
       const colorMode = advancedLyricConfig?.vinylGrooveColorMode || 'theme';
       const resolvedColor = colorMode === 'theme' ? themeColor : 'rgba(255, 255, 255, 0.4)';
 
@@ -152,7 +156,7 @@ export default function VinylRecordLyrics({
       // Draw concentric groove rings
       const sampleSpan = bufferLength / grooveCount;
       for (let i = 0; i < grooveCount; i++) {
-        const val = smoothedData[Math.floor(i * sampleSpan)] || 0;
+        const val = Math.min(255, (smoothedData[Math.floor(i * sampleSpan)] || 0) * intensity);
         const startRad = discRadius * 0.23;
         const endRad = discRadius * 0.92;
         const ringRad = startRad + (i / (grooveCount - 1)) * (endRad - startRad);
@@ -226,7 +230,10 @@ export default function VinylRecordLyrics({
         justifyContent: 'center',
         gap: '4vw',
         padding: '0 4vw',
-        perspective: '1200px'
+        perspective: '1200px',
+        opacity: Number(advancedLyricConfig?.visualizerOpacity ?? 0.82),
+        transform: `translateY(${Number(advancedLyricConfig?.visualizerOffsetY || 0)}px) scale(${Number(advancedLyricConfig?.visualizerScale || 1)})`,
+        transformOrigin: 'center center'
       }}
     >
       <style>

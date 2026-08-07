@@ -13,7 +13,7 @@ export function getCachedData(endpoint) {
 }
 
 // Helper for fetch requests
-async function request(endpoint, options = {}) {
+async function performRequest(endpoint, options = {}) {
   const isCacheable = !endpoint.includes('/login/') && 
                       !endpoint.includes('/logout') && 
                       !endpoint.includes('/like') && 
@@ -65,6 +65,22 @@ async function request(endpoint, options = {}) {
   } finally {
     clearTimeout(timeoutId);
   }
+}
+
+// Several views can request the same metadata during startup. Share one
+// in-flight GET instead of opening duplicate API connections. Requests with
+// caller-owned AbortSignals remain independent.
+const inFlightRequests = new Map();
+async function request(endpoint, options = {}) {
+  const method = String(options.method || 'GET').toUpperCase();
+  if (method !== 'GET' || options.signal) return performRequest(endpoint, options);
+  const existing = inFlightRequests.get(endpoint);
+  if (existing) return existing;
+  const pending = performRequest(endpoint, options).finally(() => {
+    if (inFlightRequests.get(endpoint) === pending) inFlightRequests.delete(endpoint);
+  });
+  inFlightRequests.set(endpoint, pending);
+  return pending;
 }
 
 export const api = {

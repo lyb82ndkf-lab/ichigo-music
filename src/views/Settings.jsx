@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useApp, APP_VERSION } from '../context/AppContext';
 import { api } from '../utils/api';
 import Login from './Login';
 import ShortcutRow from '../components/ShortcutRow';
 import { DEFAULT_PROFILE, EQ_PRESETS, exportProfile, importProfile, resetProfile } from '../utils/settingsProfile';
-import { Airplay, CheckCircle, Command, HardDrive, Image, Menu, Monitor, Music4, Palette, Power, Sliders, UserCheck } from 'lucide-react';
+import { Airplay, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu, Monitor, Music4, Palette, Power, Sliders, Trash2, UserCheck } from 'lucide-react';
+import { IMMERSIVE_MODE_OPTIONS, IMMERSIVE_MODE_PARAMETER_KEYS, normalizeImmersiveMode } from '../utils/immersiveModes';
+import { IMMERSIVE_PRESETS, IMMERSIVE_PRESET_MAP } from '../utils/immersivePresets';
+import { clearRuntimeLogs, formatRuntimeLogs, getRuntimeLogs, subscribeRuntimeLogs } from '../utils/runtimeLog';
 
 const T = {
   title: 'ICHIGOMusic \u8bbe\u7f6e',
@@ -41,6 +44,8 @@ function Segment({ options, value, onChange }) { return <div className="segmente
 export default function Settings() {
   const { user, logout, profile, theme, setTheme, colorMode, setColorMode, layoutMode, setLayoutMode, customThemeColors, saveCustomThemeColors, navbarConfig, saveNavbarConfig, advancedLyricConfig, saveAdvancedLyricConfig, coverConfig, saveCoverConfig, desktopLyricsConfig, saveDesktopLyricsConfig, audioConfig, saveAudioConfig, cacheConfig, saveCacheConfig, renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts, audioQuality, setAudioQuality, viewData, appearanceConfig, saveAppearanceConfig } = useApp();
   const [activeTab, setActiveTab] = useState(() => viewData?.tab || (user ? 'theme' : 'account'));
+  const [runtimeLogs, setRuntimeLogs] = useState(() => getRuntimeLogs());
+  const [logCopyState, setLogCopyState] = useState('');
 
   useEffect(() => {
     if (viewData?.tab) {
@@ -48,17 +53,29 @@ export default function Settings() {
     }
   }, [viewData]);
 
+  useEffect(() => subscribeRuntimeLogs(setRuntimeLogs), []);
+
   const [customPrimary, setCustomPrimary] = useState(customThemeColors.primary);
   const [customBgStart, setCustomBgStart] = useState(customThemeColors.bgStart);
   const [customBgEnd, setCustomBgEnd] = useState(customThemeColors.bgEnd);
   const [cookieInput, setCookieInput] = useState('');
   const updateDesktop = (patch) => saveDesktopLyricsConfig({ ...desktopLyricsConfig, ...patch });
   const updateImmersive = (patch) => saveAdvancedLyricConfig({ ...advancedLyricConfig, ...patch });
+  const selectedImmersiveMode = IMMERSIVE_MODE_OPTIONS.find(item => item.value === normalizeImmersiveMode(advancedLyricConfig.lyricsMode)) || IMMERSIVE_MODE_OPTIONS[0];
+  const resetImmersiveModeDefaults = () => {
+    const keys = IMMERSIVE_MODE_PARAMETER_KEYS[selectedImmersiveMode.value] || [];
+    const defaults = Object.fromEntries(keys.map(key => [key, DEFAULT_PROFILE.immersiveLyrics[key]]).filter(([, value]) => value !== undefined));
+    updateImmersive(defaults);
+  };
+  const applyImmersivePreset = (value) => {
+    const preset = IMMERSIVE_PRESET_MAP[value] || IMMERSIVE_PRESET_MAP.balanced;
+    updateImmersive({ ...preset.values, motionPreset: preset.value });
+  };
   const updateCover = (patch) => saveCoverConfig({ ...coverConfig, ...patch });
   const updateAudio = (patch) => saveAudioConfig({ ...audioConfig, ...patch });
   const updateCache = (patch) => saveCacheConfig({ ...(cacheConfig || DEFAULT_PROFILE.audio.cache), ...patch });
   const updateRendering = (patch) => saveRenderingConfig({ ...renderingConfig, ...patch });
-  const tabs = [{ key: 'theme', label: T.themeTab, icon: Palette }, { key: 'desktop', label: T.desktopTab, icon: Airplay }, { key: 'audio', label: T.audioTab, icon: Sliders }, { key: 'cache', label: '缓存', icon: HardDrive }, { key: 'shortcuts', label: T.shortcutsTab, icon: Command }, { key: 'navbar', label: T.navbarTab, icon: Menu }, { key: 'account', label: T.accountTab, icon: UserCheck }];
+  const tabs = [{ key: 'theme', label: T.themeTab, icon: Palette }, { key: 'desktop', label: T.desktopTab, icon: Airplay }, { key: 'audio', label: T.audioTab, icon: Sliders }, { key: 'cache', label: '缓存', icon: HardDrive }, { key: 'shortcuts', label: T.shortcutsTab, icon: Command }, { key: 'navbar', label: T.navbarTab, icon: Menu }, { key: 'logs', label: '运行日志', icon: FileText }, { key: 'account', label: T.accountTab, icon: UserCheck }];
 
   const handleApplyCustomTheme = () => { setTheme('custom'); saveCustomThemeColors({ primary: customPrimary, bgStart: customBgStart, bgEnd: customBgEnd }); };
   const handleToggleNavbarItem = (index) => { const next = [...navbarConfig]; next[index] = { ...next[index], show: !next[index].show }; saveNavbarConfig(next); };
@@ -127,13 +144,13 @@ export default function Settings() {
         <SettingRow label="当前应用版本">
           <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>{APP_VERSION}</span>
         </SettingRow>
-        <SettingRow label="检查最新更新" hint="在软件内检查、下载并安装新版本">
+        <SettingRow label="检查最新更新" hint="在软件内检查、下载并安装新版">
           <button 
             className={`setting-btn ${checking ? '' : 'active'}`} 
             onClick={handleManualCheck}
             disabled={checking}
           >
-            {checking ? '正在检查...' : '立即检查更新'}
+            {checking ? '正在检查…' : '立即检查更新'}
           </button>
         </SettingRow>
       </div>
@@ -149,16 +166,27 @@ export default function Settings() {
         <h3 className="settings-title"><Music4 size={18} />{T.immersive}</h3>
         <div className="settings-content">
           <SettingRow label="歌词模式">
-            <Segment options={[
-              { value: 'regular', label: '常规滚动' },
-              { value: 'talk', label: '逐字模式' },
-              { value: 'streamer', label: '气泡模式' },
-              { value: 'cloudstep', label: '云阶模式' },
-              { value: 'spatial', label: '空间画布' },
-              { value: 'vinyl', label: '黑胶光碟' }
-            ]} value={advancedLyricConfig.lyricsMode || 'regular'} onChange={(v) => updateImmersive({ lyricsMode: v })} />
+            <Segment options={IMMERSIVE_MODE_OPTIONS} value={normalizeImmersiveMode(advancedLyricConfig.lyricsMode)} onChange={(v) => updateImmersive({ lyricsMode: v })} />
           </SettingRow>
-          <SettingRow label={`${T.lyricSize}：${advancedLyricConfig.fontSize || 28}px`}><input className="setting-slider" type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 28} onChange={(e)=>updateImmersive({fontSize:Number(e.target.value)})}/></SettingRow>
+          <p className="settings-desc" style={{ marginTop: -4 }}>{selectedImmersiveMode.description}</p>
+          <SettingRow label="沉浸效果预设" hint={(IMMERSIVE_PRESET_MAP[advancedLyricConfig.motionPreset || 'balanced'] || IMMERSIVE_PRESET_MAP.balanced).description}>
+            <select className="setting-select" value={advancedLyricConfig.motionPreset || 'balanced'} onChange={(e)=>applyImmersivePreset(e.target.value)}>
+              {IMMERSIVE_PRESETS.map(preset => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
+            </select>
+          </SettingRow>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <button type="button" className="setting-btn compact" onClick={resetImmersiveModeDefaults}>恢复当前模式默认参数</button>
+          </div>
+          <SettingRow label="歌词来源" hint="优先匹配时长接近的逐字歌词，必要时回退到原文歌词">
+            <select className="setting-select" value={advancedLyricConfig.lyricSources || 'amll,qq,kugou'} onChange={(e)=>updateImmersive({lyricSources:e.target.value})}>
+              <option value="amll,qq,kugou">自动匹配：时长优先 + 逐字优先</option>
+              <option value="netease">网易云原始歌词</option>
+              <option value="amll">AMLL TTML 逐字</option>
+              <option value="qq">QQ 音乐逐字</option>
+              <option value="kugou">酷狗逐字</option>
+              <option value="qq,kugou">QQ / 酷狗逐字</option>
+            </select>
+          </SettingRow>          <SettingRow label={`${T.lyricSize}：${advancedLyricConfig.fontSize || 28}px`}><input className="setting-slider" type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 28} onChange={(e)=>updateImmersive({fontSize:Number(e.target.value)})}/></SettingRow>
           <SettingRow label={`${T.translationSize}：${advancedLyricConfig.translationSize || 18}px`}><input className="setting-slider" type="range" min="12" max="36" value={advancedLyricConfig.translationSize || 18} onChange={(e)=>updateImmersive({translationSize:Number(e.target.value)})}/></SettingRow>
           <SettingRow label={T.position}><Segment options={[{value:'top',label:T.top},{value:'center',label:T.center}]} value={advancedLyricConfig.position || 'center'} onChange={(v)=>updateImmersive({position:v})}/></SettingRow>
           <SettingRow label={T.curve}><Segment options={[{value:'smooth',label:T.smooth},{value:'rapid',label:T.rapid},{value:'gentle',label:T.gentle}]} value={advancedLyricConfig.animationCurve || 'smooth'} onChange={(v)=>updateImmersive({animationCurve:v})}/></SettingRow>
@@ -166,6 +194,31 @@ export default function Settings() {
           <SettingRow label={T.scale}><Toggle checked={advancedLyricConfig.scale !== false} onChange={(v)=>updateImmersive({scale:v})}/></SettingRow>
           <SettingRow label={T.lyricGlow}><Toggle checked={advancedLyricConfig.showGlow === true} onChange={(v)=>updateImmersive({showGlow:v})}/></SettingRow>
           <SettingRow label={`${T.offset}：${Number(advancedLyricConfig.globalOffset || 0).toFixed(2)}s`}><input className="setting-slider" type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0} onChange={(e)=>updateImmersive({globalOffset:Number(e.target.value)})}/></SettingRow>
+          {advancedLyricConfig.lyricsMode === 'starfield' && <>
+            <SettingRow label={`星轨密度：${advancedLyricConfig.starDensity ?? 42}`} hint="背景星点数量"><input className="setting-slider" type="range" min="12" max="120" step="6" value={advancedLyricConfig.starDensity ?? 42} onChange={(e)=>updateImmersive({starDensity:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label={`星点速度：${Number(advancedLyricConfig.starSpeed ?? 1).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.2" max="3" step="0.1" value={advancedLyricConfig.starSpeed ?? 1} onChange={(e)=>updateImmersive({starSpeed:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label={`景深强度：${Number(advancedLyricConfig.starDepth ?? 1).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.starDepth ?? 1} onChange={(e)=>updateImmersive({starDepth:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label="星轨显示翻译"><Toggle checked={advancedLyricConfig.starShowTranslation !== false} onChange={(v)=>updateImmersive({starShowTranslation:v})}/></SettingRow>
+          </>}
+          {advancedLyricConfig.lyricsMode === 'filmstrip' && <>
+            <SettingRow label={`胶片帧间距：${advancedLyricConfig.filmFrameGap ?? 18}px`} hint="控制上下歌词胶片帧的距离"><input className="setting-slider" type="range" min="8" max="48" step="2" value={advancedLyricConfig.filmFrameGap ?? 18} onChange={(e)=>updateImmersive({filmFrameGap:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label={`非当前帧透明度：${Math.round((advancedLyricConfig.filmOpacity ?? 0.22) * 100)}%`}><input className="setting-slider" type="range" min="0.05" max="0.5" step="0.05" value={advancedLyricConfig.filmOpacity ?? 0.22} onChange={(e)=>updateImmersive({filmOpacity:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label={`当前帧放大：${Math.round((advancedLyricConfig.filmActiveScale ?? 1.08) * 100)}%`}><input className="setting-slider" type="range" min="1" max="1.2" step="0.01" value={advancedLyricConfig.filmActiveScale ?? 1.08} onChange={(e)=>updateImmersive({filmActiveScale:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label="胶片模式显示翻译"><Toggle checked={advancedLyricConfig.filmShowTranslation !== false} onChange={(v)=>updateImmersive({filmShowTranslation:v})}/></SettingRow>
+          </>}
+          {advancedLyricConfig.lyricsMode === 'inkflow' && <>
+            <SettingRow label={`水墨扩散强度：${Number(advancedLyricConfig.inkSpread ?? 1).toFixed(1)}x`} hint="控制背景墨迹的柔化与扩散范围"><input className="setting-slider" type="range" min="0.4" max="2" step="0.1" value={advancedLyricConfig.inkSpread ?? 1} onChange={(e)=>updateImmersive({inkSpread:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label={`水墨透明度：${Math.round((advancedLyricConfig.inkOpacity ?? 0.45) * 100)}%`}><input className="setting-slider" type="range" min="0.1" max="0.8" step="0.05" value={advancedLyricConfig.inkOpacity ?? 0.45} onChange={(e)=>updateImmersive({inkOpacity:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label={`水墨流动速度：${Number(advancedLyricConfig.inkSpeed ?? 1).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.2" max="2.5" step="0.1" value={advancedLyricConfig.inkSpeed ?? 1} onChange={(e)=>updateImmersive({inkSpeed:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label="水墨模式显示翻译"><Toggle checked={advancedLyricConfig.inkShowTranslation !== false} onChange={(v)=>updateImmersive({inkShowTranslation:v})}/></SettingRow>
+          </>}
+          {advancedLyricConfig.lyricsMode === 'spotlight' && <>
+            <SettingRow label={`聚光灯行间距：${advancedLyricConfig.spotlightLineGap ?? 26}px`} hint="控制当前句上下的呼吸空间"><input className="setting-slider" type="range" min="8" max="64" step="2" value={advancedLyricConfig.spotlightLineGap ?? 26} onChange={(e)=>updateImmersive({spotlightLineGap:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label={`非当前句透明度：${Math.round((advancedLyricConfig.spotlightDimOpacity ?? 0.18) * 100)}%`}><input className="setting-slider" type="range" min="0.05" max="0.5" step="0.05" value={advancedLyricConfig.spotlightDimOpacity ?? 0.18} onChange={(e)=>updateImmersive({spotlightDimOpacity:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label={`当前句放大：${Math.round((advancedLyricConfig.spotlightScale ?? 1.04) * 100)}%`}><input className="setting-slider" type="range" min="1" max="1.2" step="0.01" value={advancedLyricConfig.spotlightScale ?? 1.04} onChange={(e)=>updateImmersive({spotlightScale:Number(e.target.value)})}/></SettingRow>
+            <SettingRow label="聚光灯逐字高亮"><Toggle checked={advancedLyricConfig.spotlightShowGlow !== false} onChange={(v)=>updateImmersive({spotlightShowGlow:v})}/></SettingRow>
+            <SettingRow label="聚光灯显示翻译"><Toggle checked={advancedLyricConfig.spotlightShowTranslation !== false} onChange={(v)=>updateImmersive({spotlightShowTranslation:v})}/></SettingRow>
+          </>}
         </div>
       </div>
       <div className="settings-section">
@@ -190,7 +243,7 @@ export default function Settings() {
           <SettingRow label={`黑胶旋转行间距：${advancedLyricConfig.vinylLineSpacing ?? 0.7}`}>
             <input className="setting-slider" type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.vinylLineSpacing ?? 0.7} onChange={(e)=>updateImmersive({vinylLineSpacing:Number(e.target.value)})}/>
           </SettingRow>
-          <SettingRow label={`黑胶旋转倾斜角：${advancedLyricConfig.vinylTiltAngle ?? 0}°`}>
+          <SettingRow label={`黑胶旋转倾斜角：${advancedLyricConfig.vinylTiltAngle ?? 0}掳`}>
             <input className="setting-slider" type="range" min="-60" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle ?? 0} onChange={(e)=>updateImmersive({vinylTiltAngle:Number(e.target.value)})}/>
           </SettingRow>
           <SettingRow label="背景悬浮粒子装饰 (Floating Decor)" hint="漂浮星空微粒装饰效果"><Toggle checked={advancedLyricConfig.showDecor === true} onChange={(v)=>updateImmersive({showDecor:v})}/></SettingRow>
@@ -200,16 +253,16 @@ export default function Settings() {
               <SettingRow label={`粒子浮游运动速度：${(advancedLyricConfig.decorSpeed ?? 1.0).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.decorSpeed ?? 1.0} onChange={(e)=>updateImmersive({decorSpeed:Number(e.target.value)})}/></SettingRow>
               <SettingRow label={`粒子发光微调半径：${(advancedLyricConfig.decorSize ?? 1.0).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.decorSize ?? 1.0} onChange={(e)=>updateImmersive({decorSize:Number(e.target.value)})}/></SettingRow>
               <SettingRow label={`粒子底噪基础透明：${(advancedLyricConfig.decorOpacity ?? 0.6).toFixed(2)}`}><input className="setting-slider" type="range" min="0.1" max="1.0" step="0.05" value={advancedLyricConfig.decorOpacity ?? 0.6} onChange={(e)=>updateImmersive({decorOpacity:Number(e.target.value)})}/></SettingRow>
-              <SettingRow label="随音乐节奏闪烁喷涌" hint="关闭后微粒将保持匀速平静漂流"><Toggle checked={advancedLyricConfig.decorTwinkle === true} onChange={(v)=>updateImmersive({decorTwinkle:v})}/></SettingRow>
+              <SettingRow label="随音乐节奏闪烁喷洒" hint="关闭后微粒将保持匀速平静漂浮"><Toggle checked={advancedLyricConfig.decorTwinkle === true} onChange={(v)=>updateImmersive({decorTwinkle:v})}/></SettingRow>
             </>
           )}
           <SettingRow label="背景水印与装饰符" hint="漂浮音符、十字星与水印"><Toggle checked={advancedLyricConfig.backgroundDecor !== false} onChange={(v)=>updateImmersive({backgroundDecor:v})}/></SettingRow>
           <SettingRow label="动态音阶描边" hint="视觉残影与霓虹拖影效果"><Toggle checked={advancedLyricConfig.dynamicOutlines !== false} onChange={(v)=>updateImmersive({dynamicOutlines:v})}/></SettingRow>
 
-          {/* ================= 常规滚动模式 (regular) 可视化参数 ================= */}
+          {/* ================= 常规滚动模式 (regular) 可视化参数================= */}
           {advancedLyricConfig.lyricsMode === 'regular' && (
             <>
-              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>环形频谱可视化（封面后方）</h4>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>环形频谱可视化（封面后方</h4>
               <SettingRow label="环形样式">
                 <Segment 
                   options={[
@@ -221,7 +274,7 @@ export default function Settings() {
                   onChange={(v) => updateImmersive({ ringStyle: v })} 
                 />
               </SettingRow>
-              <SettingRow label={`采样精度 (线条/粒子数)：${advancedLyricConfig.ringBarCount ?? 180}`}>
+              <SettingRow label={`采样精度 (线条/粒子?：${advancedLyricConfig.ringBarCount ?? 180}`}>
                 <input className="setting-slider" type="range" min="60" max="360" step="10" value={advancedLyricConfig.ringBarCount ?? 180} onChange={(e) => updateImmersive({ ringBarCount: Number(e.target.value) })} />
               </SettingRow>
               <SettingRow label={`最大延伸振幅：${advancedLyricConfig.ringMaxAmplitude ?? 80}px`}>
@@ -252,7 +305,7 @@ export default function Settings() {
                   </div>
                 </SettingRow>
               )}
-              <SettingRow label={`自转慢速慢转角：${advancedLyricConfig.ringRotationSpeed ?? 15}°/分`}>
+              <SettingRow label={`自转慢速慢转角：${advancedLyricConfig.ringRotationSpeed ?? 15}°/分钟`}>
                 <input className="setting-slider" type="range" min="0" max="120" step="5" value={advancedLyricConfig.ringRotationSpeed ?? 15} onChange={(e) => updateImmersive({ ringRotationSpeed: Number(e.target.value) })} />
               </SettingRow>
               <SettingRow label="慢转角随声浪脉冲加速">
@@ -276,7 +329,7 @@ export default function Settings() {
             </>
           )}
 
-          {/* ================= 气泡模式 (streamer) 可视化参数 ================= */}
+          {/* ================= 气泡模式 (streamer) 可视化参数================= */}
           {advancedLyricConfig.lyricsMode === 'streamer' && (
             <>
               <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>底部流光氛围脉冲灯带</h4>
@@ -298,7 +351,7 @@ export default function Settings() {
               <SettingRow label="配色模式">
                 <Segment 
                   options={[
-                    { value: 'theme', label: '应用主题色' },
+                    { value: 'theme', label: '应用主题' },
                     { value: 'custom', label: '自定义颜色' }
                   ]} 
                   value={advancedLyricConfig.streamerBarColorMode || 'theme'} 
@@ -313,10 +366,10 @@ export default function Settings() {
             </>
           )}
 
-          {/* ================= 混乱模式 (talk) 可视化参数 ================= */}
+          {/* ================= 混乱模式 (talk) 可视化参数================= */}
           {advancedLyricConfig.lyricsMode === 'talk' && (
             <>
-              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>背景视差粒子与击鼓爆发特效</h4>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>背景视差粒子与击鼓爆发特</h4>
               <SettingRow label={`常驻星空粒子数：${advancedLyricConfig.talkParticleCount ?? 80}`}>
                 <input className="setting-slider" type="range" min="20" max="200" step="10" value={advancedLyricConfig.talkParticleCount ?? 80} onChange={(e) => updateImmersive({ talkParticleCount: Number(e.target.value) })} />
               </SettingRow>
@@ -368,7 +421,7 @@ export default function Settings() {
             </>
           )}
 
-          {/* ================= 云阶模式 (cloudstep) 可视化参数 ================= */}
+          {/* ================= 云阶模式 (cloudstep) 可视化参数================= */}
           {advancedLyricConfig.lyricsMode === 'cloudstep' && (
             <>
               <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>层叠雾化波纹（背景云层）</h4>
@@ -402,10 +455,10 @@ export default function Settings() {
             </>
           )}
 
-          {/* ================= 空间画布 (spatial) 可视化参数 ================= */}
+          {/* ================= 空间画布 (spatial) 可视化参数================= */}
           {advancedLyricConfig.lyricsMode === 'spatial' && (
             <>
-              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>3D 空间声部扩散粒子场</h4>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>3D 空间声部扩散粒子</h4>
               <SettingRow label={`空间星图粒子数量：${advancedLyricConfig.spatialParticleCount ?? 200}`}>
                 <input className="setting-slider" type="range" min="50" max="500" step="10" value={advancedLyricConfig.spatialParticleCount ?? 200} onChange={(e) => updateImmersive({ spatialParticleCount: Number(e.target.value) })} />
               </SettingRow>
@@ -445,10 +498,10 @@ export default function Settings() {
             </>
           )}
 
-          {/* ================= 黑胶光碟 (vinyl) 可视化参数 ================= */}
+          {/* ================= 黑胶光碟 (vinyl) 可视化参数================= */}
           {advancedLyricConfig.lyricsMode === 'vinyl' && (
             <>
-              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>黑胶盘面频谱刻槽与触针高频光圈</h4>
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>黑胶盘面频谱刻槽与触针高频光</h4>
               <SettingRow label={`盘面频谱声部沟槽：${advancedLyricConfig.vinylGrooveCount ?? 12}圈`}>
                 <input className="setting-slider" type="range" min="4" max="30" step="1" value={advancedLyricConfig.vinylGrooveCount ?? 12} onChange={(e) => updateImmersive({ vinylGrooveCount: Number(e.target.value) })} />
               </SettingRow>
@@ -473,7 +526,7 @@ export default function Settings() {
               <SettingRow label="配色方案">
                 <Segment 
                   options={[
-                    { value: 'theme', label: '跟随主题色' },
+                    { value: 'theme', label: '跟随主题' },
                     { value: 'white', label: '银白同心射线' }
                   ]} 
                   value={advancedLyricConfig.vinylGrooveColorMode || 'theme'} 
@@ -487,15 +540,86 @@ export default function Settings() {
     </div>
   );
   const applyEqPreset = (preset) => updateAudio({ equalizer: { ...audioConfig.equalizer, enabled: preset !== 'none', preset, bands: EQ_PRESETS[preset] || audioConfig.equalizer?.bands || EQ_PRESETS.none } });
-  const renderAudioTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Sliders size={18} />{T.qualityEq}</h3><div className="settings-content"><SettingRow label={T.quality}><select className="setting-select" value={audioQuality} onChange={(e)=>setAudioQuality(e.target.value)}><option value="standard">{T.standard}</option><option value="higher">{T.higher}</option><option value="exhigh">{T.exhigh}</option><option value="lossless">{T.lossless}</option><option value="hires">Hi-Res</option><option value="jymaster">{T.master}</option></select></SettingRow><SettingRow label={T.enableEq}><Toggle checked={audioConfig.equalizer?.enabled} onChange={(v)=>updateAudio({equalizer:{...audioConfig.equalizer,enabled:v}})}/></SettingRow><SettingRow label={T.eqPreset}><Segment options={Object.keys(EQ_PRESETS).map(k=>({value:k,label:k==='none'?T.none:k}))} value={audioConfig.equalizer?.preset || 'none'} onChange={applyEqPreset}/></SettingRow><div className="eq-bands">{eqBands.map(band=><label key={band} className="eq-band"><span>{band}</span><input type="range" min="-12" max="12" step="1" value={audioConfig.equalizer?.bands?.[band] ?? 0} onChange={(e)=>updateAudio({equalizer:{...audioConfig.equalizer,preset:'custom',bands:{...(audioConfig.equalizer?.bands || EQ_PRESETS.none),[band]:Number(e.target.value)}}})}/><em>{audioConfig.equalizer?.bands?.[band] ?? 0}dB</em></label>)}</div></div></div><div className="settings-section"><h3 className="settings-title"><Sliders size={18} />{T.reverbRender}</h3><div className="settings-content"><SettingRow label={T.reverb}><Toggle checked={audioConfig.reverb?.enabled} onChange={(v)=>updateAudio({reverb:{...audioConfig.reverb,enabled:v}})}/></SettingRow><SettingRow label={T.reverbPreset}><Segment options={['none','hall','room','plate','spring','stadium']} value={audioConfig.reverb?.preset || 'none'} onChange={(v)=>updateAudio({reverb:{...audioConfig.reverb,enabled:v!=='none',preset:v}})}/></SettingRow><SettingRow label={`${T.mix}\uff1a${audioConfig.reverb?.mix ?? 0.3}`}><input className="setting-slider" type="range" min="0" max="1" step="0.05" value={audioConfig.reverb?.mix ?? 0.3} onChange={(e)=>updateAudio({reverb:{...audioConfig.reverb,mix:Number(e.target.value)}})}/></SettingRow><SettingRow label={`${T.decay}\uff1a${audioConfig.reverb?.decay ?? 1.5}s`}><input className="setting-slider" type="range" min="0.1" max="10" step="0.1" value={audioConfig.reverb?.decay ?? 1.5} onChange={(e)=>updateAudio({reverb:{...audioConfig.reverb,decay:Number(e.target.value)}})}/></SettingRow><SettingRow label={T.compressor}><Toggle checked={audioConfig.compressor?.enabled} onChange={(v)=>updateAudio({compressor:{...audioConfig.compressor,enabled:v}})}/></SettingRow><SettingRow label={T.spatial}><Segment options={[{value:'stereo',label:T.stereo},{value:'crossfeed',label:T.crossfeed},{value:'mono',label:T.mono}]} value={audioConfig.spatial?.mode || 'stereo'} onChange={(v)=>updateAudio({spatial:{...audioConfig.spatial,enabled:v!=='stereo',mode:v}})}/></SettingRow><SettingRow label={T.backend}><Segment options={[{value:'web audio',label:'Web Audio'},{value:'html5',label:'HTML5'}]} value={renderingConfig.audioBackend || 'web audio'} onChange={(v)=>updateRendering({audioBackend:v})}/></SettingRow><SettingRow label={T.decoder}><Segment options={['auto','wasm','native']} value={renderingConfig.decoderMode || 'auto'} onChange={(v)=>updateRendering({decoderMode:v})}/></SettingRow><SettingRow label={T.fps}><Segment options={[{value:24,label:'24'},{value:30,label:'30'},{value:60,label:'60'},{value:120,label:'120'},{value:0,label:'无限制'}]} value={renderingConfig.visualizerFps ?? 30} onChange={(v)=>updateRendering({visualizerFps:v})}/></SettingRow><SettingRow label="GPU 硬件加速" hint="开启以获得极低延迟与超高帧率渲染（需重启应用生效）"><Toggle checked={renderingConfig.hardwareAcceleration !== false} onChange={(v)=>{updateRendering({hardwareAcceleration:v}); window.electronAPI?.setHardwareAcceleration?.(v);}}/></SettingRow></div></div></div>;
+  const renderAudioTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Sliders size={18} />{T.qualityEq}</h3><div className="settings-content"><SettingRow label={T.quality}><select className="setting-select" value={audioQuality} onChange={(e)=>setAudioQuality(e.target.value)}><option value="standard">{T.standard}</option><option value="higher">{T.higher}</option><option value="exhigh">{T.exhigh}</option><option value="lossless">{T.lossless}</option><option value="hires">Hi-Res</option><option value="jymaster">{T.master}</option></select></SettingRow><SettingRow label={T.enableEq}><Toggle checked={audioConfig.equalizer?.enabled} onChange={(v)=>updateAudio({equalizer:{...audioConfig.equalizer,enabled:v}})}/></SettingRow><SettingRow label={T.eqPreset}><Segment options={Object.keys(EQ_PRESETS).map(k=>({value:k,label:k==='none'?T.none:k}))} value={audioConfig.equalizer?.preset || 'none'} onChange={applyEqPreset}/></SettingRow><div className="eq-bands">{eqBands.map(band=><label key={band} className="eq-band"><span>{band}</span><input type="range" min="-12" max="12" step="1" value={audioConfig.equalizer?.bands?.[band] ?? 0} onChange={(e)=>updateAudio({equalizer:{...audioConfig.equalizer,preset:'custom',bands:{...(audioConfig.equalizer?.bands || EQ_PRESETS.none),[band]:Number(e.target.value)}}})}/><em>{audioConfig.equalizer?.bands?.[band] ?? 0}dB</em></label>)}</div></div></div><div className="settings-section"><h3 className="settings-title"><Sliders size={18} />{T.reverbRender}</h3><div className="settings-content"><SettingRow label={T.reverb}><Toggle checked={audioConfig.reverb?.enabled} onChange={(v)=>updateAudio({reverb:{...audioConfig.reverb,enabled:v}})}/></SettingRow><SettingRow label={T.reverbPreset}><Segment options={['none','hall','room','plate','spring','stadium']} value={audioConfig.reverb?.preset || 'none'} onChange={(v)=>updateAudio({reverb:{...audioConfig.reverb,enabled:v!=='none',preset:v}})}/></SettingRow><SettingRow label={`${T.mix}\uff1a${audioConfig.reverb?.mix ?? 0.3}`}><input className="setting-slider" type="range" min="0" max="1" step="0.05" value={audioConfig.reverb?.mix ?? 0.3} onChange={(e)=>updateAudio({reverb:{...audioConfig.reverb,mix:Number(e.target.value)}})}/></SettingRow><SettingRow label={`${T.decay}\uff1a${audioConfig.reverb?.decay ?? 1.5}s`}><input className="setting-slider" type="range" min="0.1" max="10" step="0.1" value={audioConfig.reverb?.decay ?? 1.5} onChange={(e)=>updateAudio({reverb:{...audioConfig.reverb,decay:Number(e.target.value)}})}/></SettingRow><SettingRow label={T.compressor}><Toggle checked={audioConfig.compressor?.enabled} onChange={(v)=>updateAudio({compressor:{...audioConfig.compressor,enabled:v}})}/></SettingRow><SettingRow label={T.spatial}><Segment options={[{value:'stereo',label:T.stereo},{value:'crossfeed',label:T.crossfeed},{value:'mono',label:T.mono}]} value={audioConfig.spatial?.mode || 'stereo'} onChange={(v)=>updateAudio({spatial:{...audioConfig.spatial,enabled:v!=='stereo',mode:v}})}/></SettingRow><SettingRow label={T.backend}><Segment options={[{value:'web audio',label:'Web Audio'},{value:'html5',label:'HTML5'}]} value={renderingConfig.audioBackend || 'web audio'} onChange={(v)=>updateRendering({audioBackend:v})}/></SettingRow><SettingRow label={T.decoder}><Segment options={['auto','wasm','native']} value={renderingConfig.decoderMode || 'auto'} onChange={(v)=>updateRendering({decoderMode:v})}/></SettingRow><SettingRow label={T.fps}><Segment options={[{value:24,label:'24'},{value:30,label:'30'},{value:60,label:'60'},{value:120,label:'120'},{value:0,label:'无限'}]} value={renderingConfig.visualizerFps ?? 30} onChange={(v)=>updateRendering({visualizerFps:v})}/></SettingRow><SettingRow label="GPU 硬件加速" hint="开启以获得极低延迟与超高帧率渲染（需重启应用生效）"><Toggle checked={renderingConfig.hardwareAcceleration !== false} onChange={(v)=>{updateRendering({hardwareAcceleration:v}); window.electronAPI?.setHardwareAcceleration?.(v);}}/></SettingRow><SettingRow label="减少动态效果" hint="全局降低辉光、粒子和转场动画，适合低配置设备"><Toggle checked={renderingConfig.reducedMotion === true} onChange={(v)=>updateRendering({reducedMotion:v})}/></SettingRow></div></div></div>;
   const renderCacheTab = () => {
     const cfg = cacheConfig || DEFAULT_PROFILE.audio.cache;
     const activeDir = cfg.directory || defaultCacheDir || '安装目录\\ichigomusic-cache';
-    return <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><HardDrive size={18} />播放缓存区</h3><div className="settings-content"><SettingRow label="启用缓存"><Toggle checked={cfg.enabled !== false} onChange={(v)=>updateCache({enabled:v})}/></SettingRow><SettingRow label="缓存内容"><Segment options={[{value:'all',label:'音频 + 歌词'},{value:'lyrics',label:'仅歌词'},{value:'audio',label:'仅音频'}]} value={cfg.audio === false ? 'lyrics' : cfg.lyrics === false ? 'audio' : 'all'} onChange={(v)=>updateCache({audio:v!=='lyrics',lyrics:v!=='audio'})}/></SettingRow><SettingRow label={`最大占用：${cfg.maxSizeGb || 1} GB`}><input className="setting-slider" type="range" min="1" max="10" step="1" value={cfg.maxSizeGb || 1} onChange={(e)=>updateCache({maxSizeGb:Number(e.target.value)})}/></SettingRow><SettingRow label="缓存目录" hint={cfg.directory ? '自定义路径' : '默认安装目录'}><div className="cache-path-row"><input className="settings-text-input" value={activeDir} readOnly/><button className="setting-btn compact" onClick={handleSelectCacheDir}>选择目录</button><button className="setting-btn compact" onClick={()=>updateCache({directory:''})}>恢复默认</button></div></SettingRow><SettingRow label="当前占用"><div className="cache-stats-row"><span>{cacheStats ? `${formatBytes(cacheStats.size)} / ${cacheStats.files} 个文件` : '统计中...'}</span><button className="setting-btn danger compact" onClick={handleClearCache}>清空缓存</button></div></SettingRow></div></div></div>;
+    return <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><HardDrive size={18} />播放缓存</h3><div className="settings-content"><SettingRow label="启用缓存"><Toggle checked={cfg.enabled !== false} onChange={(v)=>updateCache({enabled:v})}/></SettingRow><SettingRow label="缓存内容"><Segment options={[{value:'all',label:'音频 + 歌词'},{value:'lyrics',label:'仅歌词'},{value:'audio',label:'仅音频'}]} value={cfg.audio === false ? 'lyrics' : cfg.lyrics === false ? 'audio' : 'all'} onChange={(v)=>updateCache({audio:v!=='lyrics',lyrics:v!=='audio'})}/></SettingRow><SettingRow label={`最大占用：${cfg.maxSizeGb || 1} GB`}><input className="setting-slider" type="range" min="1" max="10" step="1" value={cfg.maxSizeGb || 1} onChange={(e)=>updateCache({maxSizeGb:Number(e.target.value)})}/></SettingRow><SettingRow label="缓存目录" hint={cfg.directory ? '自定义路径' : '默认安装目录'}><div className="cache-path-row"><input className="settings-text-input" value={activeDir} readOnly/><button className="setting-btn compact" onClick={handleSelectCacheDir}>选择目录</button><button className="setting-btn compact" onClick={()=>updateCache({directory:''})}>恢复默认</button></div></SettingRow><SettingRow label="当前占用"><div className="cache-stats-row"><span>{cacheStats ? `${formatBytes(cacheStats.size)} / ${cacheStats.files} 个文件` : '统计中…'}</span><button className="setting-btn danger compact" onClick={handleClearCache}>清空缓存</button></div></SettingRow></div></div></div>;
   };
-  const renderShortcutsTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Command size={18} />{T.shortcutsTitle}</h3><div className="settings-content"><SettingRow label="启用快捷键" hint="全局开启或关闭快捷键绑定"><Toggle checked={shortcuts?.enabled !== false} onChange={(v) => saveShortcuts({ ...shortcuts, enabled: v })} /></SettingRow></div></div>{(shortcuts?.enabled !== false) && (<div className="settings-section"><h3 className="settings-title"><Command size={18} />快捷键绑定列表</h3><div className="settings-content shortcut-list">{shortcutLabels.map(([key,label,desc])=><ShortcutRow key={key} label={label} description={desc} value={shortcuts?.[key]} onChange={(value)=>saveShortcuts({...shortcuts,[key]:value})} onReset={()=>saveShortcuts({...shortcuts,[key]:DEFAULT_PROFILE.shortcuts[key]})}/>)}<button className="setting-btn danger" onClick={()=>saveShortcuts(DEFAULT_PROFILE.shortcuts)}>{T.resetShortcuts}</button></div></div>)}</div>;
+  const renderShortcutsTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Command size={18} />{T.shortcutsTitle}</h3><div className="settings-content"><SettingRow label="启用快捷键" hint="全局开启或关闭快捷键绑定"><Toggle checked={shortcuts?.enabled !== false} onChange={(v) => saveShortcuts({ ...shortcuts, enabled: v })} /></SettingRow></div></div>{(shortcuts?.enabled !== false) && (<div className="settings-section"><h3 className="settings-title"><Command size={18} />快捷键绑定列</h3><div className="settings-content shortcut-list">{shortcutLabels.map(([key,label,desc])=><ShortcutRow key={key} label={label} description={desc} value={shortcuts?.[key]} onChange={(value)=>saveShortcuts({...shortcuts,[key]:value})} onReset={()=>saveShortcuts({...shortcuts,[key]:DEFAULT_PROFILE.shortcuts[key]})}/>)}<button className="setting-btn danger" onClick={()=>saveShortcuts(DEFAULT_PROFILE.shortcuts)}>{T.resetShortcuts}</button></div></div>)}</div>;
   const renderNavbarTab = () => <div className="settings-section"><h3 className="settings-title"><Menu size={18} />{T.navItems}</h3><div className="settings-content">{navbarConfig.map((item,index)=><SettingRow key={item.key} label={item.name} hint={item.key}><Toggle checked={item.show} onChange={()=>handleToggleNavbarItem(index)}/></SettingRow>)}</div></div>;
+  const handleCopyRuntimeLogs = async () => {
+    const text = formatRuntimeLogs(runtimeLogs);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    setLogCopyState('已复制');
+    window.setTimeout(() => setLogCopyState(''), 1400);
+  };
+  const renderLogsTab = () => (
+    <div className="settings-stack">
+      <div className="settings-section runtime-log-section">
+        <div className="runtime-log-header">
+          <div>
+            <h3 className="settings-title"><FileText size={18} />运行日志</h3>
+            <p className="settings-desc">仅记录本次运行，退出应用后自动清空。敏感 Cookie 和令牌会自动隐藏。</p>
+          </div>
+          <div className="runtime-log-actions">
+            <span>{runtimeLogs.length} 条</span>
+            <button className="setting-btn compact" onClick={handleCopyRuntimeLogs}><Copy size={14} />{logCopyState || '复制日志'}</button>
+            <button className="setting-btn danger compact" onClick={() => clearRuntimeLogs({ addMarker: true })}><Trash2 size={14} />清空</button>
+          </div>
+        </div>
+        <div className="runtime-log-list" role="log" aria-live="polite">
+          {runtimeLogs.length === 0 ? (
+            <div className="runtime-log-empty">当前会话还没有日志。</div>
+          ) : runtimeLogs.map(entry => (
+            <div className={`runtime-log-entry level-${entry.level}`} key={entry.id}>
+              <div className="runtime-log-meta">
+                <time>{new Date(entry.timestamp).toLocaleTimeString('zh-CN', { hour12: false })}</time>
+                <span>{entry.level.toUpperCase()}</span>
+                <span>{entry.source}</span>
+                {entry.count > 1 && <span>×{entry.count}</span>}
+              </div>
+              <div className="runtime-log-message">{entry.message}</div>
+              {entry.details && <pre>{entry.details}</pre>}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
   const renderAccountTab = () => <div className="settings-section"><h3 className="settings-title"><UserCheck size={18} />{T.account}</h3><div className="settings-content">{user ? <div className="account-card"><img src={user.avatarUrl} alt={user.nickname}/><div><h3>{user.nickname}</h3><p>{T.uid}: {user.userId}</p></div><button className="setting-btn danger" onClick={logout}><Power size={16}/>{T.logout}</button></div> : <div className="settings-stack"><Login onLoginSuccess={()=>setActiveTab('theme')}/><div className="settings-section inset"><h4>{T.cookieLogin}</h4><p className="settings-desc">{T.cookieDesc}</p><textarea className="settings-textarea" rows={4} value={cookieInput} onChange={(e)=>setCookieInput(e.target.value)} placeholder="MUSIC_U=xxxxx; __csrf=yyyyy;"/><button className="setting-btn active" onClick={handleCookieLogin}>{T.importCookie}</button></div></div>}</div></div>;
-  const renderActiveTab = () => activeTab === 'theme' ? renderThemeTab() : activeTab === 'desktop' ? renderDesktopTab() : activeTab === 'audio' ? renderAudioTab() : activeTab === 'cache' ? renderCacheTab() : activeTab === 'shortcuts' ? renderShortcutsTab() : activeTab === 'navbar' ? renderNavbarTab() : renderAccountTab();
+  const renderActiveTab = () => activeTab === 'theme' ? renderThemeTab() : activeTab === 'desktop' ? renderDesktopTab() : activeTab === 'audio' ? renderAudioTab() : activeTab === 'cache' ? renderCacheTab() : activeTab === 'shortcuts' ? renderShortcutsTab() : activeTab === 'navbar' ? renderNavbarTab() : activeTab === 'logs' ? renderLogsTab() : renderAccountTab();
   return <div className="view-container"><h2 style={{ fontFamily: 'var(--font-title)', fontSize: 20, fontWeight: 700, marginBottom: 24 }}>{T.title}</h2><div className="settings-shell"><aside className="settings-tabs">{tabs.map(tab=>{const Icon=tab.icon; return <button key={tab.key} className={activeTab===tab.key?'active':''} onClick={()=>setActiveTab(tab.key)}><Icon size={18}/><span>{tab.label}</span></button>;})}</aside><main className="settings-panel">{renderActiveTab()}</main></div></div>;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

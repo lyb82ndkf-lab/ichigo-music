@@ -1,4 +1,4 @@
-const PROFILE_KEY = 'ichigomusic_profile_v2';
+﻿const PROFILE_KEY = 'ichigomusic_profile_v2';
 const PROFILE_VERSION = 2;
 
 const LEGACY_KEYS = [
@@ -156,6 +156,32 @@ export const DEFAULT_PROFILE = {
     lyricsPositionY: 40,
     showTranslation: true,
     lyricsMode: 'regular',
+    motionPreset: 'balanced',
+    bubbleAlign: 'alternate',
+    cloudStepSpacing: 1,
+    spotlightLineGap: 26,
+    spotlightDimOpacity: 0.18,
+    spotlightScale: 1.04,
+    spotlightShowTranslation: true,
+    spotlightShowGlow: true,
+    spotlightEffect: 'auto',
+    spotlightMotion: 1,
+    starDensity: 42,
+    starSpeed: 1,
+    starDepth: 1,
+    starShowTranslation: true,
+    filmFrameGap: 18,
+    filmOpacity: 0.22,
+    filmActiveScale: 1.08,
+    filmShowTranslation: true,
+    inkSpread: 1,
+    inkOpacity: 0.45,
+    inkSpeed: 1,
+    inkShowTranslation: true,
+    visualizerEnabled: true,
+    visualizerIntensity: 1,
+    visualizerOpacity: 0.82,
+    visualizerSmoothing: 0.16,
     colorPreference: 'warm',
     
     // Regular Mode Circular Visualizer
@@ -321,7 +347,8 @@ export const DEFAULT_PROFILE = {
     bufferSize: 0,
     latencyHint: 'interactive',
     visualizerFps: 30,
-    hardwareAcceleration: true
+    hardwareAcceleration: true,
+    reducedMotion: false
   },
 
   shortcuts: {
@@ -643,3 +670,6 @@ export function getProfileKey() {
 export function getProfileVersion() {
   return PROFILE_VERSION;
 }
+
+
+

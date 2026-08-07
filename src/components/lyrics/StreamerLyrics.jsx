@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { parseDisplayTokens } from './MonetLyricsEngine';
+import { subscribeLyricClock } from '../../utils/lyricClock';
 
 // Renders a single chat bubble for a lyric line
 const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeColor, globalOffset, alignMode, index, activeLineIndex }) => {
@@ -36,7 +37,6 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
       return;
     }
 
-    let animationId;
     const update = () => {
       const currentTime = (engineRef.current?.getCurrentTime() || 0) + globalOffset;
 
@@ -72,11 +72,10 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
         }
       });
 
-      animationId = requestAnimationFrame(update);
     };
 
-    animationId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(animationId);
+    update();
+    return subscribeLyricClock(update);
   }, [isActive, isPassed, tokens, engineRef, globalOffset]);
 
   // If the line hasn't started and we're not active or passed, don't show it at all

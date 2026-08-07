@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { buildVisibleWindow } from './MonetLyricsEngine';
 import MonetLyricsRail from './MonetLyricsRail';
+import ImmersiveLyricsStage from './ImmersiveLyricsStage';
 import MonetAudioOverlay from './MonetAudioOverlay';
 import MonetFloatingDecor from './MonetFloatingDecor';
-import StreamerLyrics from './StreamerLyrics';
-import TiltLyrics from './TiltLyrics';
-import CloudStepLyrics from './CloudStepLyrics';
-import SpatialCanvasLyrics from './SpatialCanvasLyrics';
-import VinylRecordLyrics from './VinylRecordLyrics';
+
+
+
+
+
+
+
+
+
 import { useApp } from '../../context/AppContext';
 
 export default function MonetPosterLayout({ 
@@ -25,6 +30,7 @@ export default function MonetPosterLayout({
   const { advancedLyricConfig, seekTo, layoutMode } = useApp();
   const animMode = advancedLyricConfig?.lyricsMode || 'regular';
   const isRegularMode = animMode === 'regular';
+  const isKashiMode = animMode === 'spotlight';
   const showCover = advancedLyricConfig?.showCover !== false && isRegularMode;
   const showSongInfo = advancedLyricConfig?.showSongInfo !== false;
   const enableDecor = advancedLyricConfig?.showDecor === true;
@@ -45,12 +51,12 @@ export default function MonetPosterLayout({
   const handleWheel = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // 鼠标滚轮翻页预览歌词，每次滚动约 1.5 秒的时间跨度
+    // 榧犳爣婊氳疆缈婚〉棰勮姝岃瘝锛屾瘡娆℃粴鍔ㄧ害 1.5 绉掔殑鏃堕棿璺ㄥ害
     const delta = e.deltaY > 0 ? 1.5 : -1.5;
     setManualScrollOffset(prev => prev + delta);
     
     if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-    // 停止滚动 3 秒后自动恢复跟随播放进度
+    // 鍋滄婊氬姩 3 绉掑悗鑷姩鎭㈠璺熼殢鎾斁杩涘害
     scrollTimeoutRef.current = setTimeout(() => {
       setManualScrollOffset(0);
     }, 2200);
@@ -183,7 +189,7 @@ export default function MonetPosterLayout({
   }, [audioAnalyser]);
 
   return (
-    <div key={introKey} className="monet-poster-layout" style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div key={introKey} className={`monet-poster-layout${isKashiMode ? ' monet-poster-layout--kashi' : ''}`} style={{ width: '100%', height: '100%', position: 'relative' }}>
       <style>
         {`
           .monet-poster-layout {
@@ -293,6 +299,11 @@ export default function MonetPosterLayout({
           .monet-cover-img:hover {
             transform: scale(1.02) translateY(-5px);
           }
+
+          /* 歌词视频直接使用沉浸页已有的封面背景作为连续镜头。 */
+          .monet-poster-layout--kashi .monet-left-pane { position: relative; z-index: 2; pointer-events: none; }
+          .monet-poster-layout--kashi .monet-anim-rail { display: none !important; }
+          .monet-kashi-layer { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
         `}
       </style>
 
@@ -320,7 +331,7 @@ export default function MonetPosterLayout({
           ref={railContainerRef}
           style={{ flex: 1, position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center' }}
         >
-          {isRegularMode ? (
+          {isKashiMode ? null : isRegularMode ? (
             <MonetLyricsRail
               visibleLines={visibleLines}
               fontPx={dimensions.fontPx}
@@ -346,75 +357,16 @@ export default function MonetPosterLayout({
               inactiveLyricBlur={advancedLyricConfig?.inactiveLyricBlur}
             />
           ) : (
-            <div style={{ width: '100%', height: '100%' }}>
-              {animMode === 'streamer' && (
-                <StreamerLyrics
-                  lyrics={displayLyrics}
-                  activeLineIndex={activeLineIndex}
-                  engineRef={engineRef}
-                  fontPx={dimensions.fontPx}
-                  fontStack={fontStack}
-                  themeColor="var(--primary)"
-                  showGlow={advancedLyricConfig?.showGlow === true}
-                  globalOffset={advancedLyricConfig?.globalOffset || 0}
-                  alignMode={advancedLyricConfig?.bubbleAlign || 'alternate'}
-                />
-              )}
-              {animMode === 'talk' && (
-                <TiltLyrics
-                  lyrics={displayLyrics}
-                  activeLineIndex={activeLineIndex}
-                  engineRef={engineRef}
-                  fontPx={dimensions.fontPx}
-                  fontStack={fontStack}
-                  themeColor="var(--primary)"
-                  showGlow={advancedLyricConfig?.showGlow === true}
-                  globalOffset={advancedLyricConfig?.globalOffset || 0}
-                />
-              )}
-              {animMode === 'cloudstep' && (
-                <CloudStepLyrics
-                  lyrics={displayLyrics}
-                  activeLineIndex={activeLineIndex}
-                  engineRef={engineRef}
-                  fontPx={dimensions.fontPx}
-                  fontStack={fontStack}
-                  themeColor="var(--primary)"
-                  showGlow={advancedLyricConfig?.showGlow === true}
-                  globalOffset={advancedLyricConfig?.globalOffset || 0}
-                  cloudStepSpacing={advancedLyricConfig?.cloudStepSpacing || 1}
-                />
-              )}
-              {animMode === 'spatial' && (
-                <SpatialCanvasLyrics
-                  lyrics={displayLyrics}
-                  activeLineIndex={activeLineIndex}
-                  engineRef={engineRef}
-                  fontPx={dimensions.fontPx}
-                  fontStack={fontStack}
-                  themeColor={themeColor}
-                  globalOffset={advancedLyricConfig?.globalOffset || 0}
-                />
-              )}
-              {animMode === 'vinyl' && (
-                <VinylRecordLyrics
-                  lyrics={displayLyrics}
-                  activeLineIndex={activeLineIndex}
-                  engineRef={engineRef}
-                  fontPx={dimensions.fontPx}
-                  fontStack={fontStack}
-                  themeColor={themeColor}
-                  coverUrl={coverUrlResized}
-                  isPlaying={isPlaying}
-                  globalOffset={advancedLyricConfig?.globalOffset || 0}
-                  lineSpacing={advancedLyricConfig?.vinylLineSpacing ?? 0.7}
-                  tiltAngle={advancedLyricConfig?.vinylTiltAngle ?? 0}
-                />
-              )}
-            </div>
+            <ImmersiveLyricsStage mode={animMode} lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} coverUrl={coverUrlResized} isPlaying={isPlaying} config={advancedLyricConfig} />
           )}
         </div>
       </div>
+
+      {isKashiMode && (
+        <div className="monet-kashi-layer">
+          <ImmersiveLyricsStage mode="spotlight" lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} isPlaying={isPlaying} config={advancedLyricConfig} />
+        </div>
+      )}
 
       {/* RIGHT: Cover Art */}
       {showCover && (
@@ -446,3 +398,6 @@ export default function MonetPosterLayout({
     </div>
   );
 }
+
+
+

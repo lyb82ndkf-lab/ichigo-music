@@ -355,15 +355,33 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
       }
     };
 
-    updateActiveLine();
-    const intervalId = window.setInterval(updateActiveLine, 80);
-    audioElement.addEventListener('seeked', updateActiveLine);
-    audioElement.addEventListener('timeupdate', updateActiveLine);
+    let boundaryTimerId = null;
+    const scheduleNextBoundary = (currentTime) => {
+      if (boundaryTimerId) window.clearTimeout(boundaryTimerId);
+      const currentLyrics = engineRef.current.lyrics;
+      const nextLine = currentLyrics.find(line => Number(line.time || 0) > currentTime + 0.001);
+      if (!nextLine) return;
+      const delay = Math.max(20, Math.min(2000, (Number(nextLine.time || 0) - currentTime) * 1000 + 8));
+      boundaryTimerId = window.setTimeout(() => {
+        updateAndSchedule();
+      }, delay);
+    };
+
+    const updateAndSchedule = () => {
+      updateActiveLine();
+      scheduleNextBoundary(audioElement.currentTime || 0);
+    };
+
+    updateAndSchedule();
+    audioElement.addEventListener('seeked', updateAndSchedule);
+    audioElement.addEventListener('timeupdate', updateAndSchedule);
+    audioElement.addEventListener('play', updateAndSchedule);
 
     return () => {
-      window.clearInterval(intervalId);
-      audioElement.removeEventListener('seeked', updateActiveLine);
-      audioElement.removeEventListener('timeupdate', updateActiveLine);
+      if (boundaryTimerId) window.clearTimeout(boundaryTimerId);
+      audioElement.removeEventListener('seeked', updateAndSchedule);
+      audioElement.removeEventListener('timeupdate', updateAndSchedule);
+      audioElement.removeEventListener('play', updateAndSchedule);
     };
   }, [audioElement, lyrics]);
 

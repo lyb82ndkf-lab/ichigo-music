@@ -1,5 +1,15 @@
 /* index.css - ICHIGOMusic Design System */
 
+/* User-controlled global motion reduction. */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
 /* Prevent text selection across UI elements for native desktop feel */
 body,
 button,
@@ -799,6 +809,110 @@ body {
   z-index: 2;
   width: 100%;
   height: 100%;
+}
+
+/* Kashi-douga: the existing cover and lyric plane change composition together
+   at section boundaries. No second cover image is fetched or mounted. */
+.lyrics-overlay:has(.kashi-stage) {
+  --kashi-camera-x: -2%;
+  --kashi-camera-y: 1%;
+  --kashi-camera-scale: 1.16;
+  --kashi-text-x: -3vw;
+  --kashi-text-y: 16vh;
+  --kashi-text-scale: 1;
+}
+
+.lyrics-overlay:has(.kashi-stage) .lyrics-overlay-bg {
+  filter: blur(18px) brightness(0.42) saturate(0.94);
+  transform-origin: 50% 50%;
+  will-change: transform;
+  transform: translate3d(var(--kashi-camera-x), var(--kashi-camera-y), 0) scale(var(--kashi-camera-scale));
+  transition: transform 1.8s cubic-bezier(.2, .8, .2, 1), filter 1.2s ease;
+  animation: kashi-cover-pan 7.2s ease-in-out infinite alternate;
+}
+
+.lyrics-overlay:has(.kashi-stage) .kashi-stage-content {
+  transform: translate3d(var(--kashi-text-x), var(--kashi-text-y), 0) scale(var(--kashi-text-scale));
+  transform-origin: center;
+  transition: transform 1.8s cubic-bezier(.2, .8, .2, 1);
+}
+
+.lyrics-overlay:has(.kashi-stage) .kashi-line {
+  width: min(72vw, 980px);
+  animation: kashi-text-breathe 4.8s ease-in-out infinite alternate;
+}
+.lyrics-overlay:has(.kashi-section-neon) .kashi-line,
+.lyrics-overlay:has(.kashi-section-orbit) .kashi-line {
+  align-items: center;
+  text-align: center;
+}
+.lyrics-overlay:has(.kashi-section-split) .kashi-line,
+.lyrics-overlay:has(.kashi-section-diagonal) .kashi-line,
+.lyrics-overlay:has(.kashi-section-crop) .kashi-line {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.lyrics-overlay:has(.kashi-section-brush) {
+  --kashi-camera-x: -2%; --kashi-camera-y: 1%; --kashi-camera-scale: 1.16;
+  --kashi-text-x: -3vw; --kashi-text-y: 16vh; --kashi-text-scale: 1;
+}
+.lyrics-overlay:has(.kashi-section-neon) {
+  --kashi-camera-x: 3%; --kashi-camera-y: -2%; --kashi-camera-scale: 1.22;
+  --kashi-text-x: 15vw; --kashi-text-y: -11vh; --kashi-text-scale: 1.08;
+}
+.lyrics-overlay:has(.kashi-section-split) {
+  --kashi-camera-x: -3%; --kashi-camera-y: -1%; --kashi-camera-scale: 1.12;
+  --kashi-text-x: 23vw; --kashi-text-y: 13vh; --kashi-text-scale: .9;
+}
+.lyrics-overlay:has(.kashi-section-underline) {
+  --kashi-camera-x: 2%; --kashi-camera-y: 2%; --kashi-camera-scale: 1.18;
+  --kashi-text-x: -5vw; --kashi-text-y: -16vh; --kashi-text-scale: .94;
+}
+.lyrics-overlay:has(.kashi-section-diagonal) {
+  --kashi-camera-x: -1%; --kashi-camera-y: -3%; --kashi-camera-scale: 1.2;
+  --kashi-text-x: 16vw; --kashi-text-y: 4vh; --kashi-text-scale: 1.03;
+}
+.lyrics-overlay:has(.kashi-section-starlight) {
+  --kashi-camera-x: 4%; --kashi-camera-y: 1%; --kashi-camera-scale: 1.15;
+  --kashi-text-x: -4vw; --kashi-text-y: 10vh; --kashi-text-scale: .88;
+}
+.lyrics-overlay:has(.kashi-section-crop) {
+  --kashi-camera-x: -4%; --kashi-camera-y: 2%; --kashi-camera-scale: 1.24;
+  --kashi-text-x: 20vw; --kashi-text-y: -8vh; --kashi-text-scale: .96;
+}
+.lyrics-overlay:has(.kashi-section-room) {
+  --kashi-camera-x: 1%; --kashi-camera-y: -2%; --kashi-camera-scale: 1.17;
+  --kashi-text-x: 8vw; --kashi-text-y: 14vh; --kashi-text-scale: .92;
+}
+.lyrics-overlay:has(.kashi-section-orbit) {
+  --kashi-camera-x: -2%; --kashi-camera-y: -1%; --kashi-camera-scale: 1.23;
+  --kashi-text-x: 10vw; --kashi-text-y: -2vh; --kashi-text-scale: 1.08;
+}
+.lyrics-overlay:has(.kashi-section-particles) {
+  --kashi-camera-x: 3%; --kashi-camera-y: 2%; --kashi-camera-scale: 1.14;
+  --kashi-text-x: -2vw; --kashi-text-y: -10vh; --kashi-text-scale: .96;
+}
+
+.lyrics-overlay:has(.kashi-stage) .lyrics-overlay-wash {
+  background:
+    linear-gradient(90deg, rgba(3, 5, 12, 0.48), rgba(5, 6, 12, 0.17) 52%, rgba(4, 5, 11, 0.4)),
+    linear-gradient(180deg, rgba(5, 6, 12, 0.18), rgba(3, 4, 10, 0.38));
+}
+
+@keyframes kashi-cover-pan {
+  from { background-position: 47% 51%; }
+  to { background-position: 53% 48%; }
+}
+
+@keyframes kashi-text-breathe {
+  from { translate: 0 0; }
+  to { translate: 0 -5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-overlay:has(.kashi-stage) .lyrics-overlay-bg,
+  .lyrics-overlay:has(.kashi-stage) .kashi-line { animation: none; }
 }
 
 @keyframes slideUp {
@@ -3708,6 +3822,114 @@ body {
   color: var(--text-main);
   background: radial-gradient(circle at 85% 0%, rgba(255, 64, 129, 0.13), transparent 34%), linear-gradient(135deg, rgba(255,255,255,0.025), transparent 55%);
 }
+
+.runtime-log-section {
+  min-height: 520px;
+}
+
+.runtime-log-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.runtime-log-header .settings-title {
+  margin-bottom: 6px;
+}
+
+.runtime-log-header .settings-desc {
+  margin: 0;
+}
+
+.runtime-log-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.runtime-log-actions .setting-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.runtime-log-list {
+  height: min(58vh, 620px);
+  overflow: auto;
+  padding: 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-bg) 88%, #000);
+  font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+  scrollbar-gutter: stable;
+}
+
+.runtime-log-entry {
+  padding: 10px 11px;
+  border-left: 3px solid rgba(148, 163, 184, .45);
+  border-bottom: 1px solid rgba(148, 163, 184, .1);
+  background: rgba(255, 255, 255, .018);
+}
+
+.runtime-log-entry + .runtime-log-entry {
+  margin-top: 5px;
+}
+
+.runtime-log-entry.level-info { border-left-color: #38bdf8; }
+.runtime-log-entry.level-warn { border-left-color: #f59e0b; background: rgba(245, 158, 11, .035); }
+.runtime-log-entry.level-error { border-left-color: #fb7185; background: rgba(251, 113, 133, .05); }
+
+.runtime-log-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: var(--text-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.runtime-log-meta span {
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, .1);
+}
+
+.runtime-log-message,
+.runtime-log-entry pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.runtime-log-message {
+  color: var(--text-main);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.runtime-log-entry pre {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.runtime-log-empty {
+  min-height: 180px;
+  display: grid;
+  place-items: center;
+  color: var(--text-muted);
+  font-size: 13px;
+}
 .listen-page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 30px; }
 .listen-eyebrow { display: block; color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
 .listen-page-header h1 { margin: 8px 0 6px; font-size: clamp(25px, 3vw, 38px); letter-spacing: -.02em; }
@@ -3924,4 +4146,29 @@ body {
   .listen-now-art { width: 84px; height: 84px; }
   .listen-now-lyric { margin-top: 5px; }
   .listen-sync-line { margin-top: 7px; }
+}
+
+/* Dedicated word treatments for the four cinematic immersive modes. */
+.monet-word-sweep--spotlight .monet-word-fill {
+  color: #fff;
+  text-shadow: 0 0 5px color-mix(in srgb, var(--primary) 62%, white), 0 0 18px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+.monet-word-sweep--starfield .monet-word-fill {
+  background: linear-gradient(105deg, #fff 0%, color-mix(in srgb, var(--primary) 42%, white) 48%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--primary) 44%, transparent);
+}
+.monet-word-sweep--filmstrip .monet-word-fill {
+  color: #fff7df;
+  text-shadow: 2px 0 0 color-mix(in srgb, var(--primary) 60%, transparent), -2px 0 0 rgba(255,255,255,.16);
+}
+.monet-word-sweep--inkflow .monet-word-fill {
+  color: color-mix(in srgb, var(--primary) 76%, white);
+  text-shadow: 0 1px 0 rgba(255,255,255,.22), 0 0 13px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .monet-word-sweep { filter: none !important; transform: none !important; }
 }

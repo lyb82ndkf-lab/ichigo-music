@@ -7,13 +7,15 @@ export const wordRegistry = new Set();
 
 const getSweepBleedPx = (fontPx) => Math.max(3, Math.ceil(fontPx * 0.08));
 
-const setWordVisualState = (el, fillWidth, glowStr = 'none', reveal = 1, scale = 1, y = 0) => {
+const setWordVisualState = (el, fillWidth, glowStr = 'none', reveal = 1, scale = 1, y = 0, x = 0, rotate = 0) => {
   if (!el) return;
   el.style.setProperty('--fill-width-px', `${fillWidth}px`);
   el.style.setProperty('--word-glow', glowStr);
   el.style.setProperty('--word-reveal', `${reveal}`);
   el.style.setProperty('--word-scale', `${scale}`);
   el.style.setProperty('--word-y', `${y}px`);
+  el.style.setProperty('--word-x', `${x}px`);
+  el.style.setProperty('--word-rotate', `${rotate}deg`);
 };
 
 function computeGlow(currentTime, startTime, endTime, lineRenderEndTime, fontPx, isChorus, glowIntensity = 1) {
@@ -72,6 +74,8 @@ export default function MonetWordSweep({
     
     const fullWidth = graphemeOffsets[graphemeOffsets.length - 1] || 0;
     const sweepBleedPx = getSweepBleedPx(fontPx);
+    const edgeSoftness = Math.max(Math.min(fontPx * 0.22, 8), 4);
+    const activeMask = `linear-gradient(90deg, black 0px, black calc(var(--fill-width-px) - ${edgeSoftness}px), transparent var(--fill-width-px), transparent 100%)`;
 
     // Folia-style hot path: only the active line participates in the rAF word
     // sweep. Waiting and passed lines are static, avoiding N visible lines * M
@@ -88,14 +92,17 @@ export default function MonetWordSweep({
     if (status !== 'active') {
       setWordVisualState(spanRef.current, 0, 'none', 0.08, 1, 0);
       if (fillRef.current) {
-        const maskStr = 'linear-gradient(90deg, transparent 0px, transparent 100%)';
-        fillRef.current.style.webkitMaskImage = maskStr;
-        fillRef.current.style.maskImage = maskStr;
+        fillRef.current.style.webkitMaskImage = activeMask;
+        fillRef.current.style.maskImage = activeMask;
       }
       return;
     }
 
-    const lastValueRef = { fillWidth: -1, glowStr: '', timingIndex: 0, reveal: -1, scale: -1, y: -999, finished: false };
+    const lastValueRef = { fillWidth: -1, glowStr: '', timingIndex: 0, reveal: -1, scale: -1, y: -999, x: -999, rotate: -999, finished: false };
+    if (fillRef.current) {
+      fillRef.current.style.webkitMaskImage = activeMask;
+      fillRef.current.style.maskImage = activeMask;
+    }
 
     const computeFillWidthFast = (currentTime) => {
       if (currentTime <= token.startTime) {
@@ -131,6 +138,7 @@ export default function MonetWordSweep({
     const wordUpdater = (currentTime) => {
       if (!spanRef.current) return;
       const el = spanRef.current;
+      if (!showGlow && lastValueRef.finished && currentTime >= token.endTime) return;
 
       const fillWidth = computeFillWidthFast(currentTime);
 
@@ -140,10 +148,12 @@ export default function MonetWordSweep({
 
       // Pass exact float values to CSS. Browsers GPU-accelerate subpixel
       // clip paths perfectly, while JS-side quantization causes micro-stuttering.
-      const roundedFillWidth = fillWidth;
+      const roundedFillWidth = Math.round(fillWidth * 4) / 4;
       let reveal = animationStyle === 'regular' ? 1 : 0.08;
       let popScale = 1;
       let popY = 0;
+      let popX = 0;
+      let popRotate = 0;
       const tokenFinished = currentTime >= token.endTime;
 
       if (animationStyle === 'regular') {
@@ -153,30 +163,46 @@ export default function MonetWordSweep({
       } else if (currentTime >= token.startTime) {
         const progress = Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)));
         const pulse = Math.sin(progress * Math.PI);
+        const ease = progress * progress * (3 - 2 * progress);
         reveal = 1;
-        popScale = 1 + pulse * 0.18;
-        popY = -fontPx * 0.12 * pulse;
+        if (animationStyle === 'spotlight') {
+          // 聚光灯：字形轻微吸入舞台中心，不做高频闪烁。
+          popScale = 1 + pulse * 0.08;
+          popY = -fontPx * 0.08 * pulse;
+        } else if (animationStyle === 'starfield') {
+          // 星轨：从下方缓慢升起，保持连续运动。
+          popScale = 0.86 + ease * 0.14;
+          popX = fontPx * 0.30 * (1 - ease);
+          popY = fontPx * 0.18 * (1 - ease);
+        } else if (animationStyle === 'filmstrip') {
+          // 胶片：像画格被扫描一样从下向上进入。
+          popScale = 1;
+          popX = -fontPx * 0.34 * (1 - ease);
+          popY = fontPx * 0.05 * (1 - ease);
+        } else if (animationStyle === 'inkflow') {
+          // 水墨：柔和扩散，不改变字的位置，避免抖动感。
+          popScale = 0.92 + ease * 0.08;
+          popY = -fontPx * 0.045 * pulse;
+          popRotate = (1 - ease) * 1.2;
+        } else {
+          popScale = 1 + pulse * 0.12;
+          popY = -fontPx * 0.08 * pulse;
+        }
       } else if (currentTime >= token.startTime - 0.18) {
-        reveal = 0.42;
+        reveal = animationStyle === 'spotlight' ? 0.24 : animationStyle === 'inkflow' ? 0.12 : 0.3;
       }
 
       if (roundedFillWidth !== lastValueRef.fillWidth || tokenFinished !== lastValueRef.finished) {
+        const wasFinished = lastValueRef.finished;
         lastValueRef.fillWidth = roundedFillWidth;
         lastValueRef.finished = tokenFinished;
-        if (fillRef.current) {
-          const maskStr = tokenFinished
-            ? 'none'
-            : (() => {
-                const edgeSoftness = Math.max(Math.min(fontPx * 0.45, 16), 6);
-                const fillEnd = roundedFillWidth + sweepBleedPx;
-                const currentSoftness = Math.min(edgeSoftness, roundedFillWidth);
-                const solidEnd = Math.max(fillEnd - currentSoftness, 0);
-                const featherStart = Math.max(fillEnd - currentSoftness * 0.55, 0);
-                const featherEnd = Math.max(fillEnd, 0);
-                return `linear-gradient(90deg, black 0px, black ${solidEnd}px, rgba(0,0,0,0.92) ${featherStart}px, transparent ${featherEnd}px, transparent 100%)`;
-              })();
-          fillRef.current.style.webkitMaskImage = maskStr;
-          fillRef.current.style.maskImage = maskStr;
+        el.style.setProperty('--fill-width-px', `${roundedFillWidth + sweepBleedPx}px`);
+        if (tokenFinished && fillRef.current) {
+          fillRef.current.style.webkitMaskImage = 'none';
+          fillRef.current.style.maskImage = 'none';
+        } else if (wasFinished && fillRef.current) {
+          fillRef.current.style.webkitMaskImage = activeMask;
+          fillRef.current.style.maskImage = activeMask;
         }
       }
 
@@ -196,6 +222,14 @@ export default function MonetWordSweep({
       if (popY !== lastValueRef.y) {
         el.style.setProperty('--word-y', `${popY}px`);
         lastValueRef.y = popY;
+      }
+      if (popX !== lastValueRef.x) {
+        el.style.setProperty('--word-x', `${popX}px`);
+        lastValueRef.x = popX;
+      }
+      if (popRotate !== lastValueRef.rotate) {
+        el.style.setProperty('--word-rotate', `${popRotate}deg`);
+        lastValueRef.rotate = popRotate;
       }
     };
 
@@ -223,13 +257,13 @@ export default function MonetWordSweep({
   return (
     <span 
       ref={spanRef} 
-      className="monet-word-sweep" 
+      className={`monet-word-sweep monet-word-sweep--${animationStyle}`} 
       style={{
         position: 'relative',
         display: 'inline-block',
         whiteSpace: 'pre-wrap',
         opacity: animationStyle === 'regular' ? 1 : 'var(--word-reveal, 0.34)',
-        transform: 'translate3d(0, var(--word-y, 0px), 0) scale(var(--word-scale, 1))',
+        transform: 'translate3d(var(--word-x, 0px), var(--word-y, 0px), 0) rotate(var(--word-rotate, 0deg)) scale(var(--word-scale, 1))',
         transformOrigin: 'center bottom',
         paddingLeft: `${sweepBleedPx}px`,
         marginLeft: `-${sweepBleedPx}px`,

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
+import { getVisualizerStyleForMode } from '../../utils/immersiveModes';
 
 function resolveCanvasColor(color, fallback = '#ff3366') {
   if (!color) return fallback;
@@ -68,9 +69,8 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
     const minFrameMs = fps === 0 ? 0 : 1000 / fps;
     const resolvedPrimary = resolveCanvasColor(primaryColor || 'var(--primary)');
     const sampleOffset = 4;
-    const configuredVisualizerStyle = advancedLyricConfig?.visualizerStyleByMode?.[animationMode]
-      || advancedLyricConfig?.visualizerStyle
-      || 'mode';
+    const configuredVisualizerStyle = getVisualizerStyleForMode(advancedLyricConfig, animationMode);
+    const visualizerIntensity = Math.max(0.2, Number(advancedLyricConfig?.visualizerIntensity ?? 1));
 
     const resizeCanvas = () => {
       const rect = canvas.parentElement.getBoundingClientRect();
@@ -123,7 +123,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       const decay = advancedLyricConfig?.ringTrailDecay ?? 0.85;
       
       for (let i = 0; i < currentBufferLength; i++) {
-        const target = dataArray[i] || 0;
+        const target = Math.min(255, (dataArray[i] || 0) * visualizerIntensity);
         if (target > smoothedData[i]) {
           smoothedData[i] += (target - smoothedData[i]) * upSmooth;
         } else {
@@ -561,8 +561,8 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
   }, [isPlaying, primaryColor, animationMode, fps, advancedLyricConfig, isBehindCover]);
 
   return (
-    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '100%', padding: 0, pointerEvents: 'none', zIndex: 10 }}>
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', maxWidth: '1200px', opacity: 0.9, margin: '0 auto', filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))' }} />
+    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '100%', padding: 0, pointerEvents: 'none', zIndex: 10, transform: `translateY(${Number(advancedLyricConfig?.visualizerOffsetY || 0)}px) scale(${Number(advancedLyricConfig?.visualizerScale || 1)})`, transformOrigin: 'center center' }}>
+      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', maxWidth: '1200px', opacity: Number(advancedLyricConfig?.visualizerOpacity ?? 0.9), margin: '0 auto', filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))' }} />
     </div>
   );
 }

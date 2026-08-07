@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { splitGraphemes } from './MonetLyricsEngine';
+import { subscribeLyricClock } from '../../utils/lyricClock';
 
 function buildWordTimings(line) {
   if (!line || !line.text) return [];
@@ -38,7 +39,6 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
   useEffect(() => {
     if (!isActive) return;
 
-    let animationId;
     const wordElements = wordRefs.current;
 
     const update = () => {
@@ -76,11 +76,10 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
         }
       });
 
-      animationId = requestAnimationFrame(update);
     };
 
-    animationId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(animationId);
+    update();
+    return subscribeLyricClock(update);
   }, [isActive, wordTimings, fontPx, themeColor, showGlow, globalOffset, engineRef]);
 
   const absDist = Math.abs(dist);

@@ -19,10 +19,18 @@ const serializeSong = (song) => song?.id ? {
   coverUrl: song.coverUrl || song.al?.picUrl || song.album?.picUrl || '',
   durationMs: song.durationMs || song.dt || song.duration || 0
 } : null;
+const mergeMessages = (previous, incoming) => {
+  const byId = new Map((previous || []).map(item => [item.id, item]));
+  (incoming || []).forEach(item => {
+    if (item?.id !== undefined) byId.set(item.id, item);
+  });
+  return Array.from(byId.values()).sort((a, b) => Number(a.id || 0) - Number(b.id || 0));
+};
 
 export function useListenTogether() {
   const { user, currentSong, isPlaying, progress, playSong, setIsPlaying, playlist, audioElement } = useApp();
   const [roomId, setRoomId] = useState(null);
+  const [roomToken, setRoomToken] = useState(null);
   const [inviterId, setInviterId] = useState(null);
   const [isHost, setIsHost] = useState(false);
   const [roomUsers, setRoomUsers] = useState([]);
@@ -35,13 +43,14 @@ export function useListenTogether() {
   const lastRemoteSongRef = useRef(null);
   const remoteActionRef = useRef(false);
   const lastRemoteUpdatedAtRef = useRef(0);
+  const socketConnectedRef = useRef(false);
 
-  stateRef.current = { roomId, user, currentSong, isPlaying, progress, playlist, isHost, audioElement, sourceUrl: currentSong?.url || audioElement?.currentSrc || audioElement?.src || '' };
+  stateRef.current = { roomId, roomToken, user, currentSong, isPlaying, progress, playlist, isHost, audioElement, sourceUrl: currentSong?.url || audioElement?.currentSrc || audioElement?.src || '' };
 
   const refreshRoomStatus = useCallback(async () => {
     const { roomId: activeRoom, user: activeUser } = stateRef.current;
     if (!activeRoom) return null;
-    const res = await listenApi.checkRoom(activeRoom, normalizeUser(activeUser));
+    const res = await listenApi.checkRoom(activeRoom, normalizeUser(activeUser), stateRef.current.roomToken || '');
     if (res.data?.users) setRoomUsers(res.data.users);
     return res.data;
   }, []);
@@ -107,14 +116,14 @@ export function useListenTogether() {
 
   const pollRoom = useCallback(async () => {
     const { roomId: activeRoom, user: activeUser } = stateRef.current;
-    if (!activeRoom) return;
+    if (!activeRoom || socketConnectedRef.current) return;
     try {
-      const status = await listenApi.getStatus(activeRoom, normalizeUser(activeUser));
+      const status = await listenApi.getStatus(activeRoom, normalizeUser(activeUser), stateRef.current.roomToken || '');
       if (status.data?.users) setRoomUsers(status.data.users);
       if (!stateRef.current.isHost) await applyRemoteState(status.data);
-      const chat = await listenApi.getChat(activeRoom, lastMessageIdRef.current);
+      const chat = await listenApi.getChat(activeRoom, lastMessageIdRef.current, stateRef.current.roomToken || '');
       if (Array.isArray(chat.data?.messages) && chat.data.messages.length) {
-        setMessages(prev => [...prev, ...chat.data.messages]);
+        setMessages(prev => mergeMessages(prev, chat.data.messages));
         lastMessageIdRef.current = chat.data.messages[chat.data.messages.length - 1].id;
       }
     } catch (error) {
@@ -133,7 +142,7 @@ export function useListenTogether() {
     if (!roomId) return undefined;
     const timer = setInterval(() => {
       const { currentSong: song, isPlaying: playing, progress: currentProgress, user: activeUser, isHost: host } = stateRef.current;
-      const payload = { roomId, user: normalizeUser(activeUser) };
+      const payload = { roomId, roomToken: stateRef.current.roomToken || '', user: normalizeUser(activeUser) };
       if (host) Object.assign(payload, {
         songId: song?.id || 0,
         playStatus: playing ? 'PLAY' : 'PAUSE',
@@ -154,6 +163,7 @@ export function useListenTogether() {
     const timer = window.setTimeout(() => {
       listenApi.sendHeartbeat({
         roomId,
+        roomToken: stateRef.current.roomToken || '',
         user: normalizeUser(user),
         songId: currentSong.id,
         playStatus: isPlaying ? 'PLAY' : 'PAUSE',
@@ -168,28 +178,41 @@ export function useListenTogether() {
   useEffect(() => {
     if (!roomId || typeof WebSocket === 'undefined') return undefined;
     const activeUser = normalizeUser(user);
-    const params = new URLSearchParams({ roomId, userId: activeUser.userId, nickname: activeUser.nickname });
+    const params = new URLSearchParams({ roomId, roomToken: stateRef.current.roomToken || '', userId: activeUser.userId, nickname: activeUser.nickname });
     const socket = new WebSocket(`${LISTEN_SOCKET_URL}?${params.toString()}`);
+    socket.onopen = () => {
+      socketConnectedRef.current = true;
+      setSyncStatus(stateRef.current.isHost ? 'host' : 'follower');
+    };
+    socket.onerror = () => {
+      socketConnectedRef.current = false;
+    };
+    socket.onclose = () => {
+      socketConnectedRef.current = false;
+    };
     socket.onmessage = event => {
       try {
         const payload = JSON.parse(event.data);
         if (payload.type === 'snapshot') {
           if (payload.data?.users) setRoomUsers(payload.data.users);
           if (Array.isArray(payload.data?.messages) && payload.data.messages.length) {
-            setMessages(payload.data.messages);
+            setMessages(prev => mergeMessages(prev, payload.data.messages));
             lastMessageIdRef.current = payload.data.messages[payload.data.messages.length - 1].id;
           }
           if (!stateRef.current.isHost) applyRemoteState(payload.data);
         }
         if (payload.type === 'playback' && !stateRef.current.isHost) applyRemoteState({ playState: payload.data });
         if (payload.type === 'chat' && payload.data && payload.data.id > lastMessageIdRef.current) {
-          setMessages(prev => [...prev, payload.data]);
+          setMessages(prev => mergeMessages(prev, [payload.data]));
           lastMessageIdRef.current = payload.data.id;
         }
         if (payload.type === 'room-ended') setMessage('房主已结束房间');
       } catch (_) {}
     };
-    return () => socket.close();
+    return () => {
+      socketConnectedRef.current = false;
+      socket.close();
+    };
   }, [roomId, user, applyRemoteState]);
 
   const createRoom = useCallback(async () => {
@@ -198,14 +221,16 @@ export function useListenTogether() {
     try {
       const res = await listenApi.createRoom(normalizeUser(user));
       const id = res.data?.roomId || res.data?.roomInfo?.roomId;
+      const token = res.data?.roomToken || res.data?.roomInfo?.roomToken || '';
       if (!id) throw new Error(res.msg || '创建房间失败');
       setRoomId(id);
+      setRoomToken(token);
       setInviterId(user?.userId || null);
       setIsHost(true);
       setSyncStatus('host');
       setMessage('房间已创建，邀请朋友加入吧');
-      await listenApi.sendHeartbeat({ roomId: id, user: normalizeUser(user), songId: currentSong?.id || 0, playStatus: isPlaying ? 'PLAY' : 'PAUSE', progress, sourceUrl: stateRef.current.sourceUrl || currentSong?.url || '', song: serializeSong(currentSong) });
-      if (playlist.length) listenApi.syncPlaylist({ roomId: id, userId: user?.userId, displayList: playlist.map(song => song.id), randomList: playlist.map(song => song.id) }).catch(() => {});
+      await listenApi.sendHeartbeat({ roomId: id, roomToken: token, user: normalizeUser(user), songId: currentSong?.id || 0, playStatus: isPlaying ? 'PLAY' : 'PAUSE', progress, sourceUrl: stateRef.current.sourceUrl || currentSong?.url || '', song: serializeSong(currentSong) });
+      if (playlist.length) listenApi.syncPlaylist({ roomId: id, roomToken: token, user: normalizeUser(user), displayList: playlist.map(song => song.id), randomList: playlist.map(song => song.id) }).catch(() => {});
       return id;
     } catch (error) {
       setMessage(error.message || '创建房间失败');
@@ -213,14 +238,15 @@ export function useListenTogether() {
     } finally { setIsConnecting(false); }
   }, [user, currentSong, isPlaying, progress, playlist]);
 
-  const joinRoom = useCallback(async (targetRoomId, targetInviterId = '') => {
+  const joinRoom = useCallback(async (targetRoomId, targetInviterId = '', targetRoomToken = '') => {
     if (!targetRoomId) return false;
     setIsConnecting(true);
     setMessage('正在加入房间...');
     try {
-      const result = await listenApi.acceptInvitation(targetRoomId, targetInviterId, normalizeUser(user));
+      const result = await listenApi.acceptInvitation(targetRoomId, targetInviterId, normalizeUser(user), targetRoomToken);
       if (result.code && result.code !== 200) throw new Error(result.msg || '加入房间失败');
       setRoomId(targetRoomId);
+      setRoomToken(targetRoomToken || '');
       setInviterId(targetInviterId || null);
       setIsHost(false);
       setSyncStatus('follower');
@@ -238,6 +264,7 @@ export function useListenTogether() {
     if (!state.roomId || !state.isHost) return;
     return listenApi.sendPlayCommand({
       roomId: state.roomId,
+      roomToken: state.roomToken || '',
       user: normalizeUser(state.user),
       commandType,
       targetSongId: targetSongId || state.currentSong?.id,
@@ -252,21 +279,21 @@ export function useListenTogether() {
     const state = stateRef.current;
     const clean = String(text || '').trim();
     if (!state.roomId || !clean) return false;
-    await listenApi.sendChat({ roomId: state.roomId, user: normalizeUser(state.user), text: clean });
+    await listenApi.sendChat({ roomId: state.roomId, roomToken: state.roomToken || '', user: normalizeUser(state.user), text: clean });
     await pollRoom();
     return true;
   }, [pollRoom]);
 
   const exitRoom = useCallback(async () => {
     const activeRoom = stateRef.current.roomId;
-    if (activeRoom && stateRef.current.isHost) await listenApi.endRoom(activeRoom).catch(() => {});
-    setRoomId(null); setInviterId(null); setIsHost(false); setRoomUsers([]); setMessages([]); setSyncStatus('idle'); setMessage(''); lastMessageIdRef.current = 0; lastRemoteUpdatedAtRef.current = 0; lastRemoteSongRef.current = null;
+    if (activeRoom && stateRef.current.isHost) await listenApi.endRoom(activeRoom, normalizeUser(stateRef.current.user), stateRef.current.roomToken || '').catch(() => {});
+    setRoomId(null); setRoomToken(null); setInviterId(null); setIsHost(false); setRoomUsers([]); setMessages([]); setSyncStatus('idle'); setMessage(''); lastMessageIdRef.current = 0; lastRemoteUpdatedAtRef.current = 0; lastRemoteSongRef.current = null;
   }, []);
 
-  const getShareUrl = useCallback(() => roomId ? `http://8.137.169.120:16666/?listenRoom=${encodeURIComponent(roomId)}&inviterId=${encodeURIComponent(inviterId || user?.userId || '')}` : '', [roomId, inviterId, user]);
+  const getShareUrl = useCallback(() => roomId ? `http://8.137.169.120:16666/?listenRoom=${encodeURIComponent(roomId)}&roomToken=${encodeURIComponent(roomToken || '')}&inviterId=${encodeURIComponent(inviterId || user?.userId || '')}` : '', [roomId, roomToken, inviterId, user]);
 
   return {
-    roomId, inviterId, isHost, roomUsers, messages, isConnecting, syncStatus, message,
+    roomId, roomToken, inviterId, isHost, roomUsers, messages, isConnecting, syncStatus, message,
     createRoom, joinRoom, exitRoom, refreshRoomStatus, sendPlayCommand, sendChat, getShareUrl
   };
 }

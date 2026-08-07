@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { ImageOff } from 'lucide-react';
 
-export default function ResilientCover({ src, alt = '', className = '', style, onClick, onRetry }) {
+export default function ResilientCover({ src, fallbackSrc = '', alt = '', className = '', style, onClick, onRetry }) {
   const [attempt, setAttempt] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [fallbackActive, setFallbackActive] = useState(false);
 
   useEffect(() => {
     setAttempt(0);
     setFailed(false);
-  }, [src]);
+    setFallbackActive(false);
+  }, [src, fallbackSrc]);
 
   useEffect(() => {
     if (!src || !failed || attempt >= 3) return undefined;
@@ -19,11 +21,21 @@ export default function ResilientCover({ src, alt = '', className = '', style, o
     return () => window.clearTimeout(timer);
   }, [src, failed, attempt]);
 
-  const retryUrl = src && attempt > 0
-    ? `${src}${src.includes('?') ? '&' : '?'}ichigo_retry=${attempt}`
-    : src;
+  const activeSrc = fallbackActive && fallbackSrc ? fallbackSrc : src;
+  const retryUrl = activeSrc && attempt > 0
+    ? `${activeSrc}${activeSrc.includes('?') ? '&' : '?'}ichigo_retry=${attempt}`
+    : activeSrc;
 
   const handleError = () => {
+    // A local cache file can disappear during cache migration/pruning. Fall
+    // back to the song's remote metadata URL instead of leaving a broken
+    // image in the player bar.
+    if (!fallbackActive && fallbackSrc && src !== fallbackSrc) {
+      setFallbackActive(true);
+      setFailed(false);
+      setAttempt(0);
+      return;
+    }
     // Never block playback with a modal. Retry in the background and keep a
     // stable placeholder if the remote image remains unavailable.
     if (attempt < 2) onRetry?.();

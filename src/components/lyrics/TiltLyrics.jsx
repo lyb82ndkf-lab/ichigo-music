@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { splitGraphemes } from './MonetLyricsEngine';
+import { subscribeLyricClock } from '../../utils/lyricClock';
 
 function isWholeWord(text) {
   if (/[\u4e00-\u9fa5\u3040-\u30ff]/.test(text)) return false;
@@ -100,7 +101,6 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
   }, [flatTimings]);
 
   useEffect(() => {
-    let animationId;
     const charElements = charRefs.current;
     
     const update = () => {
@@ -190,11 +190,10 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
         }
       }
 
-      animationId = requestAnimationFrame(update);
     };
 
-    animationId = requestAnimationFrame(update);
-    return () => cancelAnimationFrame(animationId);
+    update();
+    return subscribeLyricClock(update);
   }, [line, flatTimings, fontPx, themeColor, showGlow, globalOffset, engineRef, chaosOffsets]);
 
   // Determine alignment based on the 4 tracks

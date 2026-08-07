@@ -1,11 +1,13 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import { api } from '../utils/api';
 import { DEFAULT_PROFILE, deepMerge, loadProfile, saveProfile } from '../utils/settingsProfile';
 import { extractWarmColdColors } from '../utils/colorExtractor';
+import { isLocalMediaSource } from '../utils/audioSource';
+import { getPersistentSongCoverUrl, getSongCoverUrl, isLocalCoverUrl, isRemoteCoverUrl } from '../utils/songCover';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.7.2';
+export const APP_VERSION = 'v1.8.0';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
@@ -105,7 +107,7 @@ export function AppProvider({ children }) {
     dominant: '#ff4081'
   });
 
-  const currentCoverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl || currentSong?.album?.picUrl || '';
+  const currentCoverUrl = getSongCoverUrl(currentSong);
 
   useEffect(() => {
     if (!currentSong || !currentCoverUrl) {
@@ -149,7 +151,8 @@ export function AppProvider({ children }) {
     recentlyPlayed,
     progress,
     currentSong,
-    audioElement
+    audioElement,
+    isPlaying
   };
 
   const setUser = useCallback((nextUser) => {
@@ -254,8 +257,8 @@ export function AppProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update theme and mode classes on body element
-  useEffect(() => {
+  // Apply appearance before the boot gate reveals the React tree.
+  useLayoutEffect(() => {
     document.body.className = '';
 
     let activeMode = colorMode;
@@ -265,6 +268,7 @@ export function AppProvider({ children }) {
 
     document.body.classList.add(`mode-${activeMode}`);
     document.body.classList.add(`layout-${layoutMode}`);
+    document.body.classList.toggle('reduced-motion', renderingConfig.reducedMotion === true);
 
     if (theme === 'custom') {
       document.body.classList.add('theme-custom');
@@ -280,7 +284,8 @@ export function AppProvider({ children }) {
       document.body.style.removeProperty('--custom-bg-start');
       document.body.style.removeProperty('--custom-bg-end');
     }
-  }, [theme, colorMode, customThemeColors, layoutMode]);
+    document.body.dataset.appearanceReady = 'true';
+  }, [theme, colorMode, customThemeColors, layoutMode, renderingConfig.reducedMotion]);
 
   // System color scheme change listener
   useEffect(() => {
@@ -542,6 +547,8 @@ export function AppProvider({ children }) {
   const songUrlCacheRef = useRef(new Map());
   const songUrlInFlightRef = useRef(new Map());
   const coverCacheInFlightRef = useRef(new Map());
+  const audioCacheQueueRef = useRef([]);
+  const audioCacheWorkerRef = useRef({ timerId: null, running: false, currentKey: '' });
   const playSequenceRef = useRef(0);
 
   const pruneSongUrlCache = useCallback(() => {
@@ -556,24 +563,75 @@ export function AppProvider({ children }) {
     return gb * 1024 * 1024 * 1024;
   };
 
+  const drainAudioCacheQueue = useCallback((delayMs = 0) => {
+    const worker = audioCacheWorkerRef.current;
+    if (worker.running || worker.timerId || audioCacheQueueRef.current.length === 0) return;
+
+    worker.timerId = window.setTimeout(async () => {
+      worker.timerId = null;
+
+      // Never let speculative cache downloads compete with a media element that
+      // is still building its first playable buffer.
+      const activeAudio = stateRef.current.audioElement;
+      if (stateRef.current.isPlaying && activeAudio && activeAudio.readyState < 3) {
+        drainAudioCacheQueue(2500);
+        return;
+      }
+
+      const job = audioCacheQueueRef.current.shift();
+      if (!job) return;
+      worker.running = true;
+      worker.currentKey = job.key;
+      try {
+        await window.electronAPI?.cacheAudio?.(job.payload);
+      } catch {
+        // Cache writes are opportunistic and must never interrupt playback.
+      } finally {
+        worker.running = false;
+        worker.currentKey = '';
+        if (audioCacheQueueRef.current.length > 0) {
+          drainAudioCacheQueue(1500);
+        }
+      }
+    }, Math.max(0, delayMs));
+  }, []);
+
+  useEffect(() => () => {
+    const worker = audioCacheWorkerRef.current;
+    if (worker.timerId) window.clearTimeout(worker.timerId);
+    worker.timerId = null;
+    audioCacheQueueRef.current.length = 0;
+  }, []);
+
   const cacheAudioInBackground = useCallback((song, quality, url) => {
     const cfg = stateRef.current.cacheConfig || DEFAULT_PROFILE.audio.cache;
     if (!cfg?.enabled || cfg.audio === false || !url || !/^https?:\/\//i.test(url)) return;
-    window.electronAPI?.cacheAudio?.({
-      songId: song.id,
-      quality,
-      url,
-      cacheDir: cfg.directory || '',
-      maxBytes: getCacheLimitBytes(cfg)
-    }).catch(() => {});
-  }, []);
+    const key = `${song.id}:${quality || 'default'}:${cfg.directory || 'default'}`;
+    const worker = audioCacheWorkerRef.current;
+    if (worker.currentKey === key || audioCacheQueueRef.current.some(item => item.key === key)) return;
+    audioCacheQueueRef.current.push({
+      key,
+      payload: {
+        songId: song.id,
+        quality,
+        url,
+        cacheDir: cfg.directory || '',
+        maxBytes: getCacheLimitBytes(cfg)
+      }
+    });
+
+    // Give the active <audio> request an uncontested startup window. Look-ahead
+    // tracks are then downloaded one at a time instead of opening 4-5 large
+    // FLAC transfers at once.
+    drainAudioCacheQueue(8000);
+  }, [drainAudioCacheQueue]);
 
   const fetchSongCoverFromDetail = useCallback(async (songId) => {
     if (!songId) return null;
     try {
       const detail = await api.getSongDetails(songId);
       const fullSong = detail?.songs?.[0] || null;
-      const coverUrl = fullSong?.al?.picUrl || fullSong?.album?.picUrl || fullSong?.coverUrl || '';
+      const coverUrl = getSongCoverUrl(fullSong, true);
       return coverUrl ? { coverUrl, fullSong } : null;
     } catch {
       return null;
@@ -583,15 +641,13 @@ export function AppProvider({ children }) {
   const resolveSongCover = useCallback((song, forceRefresh = false) => {
     const cfg = stateRef.current.cacheConfig || DEFAULT_PROFILE.audio.cache;
     const directCover = song?.coverUrl || '';
-    const isLocalCover = /^(file|data|blob):/i.test(directCover);
+    const isLocalCover = isLocalCoverUrl(directCover);
     if (isLocalCover && (!cfg?.enabled || !song?.id || !window.electronAPI?.getCachedCover)) {
       return Promise.resolve({ url: directCover, remoteUrl: song?.originalCoverUrl || '' });
     }
 
-    const knownRemoteCover = song?.originalCoverUrl
-      || song?.al?.picUrl
-      || song?.album?.picUrl
-      || (/^https?:\/\//i.test(directCover) && !/109951163026279185/.test(directCover) ? directCover : '');
+    const knownRemoteCover = getSongCoverUrl(song, true)
+      || (isRemoteCoverUrl(directCover) && !/109951163026279185/.test(directCover) ? directCover : '');
     if (!cfg?.enabled || !song?.id || !window.electronAPI?.getCachedCover) {
       return Promise.resolve({ url: knownRemoteCover || directCover, remoteUrl: knownRemoteCover });
     }
@@ -605,7 +661,16 @@ export function AppProvider({ children }) {
         songId: song.id,
         cacheDir: cfg.directory || ''
       }).catch(() => null);
-      if (cached?.url) return { url: cached.url, remoteUrl: knownRemoteCover };
+      if (cached?.url) {
+        let remoteUrl = knownRemoteCover;
+        // Older profiles may contain only a file:// cache URL. Recover the
+        // durable album URL once so a later cache miss cannot blank the UI.
+        if (!remoteUrl) {
+          const detailCover = await fetchSongCoverFromDetail(song.id);
+          remoteUrl = detailCover?.coverUrl || '';
+        }
+        return { url: cached.url, remoteUrl };
+      }
 
       let remoteUrl = knownRemoteCover;
       if (!remoteUrl) {
@@ -620,7 +685,8 @@ export function AppProvider({ children }) {
         songId: song.id,
         url: remoteUrl,
         cacheDir: cfg.directory || '',
-        maxBytes: getCacheLimitBytes(cfg)
+        maxBytes: getCacheLimitBytes(cfg),
+        forceRefresh
       }).catch(() => null);
       return { url: stored?.url || remoteUrl, remoteUrl };
     })().finally(() => {
@@ -635,25 +701,30 @@ export function AppProvider({ children }) {
     if (!song?.id) return;
     resolveSongCover(song).then(({ url, remoteUrl }) => {
       if (!url) return;
+      // Keep the durable song metadata URL as the primary value. A file://
+      // cache URL is an implementation detail and can become invalid while
+      // the player is still mounted; CachedCover can use it internally.
+      const stableCoverUrl = getPersistentSongCoverUrl(song, { url, remoteUrl });
+      if (!stableCoverUrl) return;
 
       const current = stateRef.current.currentSong;
-      if (current?.id === song.id && (current.coverUrl !== url || (!current.originalCoverUrl && remoteUrl))) {
+      if (sameSongId(current?.id, song.id) && (current.coverUrl !== stableCoverUrl || (!current.originalCoverUrl && remoteUrl))) {
         setCurrentSongAndPersist({
           ...current,
           originalCoverUrl: remoteUrl || current.originalCoverUrl || '',
-          coverUrl: url
+          coverUrl: stableCoverUrl
         });
       }
 
       const recent = stateRef.current.recentlyPlayed || [];
       let changed = false;
       const nextRecent = recent.map(item => {
-        if (item.id !== song.id || (item.coverUrl === url && (item.originalCoverUrl || '') === (remoteUrl || ''))) return item;
+        if (!sameSongId(item.id, song.id) || (item.coverUrl === stableCoverUrl && (item.originalCoverUrl || '') === (remoteUrl || ''))) return item;
         changed = true;
         return {
           ...item,
           originalCoverUrl: remoteUrl || item.originalCoverUrl || '',
-          coverUrl: url
+          coverUrl: stableCoverUrl
         };
       });
       if (changed) {
@@ -665,14 +736,19 @@ export function AppProvider({ children }) {
 
   const getPlayableSongUrl = useCallback(async (song, quality, forceRefreshUrl = false) => {
     if (!song?.id) return null;
-    const urlCacheKey = `${song.id}_${quality}`;
+    const requestedQuality = quality || 'exhigh';
+    const urlCacheKey = `${song.id}_${requestedQuality}`;
     const now = Date.now();
     const cfg = stateRef.current.cacheConfig || DEFAULT_PROFILE.audio.cache;
 
+    // A verified local cache is always preferable, including when the remote
+    // CDN address is being force-refreshed after restoring a previous session.
+    // The old branch skipped disk cache on force refresh and made first play
+    // wait for the network even though the audio was already available locally.
     if (cfg?.enabled && cfg.audio !== false && window.electronAPI?.getCachedAudio) {
       const cachedAudio = await window.electronAPI.getCachedAudio({
         songId: song.id,
-        quality,
+        quality: requestedQuality,
         cacheDir: cfg.directory || ''
       }).catch(() => null);
       if (cachedAudio?.url) {
@@ -688,11 +764,12 @@ export function AppProvider({ children }) {
       return cachedEntry.url;
     }
 
-    if (!forceRefreshUrl && song.url && song.urlCachedAt && now - Number(song.urlCachedAt) < 15 * 60 * 1000
-      && (!song.urlQuality || song.urlQuality === quality)) {
+    const localUrlMissing = isLocalMediaSource(song.url) && !cachedEntry;
+    if (!forceRefreshUrl && !localUrlMissing && song.url && song.urlCachedAt && now - Number(song.urlCachedAt) < 15 * 60 * 1000
+      && (!song.urlQuality || song.urlQuality === requestedQuality)) {
       songUrlCacheRef.current.set(urlCacheKey, { url: song.url, time: Number(song.urlCachedAt) });
       pruneSongUrlCache();
-      cacheAudioInBackground(song, quality, song.url);
+      cacheAudioInBackground(song, requestedQuality, song.url);
       return song.url;
     }
 
@@ -702,16 +779,30 @@ export function AppProvider({ children }) {
     }
 
     if (!songUrlInFlightRef.current.has(urlCacheKey)) {
-      const requestPromise = api.getSongUrls(song.id, quality)
-        .then(urlRes => {
-          const songUrl = urlRes.data?.[0]?.url || null;
-          if (songUrl) {
+      const qualityCandidates = [...new Set([
+        requestedQuality,
+        requestedQuality === 'exhigh' ? 'higher' : null,
+        'standard',
+        'low'
+      ].filter(Boolean))];
+      const requestPromise = (async () => {
+        for (const qualityLevel of qualityCandidates) {
+          try {
+            const urlRes = await api.getSongUrls(song.id, qualityLevel);
+            const songUrl = Array.isArray(urlRes?.data)
+              ? urlRes.data.find(item => item?.url)?.url || null
+              : urlRes?.data?.url || null;
+            if (!songUrl) continue;
             songUrlCacheRef.current.set(urlCacheKey, { url: songUrl, time: Date.now() });
             pruneSongUrlCache();
-            cacheAudioInBackground(song, quality, songUrl);
+            cacheAudioInBackground(song, requestedQuality, songUrl);
+            return songUrl;
+          } catch (error) {
+            console.warn(`Failed to resolve ${qualityLevel} playback URL for song ${song.id}:`, error);
           }
-          return songUrl;
-        })
+        }
+        return null;
+      })()
         .finally(() => {
           songUrlInFlightRef.current.delete(urlCacheKey);
         });
@@ -778,6 +869,43 @@ export function AppProvider({ children }) {
       return;
     }
 
+    // A persisted queue entry can already have a playable local/remote URL.
+    // Start it immediately and refresh that URL in the background (the effect
+    // below does this). Previously playNext() cleared the active source and
+    // waited for /song/url/v1 before updating the media element, which made
+    // cover/lyrics advance while audio appeared frozen after a restart.
+    if (!forceRefreshUrl && song.url) {
+      const optimisticSong = {
+        ...song,
+        title: song.name || song.title,
+        artist: song.ar?.map(a => a.name).join(' / ') || song.artists?.map(a => a.name).join(' / ') || song.artist || '未知歌手',
+        durationMs: song.dt || song.duration || song.durationMs || 0
+      };
+
+      if (resumeProgress !== null) persistResumeTime(resumeProgress);
+      else persistResumeTime(null);
+
+      if (newQueue) {
+        setPlaylistAndPersist(newQueue);
+        setPlaylistIndexAndPersist(newQueue.findIndex(item => sameSongId(item.id, song.id)));
+      } else {
+        const existingIdx = playlist.findIndex(item => sameSongId(item.id, song.id));
+        if (existingIdx !== -1) setPlaylistIndexAndPersist(existingIdx);
+      }
+
+      if (audioElement && !sameSongId(currentSong?.id, song.id)) {
+        try {
+          audioElement.pause();
+          audioElement.currentTime = 0;
+        } catch {}
+      }
+      setCurrentSongAndPersist(optimisticSong);
+      cacheCoverInBackground(optimisticSong);
+      setIsPlaying(true);
+      addToRecent(optimisticSong);
+      return;
+    }
+
     try {
       setIsPlaying(false);
       if (audioElement) {
@@ -800,29 +928,19 @@ export function AppProvider({ children }) {
         return;
       }
 
-      let coverSourceSong = song;
-      let coverUrl = song.coverUrl || song.originalCoverUrl || song.al?.picUrl || song.album?.picUrl || '';
-      if (!coverUrl || /109951163026279185/.test(String(coverUrl))) {
-        const detailCover = await fetchSongCoverFromDetail(song.id);
-        if (playSequence !== playSequenceRef.current) return;
-        if (detailCover?.coverUrl) {
-          coverUrl = detailCover.coverUrl;
-          coverSourceSong = {
-            ...(detailCover.fullSong || {}),
-            ...song,
-            al: song.al || detailCover.fullSong?.al,
-            album: song.album || detailCover.fullSong?.album
-          };
-        }
-      }
+      // Do not block playback on a secondary album-detail request. The song
+      // metadata and audio URL are enough to start immediately; missing cover
+      // art is resolved and cached by cacheCoverInBackground below.
+      const coverSourceSong = song;
+      const coverUrl = getSongCoverUrl(song, true);
 
       const songWithUrl = {
         ...coverSourceSong,
         url: songUrl,
         title: coverSourceSong.name || coverSourceSong.title,
         artist: coverSourceSong.ar?.map(a => a.name).join(' / ') || coverSourceSong.artists?.map(a => a.name).join(' / ') || coverSourceSong.artist || '\u672a\u77e5\u6b4c\u624b',
-        coverUrl: coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg',
-        originalCoverUrl: coverUrl || coverSourceSong.originalCoverUrl || coverSourceSong.al?.picUrl || coverSourceSong.album?.picUrl || coverSourceSong.coverUrl || '',
+        coverUrl: coverUrl || '',
+        originalCoverUrl: coverUrl || getSongCoverUrl(coverSourceSong, true),
         durationMs: coverSourceSong.dt || coverSourceSong.duration || coverSourceSong.durationMs || 0,
         urlCachedAt: Date.now(),
         urlQuality: audioQuality
@@ -879,24 +997,14 @@ export function AppProvider({ children }) {
         setIsPlaying(false);
       }
     }
-  }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent, getPlayableSongUrl, cacheCoverInBackground, fetchSongCoverFromDetail]);
+  }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent, getPlayableSongUrl, cacheCoverInBackground]);
 
   useEffect(() => {
-    if (!currentSong?.id || !cacheConfig?.enabled) return undefined;
-    let cancelled = false;
-    window.electronAPI?.getCachedCover?.({
-      songId: currentSong.id,
-      cacheDir: cacheConfig.directory || ''
-    }).then(cached => {
-      if (cancelled) return;
-      if (cached?.url && currentSong.coverUrl !== cached.url) {
-        setCurrentSongAndPersist({ ...currentSong, coverUrl: cached.url });
-        return;
-      }
-      if (!cached?.url) cacheCoverInBackground(currentSong);
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [currentSong?.id, cacheConfig?.enabled, cacheConfig?.directory, cacheCoverInBackground, setCurrentSongAndPersist]);
+    if (!currentSong?.id || !cacheConfig?.enabled) return;
+    // CachedCover resolves file:// URLs locally. Keep currentSong metadata on a
+    // durable remote URL so every raw image consumer retains a valid fallback.
+    cacheCoverInBackground(currentSong);
+  }, [currentSong?.id, cacheConfig?.enabled, cacheConfig?.directory, cacheCoverInBackground]);
 
   useEffect(() => {
     if (!cacheConfig?.enabled || recentlyPlayed.length === 0) return;
@@ -908,17 +1016,13 @@ export function AppProvider({ children }) {
     const quality = audioQuality;
     const cachedAt = Number(currentSong.urlCachedAt || 0);
     const hasFreshUrl = currentSong.url && cachedAt && Date.now() - cachedAt < 15 * 60 * 1000;
-    if (hasFreshUrl) {
-      songUrlCacheRef.current.set(`${currentSong.id}_${quality}`, { url: currentSong.url, time: cachedAt });
-      pruneSongUrlCache();
-      return undefined;
-    }
 
     let cancelled = false;
     getPlayableSongUrl(currentSong, quality).then(songUrl => {
       if (cancelled || !songUrl) return;
       const latestSong = stateRef.current.currentSong;
       if (latestSong?.id !== currentSong.id) return;
+      if (hasFreshUrl && latestSong.url === songUrl) return;
       setCurrentSongAndPersist({
         ...latestSong,
         url: songUrl,
@@ -942,31 +1046,26 @@ export function AppProvider({ children }) {
   }, [updateProfile, playSong]);
 
   const togglePlay = useCallback(() => {
-    const { currentSong, progress, audioElement } = stateRef.current;
+    const { currentSong, progress } = stateRef.current;
     if (!currentSong) return;
     if (!isPlaying) {
-      const cachedAt = Number(currentSong.urlCachedAt || 0);
-      const staleUrl = !currentSong.url || !cachedAt || Date.now() - cachedAt > 15 * 60 * 1000;
-      if (staleUrl) {
+      // If a persisted source exists, let AudioPlayer try it immediately. Its
+      // source is already committed during startup, the background resolver is
+      // refreshing stale CDN URLs, and the media-error path can force a refresh.
+      // Blocking here on URL age reproduced the long silent first-play delay.
+      if (!currentSong.url) {
         playSong(currentSong, null, progress, { forceRefreshUrl: true });
         return;
       }
-      // Resume the restored media element in the click handler itself. Waiting
-      // for the state effect can miss Chromium's user-gesture playback window.
-      const source = audioElement?.currentSrc || audioElement?.src || '';
-      if (!source) {
-        playSong(currentSong, null, progress);
-        return;
-      }
-      const request = audioElement.play?.();
-      if (request?.catch) {
-        request.catch(() => playSong(currentSong, null, progress, { forceRefreshUrl: true }));
-      }
+
+      // AudioPlayer is the single owner of audio.play(). Setting intent here
+      // lets React commit src/crossOrigin first and avoids the startup call
+      // being rejected against an empty or half-loaded media element.
       setIsPlaying(true);
       return;
     }
     setIsPlaying(prev => !prev);
-  }, [isPlaying, playSong, setIsPlaying, audioElement]);
+  }, [isPlaying, playSong, setIsPlaying]);
 
   const playNext = useCallback(() => {
     const { playlist, playlistIndex, playMode } = stateRef.current;

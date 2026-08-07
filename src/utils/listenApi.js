@@ -18,14 +18,14 @@ const post = (endpoint, body) => listenRequest(endpoint, {
 
 export const listenApi = {
   createRoom: (user) => post('/listentogether/room/create', { user }),
-  checkRoom: (roomId, user) => post('/listentogether/room/check', { roomId, user }),
-  getStatus: (roomId, user) => post(`/listentogether/status?timestamp=${Date.now()}`, { roomId, user }),
+  checkRoom: (roomId, user, roomToken = '') => post('/listentogether/room/check', { roomId, roomToken, user }),
+  getStatus: (roomId, user, roomToken = '') => post(`/listentogether/status?timestamp=${Date.now()}`, { roomId, roomToken, user }),
   sendHeartbeat: (payload) => post('/listentogether/heatbeat', payload),
   sendPlayCommand: (payload) => post('/listentogether/play/command', payload),
   syncPlaylist: (payload) => post('/listentogether/sync/list/command', payload),
-  getRoomPlaylist: (roomId) => post('/listentogether/sync/playlist/get', { roomId }),
-  acceptInvitation: (roomId, inviterId, user) => post('/listentogether/accept', { roomId, inviterId, user }),
-  endRoom: (roomId) => post('/listentogether/end', { roomId }),
-  sendChat: ({ roomId, user, text }) => post('/listentogether/chat/send', { roomId, user, text }),
-  getChat: (roomId, since = 0) => listenRequest(`/listentogether/chat/messages?roomId=${encodeURIComponent(roomId)}&since=${since}`)
+  getRoomPlaylist: (roomId, roomToken = '') => post('/listentogether/sync/playlist/get', { roomId, roomToken }),
+  acceptInvitation: (roomId, inviterId, user, roomToken = '') => post('/listentogether/accept', { roomId, roomToken, inviterId, user }),
+  endRoom: (roomId, user, roomToken = '') => post('/listentogether/end', { roomId, roomToken, user }),
+  sendChat: ({ roomId, roomToken = '', user, text }) => post('/listentogether/chat/send', { roomId, roomToken, user, text }),
+  getChat: (roomId, since = 0, roomToken = '') => listenRequest(`/listentogether/chat/messages?roomId=${encodeURIComponent(roomId)}&since=${since}&roomToken=${encodeURIComponent(roomToken)}`)
 };

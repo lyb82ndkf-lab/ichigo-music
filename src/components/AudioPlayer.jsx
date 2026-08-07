@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { isLocalMediaSource } from '../utils/audioSource';
 import { api } from '../utils/api';
+import { appendRuntimeLog } from '../utils/runtimeLog';
 
 export default function AudioPlayer() {
   const {
@@ -29,7 +30,7 @@ export default function AudioPlayer() {
   const analyserNodeRef = useRef(null);
   const playRequestIdRef = useRef(0);
   const lastLoadedKeyRef = useRef('');
-  const zeroTimeRecoveryRef = useRef({ key: '', attempts: 0 });
+  const zeroTimeRecoveryRef = useRef({ key: '', attempts: 0, startedAt: 0 });
   const urlRefreshAttemptRef = useRef({ songId: null, count: 0 });
   const scrobbleRef = useRef({ songId: null, reported: false, inFlight: false });
 
@@ -78,6 +79,30 @@ export default function AudioPlayer() {
     const audio = audioRef.current;
     if (!audio || !audioSource) return;
 
+    appendRuntimeLog('debug', '请求播放音频', {
+      songId: currentSong?.id || null,
+      source: isLocalMediaSource(audioSource) ? 'local-cache' : 'remote',
+      readyState: audio.readyState,
+      networkState: audio.networkState
+    }, 'audio');
+    const localSourceUnavailable = (
+      isLocalMediaSource(audioSource)
+      && audio.readyState === HTMLMediaElement.HAVE_NOTHING
+      && audio.networkState === HTMLMediaElement.NETWORK_NO_SOURCE
+    );
+    if (localSourceUnavailable && currentSong?.id) {
+      const retry = urlRefreshAttemptRef.current;
+      if (retry.count < 1) {
+        urlRefreshAttemptRef.current = { songId: currentSong.id, count: retry.count + 1 };
+        appendRuntimeLog('warn', '本地音频缓存不可用，立即切换在线播放源', {
+          songId: currentSong.id,
+          readyState: audio.readyState,
+          networkState: audio.networkState
+        }, 'audio');
+        playSong(currentSong, null, audio.currentTime || 0, { forceRefreshUrl: true });
+        return;
+      }
+    }
     const requestId = ++playRequestIdRef.current;
     const playPromise = audio.play();
     if (playPromise !== undefined) {
@@ -89,6 +114,14 @@ export default function AudioPlayer() {
         if (requestId !== playRequestIdRef.current) return;
         if (error?.name === 'AbortError') return;
         console.warn('Playback prevented or error occurred:', error);
+        const mediaCode = audio.error?.code;
+        const retry = urlRefreshAttemptRef.current;
+        const sourceRejected = error?.name === 'NotSupportedError' || mediaCode === 2 || mediaCode === 3 || mediaCode === 4;
+        if (sourceRejected && currentSong?.id && retry.count < 1) {
+          urlRefreshAttemptRef.current = { songId: currentSong.id, count: retry.count + 1 };
+          playSong(currentSong, null, audio.currentTime || 0, { forceRefreshUrl: true });
+          return;
+        }
         setIsPlaying(false);
       });
     }
@@ -129,18 +162,24 @@ export default function AudioPlayer() {
     if (urlRefreshAttemptRef.current.songId !== currentSong?.id) {
       urlRefreshAttemptRef.current = { songId: currentSong?.id || null, count: 0 };
     }
-    const cachedAt = Number(currentSong?.urlCachedAt || 0);
-    const hasFreshUrl = currentSong?.url && cachedAt && Date.now() - cachedAt < 15 * 60 * 1000;
-    if (currentSong && hasFreshUrl) {
+    // 先使用已持久化的地址启动媒体元素，不要因为缓存时间过期而把
+    // src 清空。地址刷新由 AppContext 在后台完成；清空 src 会让首曲
+    // 必须等待网络请求结束，表现为封面/歌词已出现但进度条长时间为 0。
+    if (currentSong?.url) {
       setProgress(0);
       setDuration(0);
-      zeroTimeRecoveryRef.current = { key: currentSong.url, attempts: 0 };
+      zeroTimeRecoveryRef.current = { key: currentSong.url, attempts: 0, startedAt: Date.now() };
       setAudioSource(currentSong.url);
       setCrossOriginMode(isLocalMediaSource(currentSong.url) ? null : 'anonymous');
+      appendRuntimeLog('info', '音频源已提交', {
+        songId: currentSong.id || null,
+        source: isLocalMediaSource(currentSong.url) ? 'local-cache' : 'remote',
+        hasResumeTime: resumeTime !== null
+      }, 'audio');
     } else {
       setAudioSource('');
     }
-  }, [currentSong]);
+  }, [currentSong?.url]);
 
   // Recovery for the intermittent 0.00s startup stall: if a source is
   // requested to play but the media clock never starts, retry once without CORS
@@ -154,13 +193,15 @@ export default function AudioPlayer() {
       const stuckAtStart = (audio.currentTime || 0) < 0.05;
       const stillLoading = audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA;
       if (!stuckAtStart) return;
-      if (stillLoading && !audio.error) return;
+      const elapsed = Date.now() - (zeroTimeRecoveryRef.current.startedAt || Date.now());
+      if (stillLoading && !audio.error && elapsed < 4500) return;
 
       const key = `${audioSource}|${crossOriginMode ?? 'no-cors'}`;
       const recovery = zeroTimeRecoveryRef.current;
       if (recovery.key !== key) {
         recovery.key = key;
         recovery.attempts = 0;
+        recovery.startedAt = Date.now();
       }
 
       if (audio.paused) {
@@ -239,16 +280,14 @@ export default function AudioPlayer() {
     }
   };
 
-  useEffect(() => {
-    if (!isPlaying || !audioSource || (crossOriginMode === null && !isLocalMediaSource(audioSource))) return;
-    setupWebAudio();
-  }, [isPlaying, audioSource, crossOriginMode]);
-
-  // Eagerly initialize or resume Web Audio API on first user gesture
+  // A gesture may resume an analyser that already exists, but it must not
+  // create MediaElementSource before the audio source has proved playable.
+  // Redirecting a failed/non-CORS first source through Web Audio produces a
+  // silent media element until the whole app is restarted.
   useEffect(() => {
     const handleGesture = () => {
-      if (audioContextRef.current && audioContextRef.current.state === 'running') return;
-      setupWebAudio();
+      const audioContext = audioContextRef.current;
+      if (audioContext?.state === 'suspended') audioContext.resume().catch(() => {});
     };
 
     window.addEventListener('click', handleGesture, { capture: true });
@@ -260,15 +299,24 @@ export default function AudioPlayer() {
       window.removeEventListener('keydown', handleGesture, { capture: true });
       window.removeEventListener('touchstart', handleGesture, { capture: true });
     };
-  }, [crossOriginMode]);
+  }, []);
 
   // When play starts, setup audio analyser
   const handlePlay = () => {
+    appendRuntimeLog('info', '音频开始播放', {
+      songId: currentSong?.id || null,
+      currentTime: audioRef.current?.currentTime || 0,
+      readyState: audioRef.current?.readyState ?? -1
+    }, 'audio');
     setIsPlaying(true);
     setupWebAudio();
   };
 
   const handlePause = () => {
+    appendRuntimeLog('debug', '音频暂停', {
+      songId: currentSong?.id || null,
+      currentTime: audioRef.current?.currentTime || 0
+    }, 'audio');
     setIsPlaying(false);
   };
 
@@ -282,6 +330,11 @@ export default function AudioPlayer() {
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
       const mediaDuration = Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : 0;
+      appendRuntimeLog('info', '音频元数据已加载', {
+        songId: currentSong?.id || null,
+        duration: mediaDuration,
+        readyState: audioRef.current.readyState
+      }, 'audio');
       setDuration(mediaDuration);
       if (resumeTime !== null) {
         const requestedResume = Number(resumeTime) || 0;
@@ -303,6 +356,14 @@ export default function AudioPlayer() {
 
   // If the audio source fails to load, handle CORS or skip to next song
   const handleAudioError = (e) => {
+    appendRuntimeLog('error', '音频元素加载失败', {
+      songId: currentSong?.id || null,
+      code: audioRef.current?.error?.code || 0,
+      message: audioRef.current?.error?.message || '',
+      readyState: audioRef.current?.readyState ?? -1,
+      networkState: audioRef.current?.networkState ?? -1,
+      source: isLocalMediaSource(audioSource) ? 'local-cache' : 'remote'
+    }, 'audio');
     console.error("Audio playback error event:", e);
     const code = audioRef.current?.error?.code;
     
@@ -360,7 +421,10 @@ export default function AudioPlayer() {
       onTimeUpdate={handleTimeUpdate}
       onLoadedMetadata={handleLoadedMetadata}
       onDurationChange={handleDurationChange}
-      onCanPlay={() => { if (isPlaying) { setupWebAudio(); safePlay(); } }}
+      onCanPlay={() => { if (isPlaying) safePlay(); }}
+      onPlaying={() => appendRuntimeLog('info', '音频进入稳定播放状态', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0 }, 'audio')}
+      onWaiting={() => appendRuntimeLog('warn', '音频等待数据', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0, readyState: audioRef.current?.readyState ?? -1 }, 'audio')}
+      onStalled={() => appendRuntimeLog('warn', '音频网络读取停滞', { songId: currentSong?.id || null, networkState: audioRef.current?.networkState ?? -1 }, 'audio')}
       onError={handleAudioError}
       onEnded={handleEnded}
       preload="auto"

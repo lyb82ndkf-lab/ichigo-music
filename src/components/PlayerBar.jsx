@@ -281,18 +281,26 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
             style={{ 
               fontSize: '10px', 
               fontWeight: 700, 
-              padding: '2px 6px', 
               border: '1px solid var(--primary)', 
               color: 'var(--primary)', 
               borderRadius: '4px',
               textTransform: 'uppercase',
               minWidth: '38px',
-              textAlign: 'center'
+              minHeight: '38px',
+              padding: 0,
+              lineHeight: 1.05,
+              textAlign: 'center',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              whiteSpace: 'nowrap'
             }} 
             onClick={() => setShowQualityMenu(!showQualityMenu)}
             title="切换音质"
           >
-            {audioQuality === 'standard' ? '标准' :
+            {audioQuality === 'jymaster' ? <><span>超清</span><span>母带</span></> :
+             audioQuality === 'standard' ? '标准' :
              audioQuality === 'higher' ? '较高' :
              audioQuality === 'exhigh' ? '极高' :
              audioQuality === 'lossless' ? '无损' : 'Hi-Res'}
@@ -320,6 +328,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
               }}
             >
               {[
+                { key: 'jymaster', label: '超清母带' },
                 { key: 'hires', label: 'Hi-Res' },
                 { key: 'lossless', label: '无损' },
                 { key: 'exhigh', label: '极高' },

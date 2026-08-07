@@ -200,8 +200,8 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
               <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
             </button>
             <div style={{ position: 'relative' }}>
-              <button className="ctrl-btn" onClick={() => setShowQualityMenu(value => !value)} title="切换音质" style={{ width: 38, fontSize: 10, fontWeight: 700, color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: 6 }}>
-                {qualityLabel}
+              <button className="ctrl-btn" onClick={() => setShowQualityMenu(value => !value)} title="切换音质" style={{ width: 42, height: 38, padding: 0, fontSize: 10, lineHeight: 1.05, fontWeight: 700, color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
+                {audioQuality === 'jymaster' ? <><span>超清</span><span>母带</span></> : qualityLabel}
               </button>
               {showQualityMenu && (
                 <div style={{ position: 'absolute', bottom: 40, right: 0, minWidth: 92, padding: 6, display: 'flex', flexDirection: 'column', gap: 3, zIndex: 120, border: '1px solid var(--card-border)', borderRadius: 8, background: 'var(--overlay-bg)', boxShadow: '0 8px 24px rgba(0,0,0,.45)', backdropFilter: 'blur(18px)' }}>

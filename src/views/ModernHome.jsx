@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import { Compass, TrendingUp, Heart, History, Settings, Play, Music, Radio } from 'lucide-react';
 import GlassNavCard from '../components/GlassNavCard';
 import ResilientCover from '../components/ResilientCover';
-import CachedCover from '../components/CachedCover';
+import CachedCover, { useCachedCoverUrl } from '../components/CachedCover';
 import { useLyricEngine } from '../hooks/useLyricEngine';
 
 function GlassTile({ song }) {
@@ -62,6 +62,7 @@ function GlassPlaylistTile({ playlist }) {
 
 export default function ModernHome() {
   const { currentSong, isPlaying, togglePlay, navigateTo, recentlyPlayed, audioElement, userPlaylists, advancedLyricConfig } = useApp();
+  const resolvedCurrentCoverUrl = useCachedCoverUrl(currentSong);
   const { lyrics, activeLineIndex } = useLyricEngine(
     currentSong?.id,
     audioElement,
@@ -73,7 +74,11 @@ export default function ModernHome() {
     navigateTo('search');
   };
 
-  const coverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl;
+  const coverUrl = resolvedCurrentCoverUrl
+    || currentSong?.originalCoverUrl
+    || currentSong?.al?.picUrl
+    || currentSong?.album?.picUrl
+    || '';
   const activeLyric = activeLineIndex >= 0 && lyrics[activeLineIndex] ? lyrics[activeLineIndex].text : '';
   const currentPrimaryArtist = currentSong?.ar?.[0] || currentSong?.artists?.[0] || null;
   const currentAlbumName = currentSong?.al?.name || currentSong?.album?.name || '未知专辑';

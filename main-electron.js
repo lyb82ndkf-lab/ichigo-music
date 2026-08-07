@@ -1,10 +1,18 @@
 // main-electron.js - Electron main desktop application process
-import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard } from 'electron';
+import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard, net as electronNet, protocol } from 'electron';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import net from 'net';
 import fs from 'fs';
+import { createHash } from 'crypto';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
 import { spawn } from 'child_process';
+
+protocol.registerSchemesAsPrivileged([{
+  scheme: 'ichigo-cache',
+  privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true }
+}]);
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,11 +26,85 @@ let tray = null;
 let mediaIcons = null;
 let isPlayingState = false;
 let downloadedUpdatePath = '';
+const mainRuntimeLogs = [];
+let mainRuntimeSequence = 0;
+const cacheDownloadInFlight = new Map();
+const cachePruneLastRun = new Map();
+const coverResourcePaths = new Map();
 const UPDATE_REPOSITORY = 'lyb82ndkf-lab/ichigo-music';
+
+const mainNativeConsole = {
+  log: console.log.bind(console),
+  info: console.info.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console)
+};
+
+const serializeMainLogValue = (value) => {
+  let text;
+  if (value instanceof Error) text = value.stack || `${value.name}: ${value.message}`;
+  else if (typeof value === 'string') text = value;
+  else {
+    try { text = JSON.stringify(value); } catch { text = String(value); }
+  }
+  return String(text)
+    .replace(/(MUSIC_U\s*[=:]\s*)[^;\s]+/gi, '$1[REDACTED]')
+    .replace(/(cookie|token|authorization)(\s*[=:]\s*)[^;\s]+/gi, '$1$2[REDACTED]')
+    .slice(0, 8000);
+};
+
+const recordMainRuntimeLog = (level, args) => {
+  const entry = {
+    id: `main-${++mainRuntimeSequence}`,
+    timestamp: Date.now(),
+    level: level === 'log' ? 'debug' : level,
+    source: 'main',
+    message: serializeMainLogValue(args[0] ?? ''),
+    details: args.slice(1).map(serializeMainLogValue).join(' '),
+    count: 1
+  };
+  mainRuntimeLogs.push(entry);
+  if (mainRuntimeLogs.length > 300) mainRuntimeLogs.splice(0, mainRuntimeLogs.length - 300);
+  try {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('main-runtime-log', entry);
+  } catch { /* diagnostic delivery must never affect the application */ }
+};
+
+for (const level of Object.keys(mainNativeConsole)) {
+  console[level] = (...args) => {
+    mainNativeConsole[level](...args);
+    recordMainRuntimeLog(level, args);
+  };
+}
 
 // Get coordinates config path
 const getPositionConfigPath = () => {
   return path.join(app.getPath('userData'), 'desktop-lyrics-position.json');
+};
+
+const getCoverResourceUrl = (filePath) => {
+  const resolvedPath = path.resolve(filePath);
+  const token = createHash('sha256').update(resolvedPath).digest('hex');
+  coverResourcePaths.set(token, resolvedPath);
+  while (coverResourcePaths.size > 500) {
+    coverResourcePaths.delete(coverResourcePaths.keys().next().value);
+  }
+  return `ichigo-cache://cover/${token}`;
+};
+
+const registerCacheProtocol = () => {
+  protocol.handle('ichigo-cache', async (request) => {
+    try {
+      const url = new URL(request.url);
+      const token = url.pathname.replace(/^\//, '');
+      const filePath = url.hostname === 'cover' ? coverResourcePaths.get(token) : null;
+      if (!filePath) return new Response('Not found', { status: 404 });
+      return electronNet.fetch(pathToFileURL(filePath).toString());
+    } catch (error) {
+      console.warn('Failed to serve cached cover:', error);
+      return new Response('Unable to read cached cover', { status: 500 });
+    }
+  });
 };
 
 // Performance Config for GPU hardware acceleration
@@ -76,7 +158,8 @@ const getLatestRelease = async () => {
     publishedAt: release.published_at || '',
     assetName: installer?.name || '',
     assetUrl: installer?.browser_download_url || '',
-    assetSize: Number(installer?.size || 0)
+    assetSize: Number(installer?.size || 0),
+    assetDigest: installer?.digest || ''
   };
 };
 
@@ -89,7 +172,23 @@ const isAllowedUpdateUrl = (value) => {
   }
 };
 
+const isSafeExternalUrl = (value) => {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'https:' || url.protocol === 'http:' || url.protocol === 'mailto:';
+  } catch {
+    return false;
+  }
+};
+
 const getDefaultCacheDirectory = () => {
+  // The install directory may be read-only when the app is installed under
+  // Program Files. Keep user-generated cache data in Electron's writable
+  // profile directory instead.
+  return path.join(app.getPath('userData'), 'cache');
+};
+
+const getLegacyCacheDirectory = () => {
   const baseDir = app.isPackaged ? path.dirname(app.getPath('exe')) : __dirname;
   return path.join(baseDir, 'ichigomusic-cache');
 };
@@ -103,6 +202,58 @@ const ensureDir = async (dir) => {
   await fs.promises.mkdir(dir, { recursive: true });
 };
 
+const migrateLegacyCache = async () => {
+  const legacyRoot = getLegacyCacheDirectory();
+  const targetRoot = getDefaultCacheDirectory();
+  if (path.resolve(legacyRoot) === path.resolve(targetRoot) || !fs.existsSync(legacyRoot)) return;
+
+  for (const category of ['audio', 'covers', 'lyrics']) {
+    const sourceDir = path.join(legacyRoot, category);
+    const targetDir = path.join(targetRoot, category);
+    let entries;
+    try {
+      entries = await fs.promises.readdir(sourceDir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    await ensureDir(targetDir);
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const sourcePath = path.join(sourceDir, entry.name);
+      const targetPath = path.join(targetDir, entry.name);
+      try {
+        if (fs.existsSync(targetPath)) {
+          await fs.promises.unlink(sourcePath).catch(() => {});
+          continue;
+        }
+        await fs.promises.rename(sourcePath, targetPath);
+      } catch {
+        // A cross-volume move may not support rename; copy atomically instead.
+        try {
+          const tempPath = `${targetPath}.migrating-${Date.now()}`;
+          await fs.promises.copyFile(sourcePath, tempPath);
+          await fs.promises.rename(tempPath, targetPath);
+          await fs.promises.unlink(sourcePath);
+        } catch {}
+      }
+    }
+  }
+};
+
+const writeResponseToFile = async (response, tempPath) => {
+  if (!response.body) throw new Error('Response body is empty');
+  const readable = Readable.fromWeb(response.body);
+  const writable = fs.createWriteStream(tempPath, { flags: 'wx' });
+  try {
+    await pipeline(readable, writable);
+  } catch (error) {
+    readable.destroy();
+    writable.destroy();
+    await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
+};
+
 const inferAudioExtension = (url, contentType = '') => {
   const fromUrl = String(url || '').split('?')[0].match(/\.(mp3|m4a|flac|wav|ogg|aac)$/i)?.[1];
   if (fromUrl) return fromUrl.toLowerCase();
@@ -114,15 +265,54 @@ const inferAudioExtension = (url, contentType = '') => {
 };
 
 const getAudioCacheBase = (songId, quality) => `${String(songId).replace(/[^\w.-]/g, '_')}_${String(quality || 'default').replace(/[^\w.-]/g, '_')}`;
+const AUDIO_CACHE_EXTENSIONS = Object.freeze(['mp3', 'm4a', 'flac', 'wav', 'ogg', 'aac']);
+
+const isFinalAudioCacheEntry = (name, base) => {
+  const normalizedName = String(name || '').toLowerCase();
+  const normalizedBase = String(base || '').toLowerCase();
+  return AUDIO_CACHE_EXTENSIONS.some(ext => normalizedName === `${normalizedBase}.${ext}`);
+};
+
+const isPlayableAudioCacheFile = async (filePath) => {
+  let handle;
+  try {
+    const stats = await fs.promises.stat(filePath);
+    if (!stats.isFile() || stats.size < 4096) return false;
+
+    handle = await fs.promises.open(filePath, 'r');
+    const header = Buffer.alloc(16);
+    const { bytesRead } = await handle.read(header, 0, header.length, 0);
+    if (bytesRead < 4) return false;
+
+    const ascii4 = header.subarray(0, 4).toString('ascii');
+    const isMp3 = header.subarray(0, 3).toString('ascii') === 'ID3'
+      || (header[0] === 0xff && (header[1] & 0xe0) === 0xe0);
+    const isFlac = ascii4 === 'fLaC';
+    const isOgg = ascii4 === 'OggS';
+    const isWave = ascii4 === 'RIFF' && header.subarray(8, 12).toString('ascii') === 'WAVE';
+    const isMp4 = bytesRead >= 8 && header.subarray(4, 8).toString('ascii') === 'ftyp';
+    const isAac = header[0] === 0xff && (header[1] & 0xf6) === 0xf0;
+    return isMp3 || isFlac || isOgg || isWave || isMp4 || isAac;
+  } catch {
+    return false;
+  } finally {
+    await handle?.close().catch(() => {});
+  }
+};
 
 const findCachedAudioFile = async (cacheDir, songId, quality) => {
   const audioDir = path.join(safeCacheDir(cacheDir), 'audio');
   try {
     const entries = await fs.promises.readdir(audioDir, { withFileTypes: true });
     const base = getAudioCacheBase(songId, quality);
-    const hit = entries.find(entry => entry.isFile() && entry.name.startsWith(`${base}.`));
+    const hit = entries.find(entry => entry.isFile() && isFinalAudioCacheEntry(entry.name, base));
     if (!hit) return null;
     const filePath = path.join(audioDir, hit.name);
+    if (!(await isPlayableAudioCacheFile(filePath))) {
+      console.warn(`[CACHE] Removing invalid audio cache: ${hit.name}`);
+      await fs.promises.rm(filePath, { force: true }).catch(() => {});
+      return null;
+    }
     const now = new Date();
     fs.promises.utimes(filePath, now, now).catch(() => {});
     return filePath;
@@ -186,6 +376,13 @@ const collectCacheFiles = async (dir) => {
 
 const pruneCache = async (cacheDir, maxBytes) => {
   const root = safeCacheDir(cacheDir);
+  const pruneKey = path.resolve(root);
+  const now = Date.now();
+  const lastRun = cachePruneLastRun.get(pruneKey) || 0;
+  // Cache writes can happen in bursts while preloading the next songs. Avoid
+  // walking thousands of files for every single cover/audio write.
+  if (now - lastRun < 15000) return { total: 0, removed: 0, throttled: true };
+  cachePruneLastRun.set(pruneKey, now);
   const limit = Math.max(128 * 1024 * 1024, Number(maxBytes) || 1024 * 1024 * 1024);
   const files = await collectCacheFiles(root);
   let total = files.reduce((sum, file) => sum + file.size, 0);
@@ -508,13 +705,19 @@ function createWindow() {
     title: 'ICHIGOMusic',
     icon: path.join(__dirname, 'static', 'ichigo.png'),
     frame: false,
+    show: false,
     backgroundColor: '#050209',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: false,
       preload: path.join(__dirname, 'preload-electron.cjs')
     }
+  });
+
+  // Do not expose Chromium's partially loaded first paint. The inline loader
+  // and React boot gate take over once the document is ready to render.
+  mainWindow.once('ready-to-show', () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.show();
   });
 
   // Handle IPC window controls
@@ -552,11 +755,13 @@ function createWindow() {
     const reader = response.body.getReader();
     const file = await fs.promises.open(tempPath, 'w');
     let received = 0;
+    const hash = createHash('sha256');
     try {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = Buffer.from(value);
+        hash.update(chunk);
         await file.write(chunk);
         received += chunk.length;
         if (mainWindow && !mainWindow.isDestroyed()) {
@@ -570,8 +775,29 @@ function createWindow() {
     } finally {
       await file.close();
     }
+    if (total > 0 && received !== total) {
+      await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+      throw new Error('安装包下载不完整');
+    }
+    const expectedDigest = String(release.assetDigest || '').replace(/^sha256:/i, '').toLowerCase();
+    if (expectedDigest && hash.digest('hex').toLowerCase() !== expectedDigest) {
+      await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+      throw new Error('安装包完整性校验失败');
+    }
     downloadedUpdatePath = tempPath;
     return { downloaded: true, path: tempPath, version: release.version };
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) shell.openExternal(url).catch(() => {});
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    const localPrefix = app.isPackaged ? `http://localhost:${apiPort}` : 'http://localhost:5173';
+    if (!url.startsWith(localPrefix)) {
+      event.preventDefault();
+      if (isSafeExternalUrl(url)) shell.openExternal(url).catch(() => {});
+    }
   });
 
   ipcMain.removeHandler('install-update');
@@ -679,11 +905,20 @@ function createWindow() {
   });
 
   ipcMain.on('open-external', (event, url) => {
-    shell.openExternal(url);
+    if (isSafeExternalUrl(url)) shell.openExternal(url).catch(() => {});
   });
 
   ipcMain.removeHandler('read-clipboard-text');
   ipcMain.handle('read-clipboard-text', () => clipboard.readText());
+
+  ipcMain.removeHandler('get-main-runtime-logs');
+  ipcMain.handle('get-main-runtime-logs', () => mainRuntimeLogs.slice());
+  ipcMain.removeHandler('clear-main-runtime-logs');
+  ipcMain.handle('clear-main-runtime-logs', () => {
+    mainRuntimeLogs.length = 0;
+    mainRuntimeSequence = 0;
+    return true;
+  });
 
   ipcMain.removeHandler('get-default-cache-directory');
   ipcMain.handle('get-default-cache-directory', async () => getDefaultCacheDirectory());
@@ -708,6 +943,11 @@ function createWindow() {
   ipcMain.handle('cache-audio', async (_event, { songId, quality, url, cacheDir, maxBytes }) => {
     if (!songId || !url || !/^https?:\/\//i.test(String(url))) return null;
     const root = safeCacheDir(cacheDir);
+    const requestKey = `audio:${root}:${songId}:${quality || 'default'}`;
+    const existingRequest = cacheDownloadInFlight.get(requestKey);
+    if (existingRequest) return existingRequest;
+
+    const request = (async () => {
     const audioDir = path.join(root, 'audio');
     await ensureDir(audioDir);
 
@@ -724,27 +964,42 @@ function createWindow() {
     const base = getAudioCacheBase(songId, quality);
     const filePath = path.join(audioDir, `${base}.${ext}`);
     const tempPath = `${filePath}.tmp-${Date.now()}`;
-    const arrayBuffer = await response.arrayBuffer();
-    await fs.promises.writeFile(tempPath, Buffer.from(arrayBuffer));
-    await fs.promises.rename(tempPath, filePath);
+    try {
+      await writeResponseToFile(response, tempPath);
+      if (!(await isPlayableAudioCacheFile(tempPath))) {
+        throw new Error('Audio cache download is not a supported media file');
+      }
+      await fs.promises.rename(tempPath, filePath);
+    } catch (error) {
+      await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+      throw error;
+    }
     await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
     return { url: pathToFileURL(filePath).toString(), path: filePath, cached: true };
+    })().finally(() => cacheDownloadInFlight.delete(requestKey));
+    cacheDownloadInFlight.set(requestKey, request);
+    return request;
   });
 
   ipcMain.removeHandler('get-cached-cover');
   ipcMain.handle('get-cached-cover', async (_event, { songId, cacheDir }) => {
     const filePath = await findCachedCoverFile(cacheDir, songId);
-    return filePath ? { url: pathToFileURL(filePath).toString(), path: filePath } : null;
+    return filePath ? { url: getCoverResourceUrl(filePath), path: filePath } : null;
   });
 
   ipcMain.removeHandler('cache-cover');
-  ipcMain.handle('cache-cover', async (_event, { songId, url, cacheDir, maxBytes }) => {
+  ipcMain.handle('cache-cover', async (_event, { songId, url, cacheDir, maxBytes, forceRefresh = false }) => {
     if (!songId || !url || !/^https?:\/\//i.test(String(url))) return null;
     const root = safeCacheDir(cacheDir);
+    const requestKey = `cover:${root}:${songId}`;
+    const existingRequest = cacheDownloadInFlight.get(requestKey);
+    if (existingRequest) return existingRequest;
+
+    const request = (async () => {
     const coverDir = path.join(root, 'covers');
     await ensureDir(coverDir);
-    const existing = await findCachedCoverFile(root, songId);
-    if (existing) return { url: pathToFileURL(existing).toString(), path: existing, cached: true };
+    const existing = !forceRefresh && await findCachedCoverFile(root, songId);
+    if (existing) return { url: getCoverResourceUrl(existing), path: existing, cached: true };
 
     const response = await fetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
@@ -753,11 +1008,19 @@ function createWindow() {
     const ext = inferImageExtension(url, response.headers.get('content-type') || '');
     const filePath = path.join(coverDir, `${getCoverCacheBase(songId)}.${ext}`);
     const tempPath = `${filePath}.tmp-${Date.now()}`;
-    const arrayBuffer = await response.arrayBuffer();
-    await fs.promises.writeFile(tempPath, Buffer.from(arrayBuffer));
+    await writeResponseToFile(response, tempPath);
+    if (forceRefresh) {
+      const entries = await fs.promises.readdir(coverDir, { withFileTypes: true }).catch(() => []);
+      await Promise.all(entries
+        .filter(entry => entry.isFile() && entry.name.startsWith(`${getCoverCacheBase(songId)}.`))
+        .map(entry => fs.promises.unlink(path.join(coverDir, entry.name)).catch(() => {})));
+    }
     await fs.promises.rename(tempPath, filePath);
     await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
-    return { url: pathToFileURL(filePath).toString(), path: filePath, cached: true };
+    return { url: getCoverResourceUrl(filePath), path: filePath, cached: true };
+    })().finally(() => cacheDownloadInFlight.delete(requestKey));
+    cacheDownloadInFlight.set(requestKey, request);
+    return request;
   });
 
   ipcMain.removeHandler('read-lyric-cache');
@@ -859,6 +1122,8 @@ app.setAppUserModelId("ICHIGOMusic");
 app.name = "ICHIGOMusic";
 
 app.whenReady().then(async () => {
+  registerCacheProtocol();
+  migrateLegacyCache().catch(error => console.warn('Failed to migrate legacy cache:', error));
   await startApiServer();
   createWindow();
 
@@ -871,6 +1136,8 @@ app.whenReady().then(async () => {
 
 app.on('before-quit', () => {
   app.isQuitting = true;
+  mainRuntimeLogs.length = 0;
+  mainRuntimeSequence = 0;
 });
 
 app.on('window-all-closed', () => {
