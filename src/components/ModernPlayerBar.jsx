@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import CachedCover from './CachedCover';
 import { Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1, ListMusic, Volume2, VolumeX } from 'lucide-react';
 
-export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
+export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackLocked = false }) {
   const {
     currentSong,
     isPlaying,
@@ -110,6 +110,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
   };
 
   const handleProgressPointerDown = (e) => {
+    if (playbackLocked) return;
     e.preventDefault();
     setIsSeeking(true);
     updateProgressPreview(e.clientX);
@@ -118,6 +119,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
   };
 
   const handleProgressPointerMove = (e) => {
+    if (playbackLocked) return;
     updateProgressPreview(e.clientX);
     if (!isSeeking) return;
     seekFromClientX(e.clientX);
@@ -178,13 +180,13 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <button className="ctrl-btn" onClick={playPrev}>
+            <button className="ctrl-btn" onClick={playbackLocked ? undefined : playPrev} disabled={playbackLocked}>
               <SkipBack size={20} />
             </button>
-            <button className="play-btn" onClick={togglePlay}>
+            <button className="play-btn" onClick={playbackLocked ? undefined : togglePlay} disabled={playbackLocked}>
               {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: 3 }} />}
             </button>
-            <button className="ctrl-btn" onClick={playNext}>
+            <button className="ctrl-btn" onClick={playbackLocked ? undefined : playNext} disabled={playbackLocked}>
               <SkipForward size={20} />
             </button>
           </div>
@@ -193,17 +195,17 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
             <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '8px', fontVariantNumeric: 'tabular-nums' }}>
               {formatTime(progress)} / {formatTime(effectiveDuration)}
             </span>
-            <button className="ctrl-btn" onClick={handlePlayMode} title="播放模式">
+            <button className="ctrl-btn" onClick={playbackLocked ? undefined : handlePlayMode} disabled={playbackLocked} title="播放模式">
               {playMode === 'random' ? <Shuffle size={18} /> : playMode === 'single' ? <Repeat1 size={18} /> : <Repeat size={18} />}
             </button>
             <button className="ctrl-btn" onClick={() => currentSong && toggleLike(currentSong.id)} style={{ color: isLiked ? '#ef4444' : '' }}>
               <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
             </button>
             <div style={{ position: 'relative' }}>
-              <button className="ctrl-btn" onClick={() => setShowQualityMenu(value => !value)} title="切换音质" style={{ width: 42, height: 38, padding: 0, fontSize: 10, lineHeight: 1.05, fontWeight: 700, color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
+              <button className="ctrl-btn" onClick={playbackLocked ? undefined : () => setShowQualityMenu(value => !value)} disabled={playbackLocked} title="切换音质" style={{ width: 42, height: 38, padding: 0, fontSize: 10, lineHeight: 1.05, fontWeight: 700, color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
                 {audioQuality === 'jymaster' ? <><span>超清</span><span>母带</span></> : qualityLabel}
               </button>
-              {showQualityMenu && (
+              {showQualityMenu && !playbackLocked && (
                 <div style={{ position: 'absolute', bottom: 40, right: 0, minWidth: 92, padding: 6, display: 'flex', flexDirection: 'column', gap: 3, zIndex: 120, border: '1px solid var(--card-border)', borderRadius: 8, background: 'var(--overlay-bg)', boxShadow: '0 8px 24px rgba(0,0,0,.45)', backdropFilter: 'blur(18px)' }}>
                   {qualityOptions.map(option => (
                     <button key={option.key} onClick={() => { setAudioQuality(option.key); setShowQualityMenu(false); }} style={{ border: 0, borderRadius: 5, padding: '5px 8px', cursor: 'pointer', color: audioQuality === option.key ? 'var(--primary-text)' : 'var(--text-main)', background: audioQuality === option.key ? 'var(--primary)' : 'transparent', fontSize: 11 }}>{option.label}</button>
@@ -236,7 +238,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [] }) {
                 />
               )}
             </button>)}
-            <button className={`ctrl-btn ${isQueueOpen ? 'active' : ''}`} onClick={() => setIsQueueOpen(!isQueueOpen)}>
+            <button className={`ctrl-btn ${isQueueOpen ? 'active' : ''}`} onClick={playbackLocked ? undefined : () => setIsQueueOpen(!isQueueOpen)} disabled={playbackLocked}>
               <ListMusic size={18} />
             </button>
             <button 

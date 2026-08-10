@@ -25,6 +25,8 @@ let apiPort = 3000;
 let tray = null;
 let mediaIcons = null;
 let isPlayingState = false;
+// Renderer-owned state: members of a listen-together room cannot invoke transport controls from native surfaces.
+let playbackControlsLocked = false;
 let downloadedUpdatePath = '';
 const mainRuntimeLogs = [];
 let mainRuntimeSequence = 0;
@@ -465,7 +467,7 @@ function createTray() {
   }
 }
 
-function updateTrayMenu(isPlaying) {
+function updateTrayMenu(isPlaying, controlsLocked = playbackControlsLocked) {
   if (!tray) return;
   
   const contextMenu = Menu.buildFromTemplate([
@@ -476,6 +478,7 @@ function updateTrayMenu(isPlaying) {
     { type: 'separator' },
     {
       label: isPlaying ? '暂停' : '播放',
+       enabled: !controlsLocked,
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('media-toggle-play');
@@ -484,6 +487,7 @@ function updateTrayMenu(isPlaying) {
     },
     {
       label: '上一首',
+       enabled: !controlsLocked,
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('media-prev');
@@ -492,6 +496,7 @@ function updateTrayMenu(isPlaying) {
     },
     {
       label: '下一首',
+       enabled: !controlsLocked,
       click: () => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('media-next');
@@ -521,8 +526,9 @@ function updateTrayMenu(isPlaying) {
   tray.setContextMenu(contextMenu);
 }
 
-function updateMediaControls(isPlaying) {
-  updateTrayMenu(isPlaying);
+function updateMediaControls(isPlaying, controlsLocked = playbackControlsLocked) {
+  playbackControlsLocked = Boolean(controlsLocked);
+  updateTrayMenu(isPlaying, playbackControlsLocked);
   
   if (mainWindow && !mainWindow.isDestroyed() && mediaIcons) {
     try {
@@ -533,6 +539,7 @@ function updateMediaControls(isPlaying) {
       mainWindow.setThumbarButtons([
         {
           tooltip: '上一首',
+          enabled: !playbackControlsLocked,
           icon: prevImg,
           click() {
             mainWindow.webContents.send('media-prev');
@@ -540,6 +547,7 @@ function updateMediaControls(isPlaying) {
         },
         {
           tooltip: isPlaying ? '暂停' : '播放',
+          enabled: !playbackControlsLocked,
           icon: playImg,
           click() {
             mainWindow.webContents.send('media-toggle-play');
@@ -547,6 +555,7 @@ function updateMediaControls(isPlaying) {
         },
         {
           tooltip: '下一首',
+          enabled: !playbackControlsLocked,
           icon: nextImg,
           click() {
             mainWindow.webContents.send('media-next');
@@ -877,6 +886,10 @@ function createWindow() {
   ipcMain.on('update-playback-state', (event, isPlaying) => {
     isPlayingState = isPlaying;
     updateMediaControls(isPlaying);
+  });
+
+  ipcMain.on('set-playback-controls-locked', (event, locked) => {
+    updateMediaControls(isPlayingState, Boolean(locked));
   });
 
   // Profile Storage IPC

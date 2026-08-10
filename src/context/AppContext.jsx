@@ -7,7 +7,7 @@ import { getPersistentSongCoverUrl, getSongCoverUrl, isLocalCoverUrl, isRemoteCo
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.8.0';
+export const APP_VERSION = 'v1.8.1';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
@@ -70,6 +70,7 @@ export function AppProvider({ children }) {
   const [recentlyPlayed, setRecentlyPlayed] = useState(() => profile.recentlyPlayed || []);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isClosePromptOpen, setIsClosePromptOpen] = useState(false);
+  const [listenPlaybackLocked, setListenPlaybackLocked] = useState(false);
 
   // Audio elements ref (shared across components)
   const [audioElement, setAudioElement] = useState(null);
@@ -152,7 +153,8 @@ export function AppProvider({ children }) {
     progress,
     currentSong,
     audioElement,
-    isPlaying
+    isPlaying,
+    listenPlaybackLocked
   };
 
   const setUser = useCallback((nextUser) => {
@@ -815,6 +817,7 @@ export function AppProvider({ children }) {
   // Playback Control logic
   const playSong = useCallback(async (song, newQueue = null, resumeProgress = null, options = {}) => {
     if (!song) return;
+    if (stateRef.current.listenPlaybackLocked && options?.remoteSync !== true) return;
     const { audioQuality, playlist, audioElement, currentSong } = stateRef.current;
     const forceRefreshUrl = options?.forceRefreshUrl === true;
     const failedSongIds = new Set(options?.failedSongIds || []);
@@ -1036,6 +1039,7 @@ export function AppProvider({ children }) {
   }, [currentSong?.id, audioQuality, getPlayableSongUrl, pruneSongUrlCache, setCurrentSongAndPersist]);
 
   const setAudioQuality = useCallback((quality) => {
+    if (stateRef.current.listenPlaybackLocked) return;
     const { currentSong, progress } = stateRef.current;
     updateProfile({ audio: { quality } });
     if (currentSong) {
@@ -1046,6 +1050,7 @@ export function AppProvider({ children }) {
   }, [updateProfile, playSong]);
 
   const togglePlay = useCallback(() => {
+    if (stateRef.current.listenPlaybackLocked) return;
     const { currentSong, progress } = stateRef.current;
     if (!currentSong) return;
     if (!isPlaying) {
@@ -1068,6 +1073,7 @@ export function AppProvider({ children }) {
   }, [isPlaying, playSong, setIsPlaying]);
 
   const playNext = useCallback(() => {
+    if (stateRef.current.listenPlaybackLocked) return;
     const { playlist, playlistIndex, playMode } = stateRef.current;
     if (playlist.length === 0) return;
 
@@ -1085,6 +1091,7 @@ export function AppProvider({ children }) {
   }, [playSong]);
 
   const playPrev = useCallback(() => {
+    if (stateRef.current.listenPlaybackLocked) return;
     const { playlist, playlistIndex, playMode } = stateRef.current;
     if (playlist.length === 0) return;
 
@@ -1103,6 +1110,7 @@ export function AppProvider({ children }) {
   }, [playSong]);
 
   const setPlayModeAndPersist = useCallback((mode) => {
+    if (stateRef.current.listenPlaybackLocked) return;
     updateProfile({ playback: { playMode: mode } });
   }, [updateProfile]);
 
@@ -1201,6 +1209,8 @@ export function AppProvider({ children }) {
     resolveSongCover,
     isQueueOpen,
     setIsQueueOpen,
+    listenPlaybackLocked,
+    setListenPlaybackLocked,
 
     isClosePromptOpen,
     setIsClosePromptOpen,
@@ -1271,7 +1281,7 @@ export function AppProvider({ children }) {
   }), [
     profile, updateProfile, currentView, viewData, historyIndex, viewHistory.length, user, likedSongIds,
     likedPlaylistId, currentSong, playlist, playlistIndex, isPlaying, volume, progress, duration, playMode,
-    recentlyPlayed, isQueueOpen, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
+    recentlyPlayed, isQueueOpen, listenPlaybackLocked, setListenPlaybackLocked, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
     visualizerMode, appearanceConfig, coverConfig, backgroundConfig, advancedLyricConfig, visualizerConfig,
     desktopLyricsConfig, audioConfig, cacheConfig, playbackConfig, renderingConfig, shortcuts, userPlaylists, audioQuality,
     resumeTime, audioElement, setUser, setCurrentSongAndPersist, setPlaylistAndPersist, setPlaylistIndexAndPersist,

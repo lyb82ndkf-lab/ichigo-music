@@ -4,7 +4,7 @@ import { isLocalMediaSource } from '../utils/audioSource';
 import { api } from '../utils/api';
 import { appendRuntimeLog } from '../utils/runtimeLog';
 
-export default function AudioPlayer() {
+export default function AudioPlayer({ canControlPlayback = true }) {
   const {
     currentSong,
     isPlaying,
@@ -385,6 +385,10 @@ export default function AudioPlayer() {
     } else if (code) {
       console.error(`Fatal audio error code ${code}.`);
       if (isPlaying) {
+        if (!canControlPlayback) {
+          setIsPlaying(false);
+          return;
+        }
         // If it's a source not supported error, it might be an expired URL from cache.
         // Try to refresh the URL once before skipping to the next song.
         console.log("Skipping to next song in 1.5 seconds...");
@@ -400,6 +404,10 @@ export default function AudioPlayer() {
 
   const handleEnded = () => {
     reportScrobble(audioRef.current?.currentTime || audioRef.current?.duration || 0, true);
+    if (!canControlPlayback) {
+      setIsPlaying(false);
+      return;
+    }
     if (playMode === 'single') {
       if (audioRef.current) {
         audioRef.current.currentTime = 0;

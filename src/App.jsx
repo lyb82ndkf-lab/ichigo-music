@@ -1,4 +1,4 @@
-﻿import React, { Suspense, lazy, useState, useEffect, useMemo, useRef } from 'react';
+﻿import React, { Suspense, lazy, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AppProvider, useApp, APP_VERSION } from './context/AppContext';
 import { AnimatePresence } from 'framer-motion';
 import ClosePromptModal from './components/ClosePromptModal';
@@ -85,6 +85,22 @@ function AppContent() {
     cacheConfig
   );
   const listenState = useListenTogether();
+  const playbackLocked = Boolean(listenState.roomId && !listenState.isHost);
+  const guardedTogglePlay = useCallback(() => {
+    if (!playbackLocked) togglePlay();
+  }, [playbackLocked, togglePlay]);
+  const guardedPlayNext = useCallback(() => {
+    if (!playbackLocked) playNext();
+  }, [playbackLocked, playNext]);
+  const guardedPlayPrev = useCallback(() => {
+    if (!playbackLocked) playPrev();
+  }, [playbackLocked, playPrev]);
+
+  // Keep native Windows controls in the same read-only state as the in-app
+  // player. Renderer handlers remain guarded as a second line of defense.
+  useEffect(() => {
+    window.electronAPI?.setPlaybackControlsLocked?.(playbackLocked);
+  }, [playbackLocked]);
   const [listenInvite, setListenInvite] = useState(null);
   const lastClipboardInviteRef = useRef('');
 
@@ -194,15 +210,15 @@ function AppContent() {
     if (!window.electronAPI) return;
 
     const unsubPrev = window.electronAPI.onMediaPrev(() => {
-      playPrev();
+      guardedPlayPrev();
     });
 
     const unsubNext = window.electronAPI.onMediaNext(() => {
-      playNext();
+      guardedPlayNext();
     });
 
     const unsubToggle = window.electronAPI.onMediaTogglePlay(() => {
-      togglePlay();
+      guardedTogglePlay();
     });
 
     return () => {
@@ -210,7 +226,7 @@ function AppContent() {
       unsubNext();
       unsubToggle();
     };
-  }, [playPrev, playNext, togglePlay]);
+  }, [guardedPlayPrev, guardedPlayNext, guardedTogglePlay]);
 
   // Heartbeat sync for Desktop Lyrics (runs every 250ms when playing to prevent drift & freeze)
   useEffect(() => {
@@ -298,7 +314,8 @@ function AppContent() {
     audioElement,
     currentSong,
     playMode,
-    layoutMode
+    layoutMode,
+    playbackLocked
   };
 
   // Global keyboard shortcuts.
@@ -317,7 +334,8 @@ function AppContent() {
         audioElement: currentAudioElement,
         currentSong: currentCurrentSong,
         playMode: currentPlayMode,
-        layoutMode: currentLayoutMode
+        layoutMode: currentLayoutMode,
+        playbackLocked: currentPlaybackLocked
       } = shortcutsRef.current;
 
       if (e.key === 'Escape' && currentIsLyricsOpen) {
@@ -327,9 +345,9 @@ function AppContent() {
       if (isTypingTarget(e.target)) return;
       if (currentShortcuts?.enabled === false) return;
 
-      if (shortcutMatches(e, currentShortcuts?.playPause)) { togglePlay(); e.preventDefault(); }
-      else if (shortcutMatches(e, currentShortcuts?.nextTrack)) { playNext(); e.preventDefault(); }
-      else if (shortcutMatches(e, currentShortcuts?.prevTrack)) { playPrev(); e.preventDefault(); }
+      if (shortcutMatches(e, currentShortcuts?.playPause)) { guardedTogglePlay(); e.preventDefault(); }
+      else if (shortcutMatches(e, currentShortcuts?.nextTrack)) { guardedPlayNext(); e.preventDefault(); }
+      else if (shortcutMatches(e, currentShortcuts?.prevTrack)) { guardedPlayPrev(); e.preventDefault(); }
       else if (shortcutMatches(e, currentShortcuts?.volumeUp)) { setVolume(Math.min(1, currentVolume + 0.05)); e.preventDefault(); }
       else if (shortcutMatches(e, currentShortcuts?.volumeDown)) { setVolume(Math.max(0, currentVolume - 0.05)); e.preventDefault(); }
       else if (shortcutMatches(e, currentShortcuts?.toggleMute)) { setVolume(currentVolume > 0 ? 0 : 0.8); e.preventDefault(); }
@@ -341,17 +359,17 @@ function AppContent() {
       }
       else if (shortcutMatches(e, currentShortcuts?.toggleSearch)) { navigateTo('search'); e.preventDefault(); }
       else if (shortcutMatches(e, currentShortcuts?.seekForward)) {
-        if (currentAudioElement) currentAudioElement.currentTime = Math.min(currentAudioElement.duration || currentAudioElement.currentTime, currentAudioElement.currentTime + 5);
+        if (!currentPlaybackLocked && currentAudioElement) currentAudioElement.currentTime = Math.min(currentAudioElement.duration || currentAudioElement.currentTime, currentAudioElement.currentTime + 5);
         e.preventDefault();
       }
       else if (shortcutMatches(e, currentShortcuts?.seekBack)) {
-        if (currentAudioElement) currentAudioElement.currentTime = Math.max(0, currentAudioElement.currentTime - 5);
+        if (!currentPlaybackLocked && currentAudioElement) currentAudioElement.currentTime = Math.max(0, currentAudioElement.currentTime - 5);
         e.preventDefault();
       }
       else if (shortcutMatches(e, currentShortcuts?.likeTrack)) { if (currentCurrentSong?.id) toggleLike(currentCurrentSong.id); e.preventDefault(); }
       else if (shortcutMatches(e, currentShortcuts?.cyclePlayMode)) {
         const modes = ['sequence', 'random', 'single'];
-        setPlayMode(modes[(modes.indexOf(currentPlayMode) + 1) % modes.length]);
+        if (!currentPlaybackLocked) setPlayMode(modes[(modes.indexOf(currentPlayMode) + 1) % modes.length]);
         e.preventDefault();
       }
       else if (shortcutMatches(e, currentShortcuts?.goHome)) { navigateTo(currentLayoutMode === 'modern' ? 'home' : 'discover'); e.preventDefault(); }
@@ -360,7 +378,7 @@ function AppContent() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
-    togglePlay, playNext, playPrev, setVolume, saveDesktopLyricsConfig, navigateTo, toggleLike, setPlayMode
+    guardedTogglePlay, guardedPlayNext, guardedPlayPrev, setVolume, saveDesktopLyricsConfig, navigateTo, toggleLike, setPlayMode
   ]);
 
   // Render active view dynamically with stable element reference
@@ -404,7 +422,7 @@ function AppContent() {
       {layoutMode === 'modern' && <ModernTopControls />}
       <div className="app-container" style={{ flex: 1, overflow: 'hidden' }}>
         {/* Background Audio Node */}
-        <AudioPlayer />
+        <AudioPlayer canControlPlayback={!playbackLocked} />
         
         {/* Navigation Sidebar */}
         <Sidebar />
@@ -479,9 +497,10 @@ function AppContent() {
             onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)}
             isLyricsOpen={isLyricsOpen}
             lyrics={lyrics}
+            playbackLocked={playbackLocked}
           />
         )}
-        {layoutMode === 'modern' && <ModernPlayerBar onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)} lyrics={lyrics} />}
+        {layoutMode === 'modern' && <ModernPlayerBar onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)} lyrics={lyrics} playbackLocked={playbackLocked} />}
         
         {layoutMode === 'modern' && (
           <MiniQueuePopover isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
@@ -1196,7 +1215,6 @@ export default function App() {
     </AppProvider>
   );
 }
-
 
 
 

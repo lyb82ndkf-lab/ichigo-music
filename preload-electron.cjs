@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMediaNext: (callback) => subscribe('media-next', callback),
   onMediaTogglePlay: (callback) => subscribe('media-toggle-play', callback),
   updatePlaybackState: (isPlaying) => ipcRenderer.send('update-playback-state', isPlaying),
+  setPlaybackControlsLocked: (locked) => ipcRenderer.send('set-playback-controls-locked', Boolean(locked)),
   initMediaIcons: (icons) => ipcRenderer.send('init-media-icons', icons),
   
   // Profile Storage IPC

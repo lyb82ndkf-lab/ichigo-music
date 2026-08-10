@@ -1,6 +1,6 @@
 {
   "name": "ichigomusic",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "description": "A beautiful music player with desktop lyrics and particle visualizers.",
   "author": "Antigravity",
   "private": true,
@@ -10,13 +10,14 @@
     "dev": "vite",
     "build": "vite build",
     "check:immersive": "node scripts/check-immersive-config.mjs",
-    "check": "npm run build && npm run check:immersive && npm run check:cover && npm run check:playback && npm run check:runtime && node --check main-electron.js && node --check preload-electron.cjs",
+    "check": "npm run build && npm run check:immersive && npm run check:cover && npm run check:playback && npm run check:runtime && npm run check:listen && node --check main-electron.js && node --check preload-electron.cjs",
     "preview": "vite preview",
     "electron": "electron .",
     "electron:build": "vite build && electron-builder",
     "check:cover": "node scripts/check-cover-state.mjs",
     "check:playback": "node scripts/check-playback-startup.mjs",
-    "check:runtime": "node scripts/check-runtime-log.mjs"
+    "check:runtime": "node scripts/check-runtime-log.mjs",
+    "check:listen": "node scripts/check-listen-together.mjs"
   },
   "dependencies": {
     "@neteasecloudmusicapienhanced/unblockmusic-utils": "^0.3.3",

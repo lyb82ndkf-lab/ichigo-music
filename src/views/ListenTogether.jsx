@@ -58,8 +58,8 @@ function ChatPanel({ listenState }) {
   const send = async (event) => {
     event.preventDefault();
     if (!draft.trim()) return;
-    await listenState.sendChat(draft);
-    setDraft('');
+    const sent = await listenState.sendChat(draft);
+    if (sent) setDraft('');
   };
   return (
     <section className="listen-chat-panel">

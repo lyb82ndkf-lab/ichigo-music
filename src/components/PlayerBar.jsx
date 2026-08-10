@@ -19,7 +19,7 @@ import {
   Tv,
 } from 'lucide-react';
 
-export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] }) {
+export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], playbackLocked = false }) {
   const {
     currentSong,
     isPlaying,
@@ -58,6 +58,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
   };
 
   const handleProgressChange = (e) => {
+    if (playbackLocked) return;
     if (audioElement && effectiveDuration) {
       const percentage = parseFloat(e.target.value);
       const newTime = (percentage / 100) * effectiveDuration;
@@ -195,11 +196,12 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
           {/* Mode Switch */}
           <button 
             className={`control-btn ${playMode !== 'sequence' ? 'active' : ''}`}
-            onClick={() => {
+            onClick={playbackLocked ? undefined : () => {
               if (playMode === 'sequence') setPlayMode('random');
               else if (playMode === 'random') setPlayMode('single');
               else setPlayMode('sequence');
             }}
+            disabled={playbackLocked}
             title={playMode === 'sequence' ? '列表循环' : playMode === 'random' ? '随机播放' : '单曲循环'}
           >
             {playMode === 'sequence' && <Repeat size={16} />}
@@ -207,21 +209,22 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
             {playMode === 'single' && <Repeat1 size={16} />}
           </button>
 
-          <button className="control-btn" onClick={playPrev}>
+          <button className="control-btn" onClick={playbackLocked ? undefined : playPrev} disabled={playbackLocked}>
             <SkipBack size={20} fill="currentColor" />
           </button>
 
-          <button className="play-pause-btn" onClick={togglePlay}>
+          <button className="play-pause-btn" onClick={playbackLocked ? undefined : togglePlay} disabled={playbackLocked}>
             {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" style={{ marginLeft: 2 }} />}
           </button>
 
-          <button className="control-btn" onClick={playNext}>
+          <button className="control-btn" onClick={playbackLocked ? undefined : playNext} disabled={playbackLocked}>
             <SkipForward size={20} fill="currentColor" />
           </button>
 
           <button 
             className={`control-btn ${showQueue ? 'active' : ''}`}
-            onClick={() => setShowQueue(!showQueue)}
+            onClick={playbackLocked ? undefined : () => setShowQueue(!showQueue)}
+            disabled={playbackLocked}
             title="播放队列"
           >
             <ListMusic size={16} />
@@ -255,6 +258,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
               max="100"
               value={progressPercent}
               onChange={handleProgressChange}
+              disabled={playbackLocked}
               style={{
                 position: 'absolute',
                 width: '100%',
@@ -296,7 +300,8 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
               justifyContent: 'center',
               whiteSpace: 'nowrap'
             }} 
-            onClick={() => setShowQualityMenu(!showQualityMenu)}
+            onClick={playbackLocked ? undefined : () => setShowQualityMenu(!showQualityMenu)}
+            disabled={playbackLocked}
             title="切换音质"
           >
             {audioQuality === 'jymaster' ? <><span>超清</span><span>母带</span></> :
@@ -306,7 +311,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [] })
              audioQuality === 'lossless' ? '无损' : 'Hi-Res'}
           </button>
           
-          {showQualityMenu && (
+          {showQualityMenu && !playbackLocked && (
             <div 
               className="quality-popover"
               style={{
