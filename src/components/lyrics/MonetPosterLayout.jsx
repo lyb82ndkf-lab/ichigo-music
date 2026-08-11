@@ -13,9 +13,7 @@ import MonetFloatingDecor from './MonetFloatingDecor';
 
 
 
-import { useApp } from '../../context/AppContext';
-
-export default function MonetPosterLayout({ 
+function MonetPosterLayout({ 
   lyrics, 
   activeLineIndex, 
   currentSong, 
@@ -25,12 +23,17 @@ export default function MonetPosterLayout({
   themeColor,
   coverUrl,
   audioAnalyser,
-  engineRef
+  engineRef,
+  advancedLyricConfig,
+  visualizerFps = 30,
+  showCoverPreference = true,
+  seekTo,
+  layoutMode
 }) {
-  const { advancedLyricConfig, seekTo, layoutMode } = useApp();
   const animMode = advancedLyricConfig?.lyricsMode || 'regular';
   const isRegularMode = animMode === 'regular';
-  const isKashiMode = animMode === 'spotlight';
+  // KTV 文字 PV 和舞台模式使用全幅画面；封面/列表布局会削弱逐字构图。
+  const isKashiMode = ['talk', 'spotlight'].includes(animMode);
   const showCover = advancedLyricConfig?.showCover !== false && isRegularMode;
   const showSongInfo = advancedLyricConfig?.showSongInfo !== false;
   const enableDecor = advancedLyricConfig?.showDecor === true;
@@ -308,13 +311,13 @@ export default function MonetPosterLayout({
       </style>
 
       {/* Background Decor: disabled by default for smoother lyric rendering. */}
-      {enableDecor && <MonetFloatingDecor />}
+      {enableDecor && <MonetFloatingDecor isPlaying={isPlaying} currentSong={currentSong} advancedLyricConfig={advancedLyricConfig} />}
 
       {/* LEFT: Metadata & Lyrics */}
       <div className="monet-left-pane">
         
         {/* Header Metadata */}
-        {showSongInfo && (
+        {showSongInfo && !isKashiMode && (
           <div style={{ display: 'flex', gap: '24px', marginBottom: '4vh', position: 'relative', zIndex: 2 }}>
             <div className="monet-anim-line" style={{ width: '4px', background: 'var(--primary)', borderRadius: '4px' }} />
             <div>
@@ -357,14 +360,14 @@ export default function MonetPosterLayout({
               inactiveLyricBlur={advancedLyricConfig?.inactiveLyricBlur}
             />
           ) : (
-            <ImmersiveLyricsStage mode={animMode} lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} coverUrl={coverUrlResized} isPlaying={isPlaying} config={advancedLyricConfig} />
+            <ImmersiveLyricsStage mode={animMode} lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} coverUrl={coverUrlResized} isPlaying={isPlaying} songKey={fallbackSong.id || `${fallbackSong.title}-${fallbackSong.artist}`} songTitle={fallbackSong.title} songArtist={fallbackSong.artist} config={advancedLyricConfig} />
           )}
         </div>
       </div>
 
       {isKashiMode && (
         <div className="monet-kashi-layer">
-          <ImmersiveLyricsStage mode="spotlight" lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} isPlaying={isPlaying} config={advancedLyricConfig} />
+          <ImmersiveLyricsStage mode={animMode} lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} coverUrl={coverUrlResized} isPlaying={isPlaying} songKey={fallbackSong.id || `${fallbackSong.title}-${fallbackSong.artist}`} songTitle={fallbackSong.title} songArtist={fallbackSong.artist} config={advancedLyricConfig} />
         </div>
       )}
 
@@ -375,7 +378,7 @@ export default function MonetPosterLayout({
           {/* Render circular visualizer behind the cover image in regular mode */}
           {animMode === 'regular' && (
             <div style={{ position: 'absolute', inset: '-100px', zIndex: 1, pointerEvents: 'none' }}>
-              <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode="regular" isBehindCover={true} />
+          <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode="regular" isBehindCover={true} advancedLyricConfig={advancedLyricConfig} visualizerFps={visualizerFps} showCover={showCoverPreference} />
             </div>
           )}
           <img 
@@ -389,15 +392,20 @@ export default function MonetPosterLayout({
       </div>
       )}
 
-      {/* BACKGROUND/BOTTOM layer for streamer, talk, and cloudstep visualizers */}
-      {['streamer', 'talk', 'cloudstep'].includes(animMode) && (
+      {/* BACKGROUND/BOTTOM layer for modes with dedicated audio backdrops. */}
+      {['streamer', 'cloudstep'].includes(animMode) && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}>
-          <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode={animMode} isBehindCover={false} />
+          <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode={animMode} isBehindCover={false} advancedLyricConfig={advancedLyricConfig} visualizerFps={visualizerFps} showCover={showCoverPreference} />
         </div>
       )}
     </div>
   );
 }
+
+// Progress updates arrive through AppContext several times per second. The
+// lyric clock and canvas layers handle those updates imperatively, so avoid
+// rebuilding the full poster/stage tree when none of its inputs changed.
+export default React.memo(MonetPosterLayout);
 
 
 

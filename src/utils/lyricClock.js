@@ -5,8 +5,16 @@ const subscribers = new Set();
 let frameId = 0;
 let enabled = true;
 
+const isDocumentHidden = () => typeof document !== 'undefined' && document.hidden;
+
+const scheduleFrame = () => {
+  if (enabled && subscribers.size > 0 && !frameId && !isDocumentHidden()) {
+    frameId = window.requestAnimationFrame(frame);
+  }
+};
+
 const frame = (now) => {
-  if (!enabled || subscribers.size === 0) {
+  if (!enabled || subscribers.size === 0 || isDocumentHidden()) {
     frameId = 0;
     return;
   }
@@ -18,7 +26,7 @@ const frame = (now) => {
 
 export function subscribeLyricClock(callback) {
   subscribers.add(callback);
-  if (enabled && !frameId) frameId = window.requestAnimationFrame(frame);
+  scheduleFrame();
   return () => subscribers.delete(callback);
 }
 
@@ -27,7 +35,16 @@ export function setLyricClockEnabled(value) {
   if (!enabled && frameId) {
     window.cancelAnimationFrame(frameId);
     frameId = 0;
-  } else if (enabled && subscribers.size > 0 && !frameId) {
-    frameId = window.requestAnimationFrame(frame);
-  }
+  } else if (enabled) scheduleFrame();
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && frameId) {
+      window.cancelAnimationFrame(frameId);
+      frameId = 0;
+    } else if (!document.hidden) {
+      scheduleFrame();
+    }
+  });
 }

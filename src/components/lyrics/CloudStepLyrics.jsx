@@ -52,23 +52,26 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
         
         if (currentTime >= startTime && currentTime <= endTime) {
           const progress = Math.max(0, Math.min(1, (currentTime - startTime) / Math.max(0.001, endTime - startTime)));
-          const pulse = Math.sin(progress * Math.PI);
-          el.dataset.state = 'active';
+          const paintProgress = Math.round(progress * 240) / 240;
+          const progressKey = paintProgress.toFixed(3);
+          if (el.dataset.cloudState === `active:${progressKey}`) return;
+          el.dataset.cloudState = `active:${progressKey}`;
+          const pulse = Math.sin(paintProgress * Math.PI);
           el.style.color = themeColor;
           el.style.textShadow = showGlow
             ? `0 0 ${fontPx * 0.4}px ${themeColor}, 0 0 ${fontPx * 0.8}px ${themeColor}`
             : `0 0 ${fontPx * 0.18}px ${themeColor}`;
           el.style.transform = `scale(${1 + pulse * 0.15})`;
         } else if (currentTime > endTime) {
-          if (!el.dataset.state || el.dataset.state !== 'passed') {
-            el.dataset.state = 'passed';
+          if (el.dataset.cloudState !== 'passed') {
+            el.dataset.cloudState = 'passed';
             el.style.color = 'var(--text-main)';
             el.style.textShadow = 'none';
             el.style.transform = 'scale(1)';
           }
         } else {
-          if (el.dataset.state) {
-            el.removeAttribute('data-state');
+          if (el.dataset.cloudState !== 'waiting') {
+            el.dataset.cloudState = 'waiting';
             el.style.color = 'var(--text-muted)';
             el.style.textShadow = 'none';
             el.style.transform = 'scale(1)';
@@ -101,7 +104,7 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
         opacity: opacity,
         filter: blur > 0 ? `blur(${blur}px)` : 'none',
         transition: 'transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.8s ease, filter 0.8s ease',
-        willChange: 'transform, opacity',
+        willChange: isActive ? 'transform, opacity' : 'auto',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',

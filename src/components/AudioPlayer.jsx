@@ -17,7 +17,8 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     playMode,
     resumeTime,
     setResumeTime,
-    playSong
+    playSong,
+    refreshRecentlyPlayed
   } = useApp();
 
   const audioRef = useRef(null);
@@ -32,35 +33,111 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   const lastLoadedKeyRef = useRef('');
   const zeroTimeRecoveryRef = useRef({ key: '', attempts: 0, startedAt: 0 });
   const urlRefreshAttemptRef = useRef({ songId: null, count: 0 });
-  const scrobbleRef = useRef({ songId: null, reported: false, inFlight: false });
+  // One report is emitted at the end of a listening session.  The old code
+  // reported at 50%/30 seconds and then permanently marked the song as sent;
+  // consequently a four-minute song was recorded as only 30 seconds.
+  const scrobbleRef = useRef({ songId: null, lastTime: 0, reported: false, inFlight: false });
 
   const reportScrobble = (playedSeconds, force = false) => {
     const song = currentSong;
     const audio = audioRef.current;
     if (!song?.id || !audio) return;
     if (scrobbleRef.current.songId !== song.id) {
-      scrobbleRef.current = { songId: song.id, reported: false, inFlight: false };
+      scrobbleRef.current = { songId: song.id, lastTime: 0, reported: false, inFlight: false };
     }
     const total = Number.isFinite(audio.duration) && audio.duration > 0
       ? audio.duration
       : Number(song.durationMs || song.dt || song.duration || 0) / 1000;
-    const played = Math.max(0, Number(playedSeconds) || 0);
-    const threshold = total > 0 ? Math.min(30, Math.max(1, total * 0.5)) : 30;
-    if ((!force && played < threshold) || played <= 0 || scrobbleRef.current.reported || scrobbleRef.current.inFlight) return;
-    scrobbleRef.current.inFlight = true;
-    api.scrobble({
+    const played = Math.max(scrobbleRef.current.lastTime, Number(playedSeconds) || 0);
+    scrobbleRef.current.lastTime = played;
+    const minimum = total > 0 ? Math.min(30, Math.max(3, total * 0.1)) : 3;
+    if (played < minimum || scrobbleRef.current.reported || scrobbleRef.current.inFlight) return;
+    // Do not send a partial checkpoint while playback is still running.  A
+    // pause, track switch, ended event, or app shutdown passes force=true.
+    if (!force && total > 0 && played < total * 0.95) return;
+
+    const sourceid = song.sourceid || song.sourceId || song.playlistId
+      || song.al?.id || song.album?.id || song.id;
+    const payload = {
       id: song.id,
       time: Math.min(played, total > 0 ? total : played),
       total: total > 0 ? total : played,
-      sourceid: song.id,
+      sourceid,
       name: song.name || song.title,
       artist: song.artist || song.ar?.map(item => item.name).join(' / ') || song.artists?.map(item => item.name).join(' / '),
       level: 'exhigh'
-    }).catch(() => {}).finally(() => {
-      scrobbleRef.current.inFlight = false;
+    };
+    scrobbleRef.current.inFlight = true;
+    const assertScrobbleResponse = (result) => {
+      const codes = [
+        result?.code,
+        result?.details?.startplay?.code,
+        result?.details?.play?.code,
+        result?.details?.plv?.code,
+        result?.details?.pld?.code
+      ].filter(code => code !== undefined && code !== null).map(Number);
+      if (codes.some(code => Number.isFinite(code) && code !== 200)) {
+        throw new Error(`scrobble response code ${codes.find(code => code !== 200)}`);
+      }
+      return result;
+    };
+    // The legacy endpoint is the one that emits startplay/play feedback and
+    // updates the account's recent-play list.  Fall back to the NCBL endpoint
+    // for servers where that route is unavailable.
+    const markSynced = (endpoint, extra = {}) => {
+      // A queue skip can replace the shared tracker while this request is in
+      // flight.  Never let the previous song's response mark the new song as
+      // reported or overwrite its retry state.
+      if (scrobbleRef.current.songId !== song.id) return;
       scrobbleRef.current.reported = true;
-    });
+      appendRuntimeLog('info', 'Cloud playback record synced', {
+        songId: song.id,
+        playedSeconds: payload.time,
+        totalSeconds: payload.total,
+        endpoint,
+        ...extra
+      }, 'audio');
+      window.setTimeout(() => refreshRecentlyPlayed?.(), 1800);
+    };
+    api.scrobble(payload)
+      .then(result => {
+        assertScrobbleResponse(result);
+        markSynced('/scrobble');
+      })
+      .catch(async (legacyError) => {
+        try {
+          const result = await api.scrobbleV1(payload);
+          assertScrobbleResponse(result);
+          markSynced('/scrobble/v1', { fallback: true });
+        } catch (fallbackError) {
+          // Keep the item eligible for a later retry instead of marking a
+          // failed request as reported (the previous finally() did that).
+          appendRuntimeLog('warn', '浜戠鎾斁璁板綍鍚屾澶辫触锛屽皢鍦ㄤ笅娆″垏姝屾椂閲嶈瘯', {
+            songId: song.id,
+            playedSeconds: payload.time,
+            legacyError: legacyError?.message || String(legacyError || ''),
+            fallbackError: fallbackError?.message || String(fallbackError || '')
+          }, 'audio');
+        }
+      })
+      .finally(() => {
+        if (scrobbleRef.current.songId === song.id) {
+          scrobbleRef.current.inFlight = false;
+        }
+      });
   };
+
+  // Flush the previous track when React replaces the current song or when the
+  // audio component is torn down.  This covers window close, route changes and
+  // queue skips where Chromium may reset currentTime before dispatching pause.
+  useEffect(() => {
+    const songId = currentSong?.id;
+    return () => {
+      if (songId && scrobbleRef.current.songId === songId) {
+        reportScrobble(scrobbleRef.current.lastTime, true);
+      }
+    };
+  }, [currentSong?.id]);
 
   // Clean up global window references on unmount
   useEffect(() => {
@@ -79,7 +156,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     const audio = audioRef.current;
     if (!audio || !audioSource) return;
 
-    appendRuntimeLog('debug', '请求播放音频', {
+    appendRuntimeLog('debug', '璇锋眰鎾斁闊抽', {
       songId: currentSong?.id || null,
       source: isLocalMediaSource(audioSource) ? 'local-cache' : 'remote',
       readyState: audio.readyState,
@@ -94,7 +171,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       const retry = urlRefreshAttemptRef.current;
       if (retry.count < 1) {
         urlRefreshAttemptRef.current = { songId: currentSong.id, count: retry.count + 1 };
-        appendRuntimeLog('warn', '本地音频缓存不可用，立即切换在线播放源', {
+        appendRuntimeLog('warn', 'Local audio cache unavailable; refreshing source', {
           songId: currentSong.id,
           readyState: audio.readyState,
           networkState: audio.networkState
@@ -162,22 +239,28 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (urlRefreshAttemptRef.current.songId !== currentSong?.id) {
       urlRefreshAttemptRef.current = { songId: currentSong?.id || null, count: 0 };
     }
-    // 先使用已持久化的地址启动媒体元素，不要因为缓存时间过期而把
-    // src 清空。地址刷新由 AppContext 在后台完成；清空 src 会让首曲
-    // 必须等待网络请求结束，表现为封面/歌词已出现但进度条长时间为 0。
+    // 鍏堜娇鐢ㄥ凡鎸佷箙鍖栫殑鍦板潃鍚姩濯掍綋鍏冪礌锛屼笉瑕佸洜涓虹紦瀛樻椂闂磋繃鏈熻€屾妸
+    // src 娓呯┖銆傚湴鍧€鍒锋柊鐢?AppContext 鍦ㄥ悗鍙板畬鎴愶紱娓呯┖ src 浼氳棣栨洸
+    // 蹇呴』绛夊緟缃戠粶璇锋眰缁撴潫锛岃〃鐜颁负灏侀潰/姝岃瘝宸插嚭鐜颁絾杩涘害鏉￠暱鏃堕棿涓?0銆?
     if (currentSong?.url) {
       setProgress(0);
       setDuration(0);
       zeroTimeRecoveryRef.current = { key: currentSong.url, attempts: 0, startedAt: Date.now() };
       setAudioSource(currentSong.url);
       setCrossOriginMode(isLocalMediaSource(currentSong.url) ? null : 'anonymous');
-      appendRuntimeLog('info', '音频源已提交', {
+      appendRuntimeLog('info', '闊抽婧愬凡鎻愪氦', {
         songId: currentSong.id || null,
         source: isLocalMediaSource(currentSong.url) ? 'local-cache' : 'remote',
         hasResumeTime: resumeTime !== null
       }, 'audio');
     } else {
+      // Do not leave an empty src attribute on the persistent element. Chromium
+      // reports it as MEDIA_ERR_SRC_NOT_SUPPORTED, even though it is merely the
+      // short interval before AppContext resolves a restored session URL.
+      lastLoadedKeyRef.current = '';
+      playRequestIdRef.current += 1;
       setAudioSource('');
+      setCrossOriginMode('anonymous');
     }
   }, [currentSong?.url]);
 
@@ -303,7 +386,22 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   // When play starts, setup audio analyser
   const handlePlay = () => {
-    appendRuntimeLog('info', '音频开始播放', {
+    // A pause/resume starts a new report window for the same track.  This
+    // allows a short pause checkpoint to be replaced by the later, longer
+    // duration instead of freezing the account at the first pause position.
+    if (currentSong?.id) {
+      if (scrobbleRef.current.songId !== currentSong.id) {
+        scrobbleRef.current = {
+          songId: currentSong.id,
+          lastTime: audioRef.current?.currentTime || 0,
+          reported: false,
+          inFlight: false
+        };
+      } else {
+        scrobbleRef.current.reported = false;
+      }
+    }
+    appendRuntimeLog('info', 'Audio playback started', {
       songId: currentSong?.id || null,
       currentTime: audioRef.current?.currentTime || 0,
       readyState: audioRef.current?.readyState ?? -1
@@ -313,7 +411,8 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   };
 
   const handlePause = () => {
-    appendRuntimeLog('debug', '音频暂停', {
+    reportScrobble(audioRef.current?.currentTime || 0, true);
+    appendRuntimeLog('debug', '闊抽鏆傚仠', {
       songId: currentSong?.id || null,
       currentTime: audioRef.current?.currentTime || 0
     }, 'audio');
@@ -323,14 +422,25 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   const handleTimeUpdate = () => {
     if (audioRef.current) {
       setProgress(audioRef.current.currentTime);
-      reportScrobble(audioRef.current.currentTime);
+      if (currentSong?.id) {
+        if (scrobbleRef.current.songId !== currentSong.id) {
+          scrobbleRef.current = {
+            songId: currentSong.id,
+            lastTime: audioRef.current.currentTime || 0,
+            reported: false,
+            inFlight: false
+          };
+        } else {
+          scrobbleRef.current.lastTime = Math.max(scrobbleRef.current.lastTime, audioRef.current.currentTime || 0);
+        }
+      }
     }
   };
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
       const mediaDuration = Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : 0;
-      appendRuntimeLog('info', '音频元数据已加载', {
+      appendRuntimeLog('info', '闊抽鍏冩暟鎹凡鍔犺浇', {
         songId: currentSong?.id || null,
         duration: mediaDuration,
         readyState: audioRef.current.readyState
@@ -356,23 +466,37 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   // If the audio source fails to load, handle CORS or skip to next song
   const handleAudioError = (e) => {
-    appendRuntimeLog('error', '音频元素加载失败', {
+    const audio = audioRef.current;
+    const attributeSource = audio?.getAttribute('src') || '';
+    // Ignore the browser's synthetic empty-source error. It is emitted while a
+    // restored session is resolving its first playable URL, not a failure of a
+    // track. Treating it as a real code-4 failure previously muted the first
+    // song until a manual next-track action replaced the element source.
+    if (!attributeSource || !audioSource) {
+      appendRuntimeLog('debug', '蹇界暐闊抽婧愬噯澶囬樁娈电殑绌哄湴鍧€浜嬩欢', {
+        songId: currentSong?.id || null,
+        readyState: audio?.readyState ?? -1,
+        networkState: audio?.networkState ?? -1
+      }, 'audio');
+      return;
+    }
+    appendRuntimeLog('error', '闊抽鍏冪礌鍔犺浇澶辫触', {
       songId: currentSong?.id || null,
-      code: audioRef.current?.error?.code || 0,
-      message: audioRef.current?.error?.message || '',
-      readyState: audioRef.current?.readyState ?? -1,
-      networkState: audioRef.current?.networkState ?? -1,
+      code: audio?.error?.code || 0,
+      message: audio?.error?.message || '',
+      readyState: audio?.readyState ?? -1,
+      networkState: audio?.networkState ?? -1,
       source: isLocalMediaSource(audioSource) ? 'local-cache' : 'remote'
     }, 'audio');
     console.error("Audio playback error event:", e);
-    const code = audioRef.current?.error?.code;
+    const code = audio?.error?.code;
     
     const urlRetry = urlRefreshAttemptRef.current;
     if (isPlaying && code === 4 && currentSong && urlRetry.count < 1) {
       console.log("Attempting to refresh song URL before CORS fallback...");
       urlRefreshAttemptRef.current = { songId: currentSong.id, count: urlRetry.count + 1 };
-      audioRef.current._hasRetriedUrl = true;
-      playSong(currentSong, null, audioRef.current?.currentTime || 0, { forceRefreshUrl: true });
+      audio._hasRetriedUrl = true;
+      playSong(currentSong, null, audio?.currentTime || 0, { forceRefreshUrl: true });
       return;
     }
 
@@ -422,7 +546,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     <audio
       key="ichigo-audio-element" // Reuse static element to prevent decoding lockups in Chrome
       ref={audioRef}
-      src={audioSource}
+      src={audioSource || undefined}
       crossOrigin={crossOriginMode}
       onPlay={handlePlay}
       onPause={handlePause}
@@ -430,9 +554,9 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       onLoadedMetadata={handleLoadedMetadata}
       onDurationChange={handleDurationChange}
       onCanPlay={() => { if (isPlaying) safePlay(); }}
-      onPlaying={() => appendRuntimeLog('info', '音频进入稳定播放状态', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0 }, 'audio')}
-      onWaiting={() => appendRuntimeLog('warn', '音频等待数据', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0, readyState: audioRef.current?.readyState ?? -1 }, 'audio')}
-      onStalled={() => appendRuntimeLog('warn', '音频网络读取停滞', { songId: currentSong?.id || null, networkState: audioRef.current?.networkState ?? -1 }, 'audio')}
+      onPlaying={() => appendRuntimeLog('info', 'Audio entered stable playback', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0 }, 'audio')}
+      onWaiting={() => appendRuntimeLog('warn', '闊抽绛夊緟鏁版嵁', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0, readyState: audioRef.current?.readyState ?? -1 }, 'audio')}
+      onStalled={() => appendRuntimeLog('warn', '闊抽缃戠粶璇诲彇鍋滄粸', { songId: currentSong?.id || null, networkState: audioRef.current?.networkState ?? -1 }, 'audio')}
       onError={handleAudioError}
       onEnded={handleEnded}
       preload="auto"
@@ -440,3 +564,5 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     />
   );
 }
+
+

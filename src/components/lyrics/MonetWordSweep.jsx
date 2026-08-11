@@ -6,6 +6,7 @@ import { buildGraphemeOffsets, computeFillWidth } from './MonetLyricsEngine';
 export const wordRegistry = new Set();
 
 const getSweepBleedPx = (fontPx) => Math.max(3, Math.ceil(fontPx * 0.08));
+const quantize = (value, factor = 1000) => Math.round(value * factor) / factor;
 
 const setWordVisualState = (el, fillWidth, glowStr = 'none', reveal = 1, scale = 1, y = 0, x = 0, rotate = 0) => {
   if (!el) return;
@@ -41,8 +42,12 @@ function computeGlow(currentTime, startTime, endTime, lineRenderEndTime, fontPx,
   
   if (intensity <= 0.01) return 'none';
   
-  const r1 = fontPx * (isChorus ? 0.45 : 0.28) * intensity * intensityScale;
-  const r2 = fontPx * (isChorus ? 0.90 : 0.65) * intensity * intensityScale;
+  // Glow strings otherwise change on every audio-clock sample because of
+  // tiny floating-point differences. Quantising to a tenth of a pixel keeps
+  // the visual pulse smooth while avoiding needless style recalculation.
+  const quantizedIntensity = quantize(intensity, 100);
+  const r1 = quantize(fontPx * (isChorus ? 0.45 : 0.28) * quantizedIntensity * intensityScale, 10);
+  const r2 = quantize(fontPx * (isChorus ? 0.90 : 0.65) * quantizedIntensity * intensityScale, 10);
   const glowColor = 'var(--primary)'; // 动态调用当前主题色
   return `0 0 ${r1}px ${glowColor}, 0 0 ${r2}px ${glowColor}`;
 }
@@ -215,21 +220,25 @@ export default function MonetWordSweep({
         el.style.setProperty('--word-reveal', `${reveal}`);
         lastValueRef.reveal = reveal;
       }
-      if (popScale !== lastValueRef.scale) {
-        el.style.setProperty('--word-scale', `${popScale}`);
-        lastValueRef.scale = popScale;
+      const nextScale = quantize(popScale);
+      const nextY = quantize(popY, 100);
+      const nextX = quantize(popX, 100);
+      const nextRotate = quantize(popRotate, 100);
+      if (nextScale !== lastValueRef.scale) {
+        el.style.setProperty('--word-scale', `${nextScale}`);
+        lastValueRef.scale = nextScale;
       }
-      if (popY !== lastValueRef.y) {
-        el.style.setProperty('--word-y', `${popY}px`);
-        lastValueRef.y = popY;
+      if (nextY !== lastValueRef.y) {
+        el.style.setProperty('--word-y', `${nextY}px`);
+        lastValueRef.y = nextY;
       }
-      if (popX !== lastValueRef.x) {
-        el.style.setProperty('--word-x', `${popX}px`);
-        lastValueRef.x = popX;
+      if (nextX !== lastValueRef.x) {
+        el.style.setProperty('--word-x', `${nextX}px`);
+        lastValueRef.x = nextX;
       }
-      if (popRotate !== lastValueRef.rotate) {
-        el.style.setProperty('--word-rotate', `${popRotate}deg`);
-        lastValueRef.rotate = popRotate;
+      if (nextRotate !== lastValueRef.rotate) {
+        el.style.setProperty('--word-rotate', `${nextRotate}deg`);
+        lastValueRef.rotate = nextRotate;
       }
     };
 

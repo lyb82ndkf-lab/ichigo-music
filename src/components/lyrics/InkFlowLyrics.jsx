@@ -3,7 +3,7 @@ import MonetWordSweep from './MonetWordSweep';
 import { parseDisplayTokens } from './MonetLyricsEngine';
 import ImmersiveAudioVisual from './ImmersiveAudioVisual';
 
-function InkLine({ line, index, activeLineIndex, fontPx, translationPx, fontStack, showTranslation, showGlow, glowIntensity }) {
+const InkLine = React.memo(function InkLine({ line, index, activeLineIndex, fontPx, translationPx, fontStack, showTranslation, showGlow, glowIntensity }) {
   const status = index === activeLineIndex ? 'active' : index < activeLineIndex ? 'passed' : 'waiting';
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
   return <div className={`ink-line ink-${status}`}>
@@ -12,9 +12,9 @@ function InkLine({ line, index, activeLineIndex, fontPx, translationPx, fontStac
     </div>
     {showTranslation && line.translation && <div className="ink-translation" style={{ fontSize: `${translationPx}px`, fontFamily: fontStack }}>{line.translation}</div>}
   </div>;
-}
+});
 
-export default function InkFlowLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 40, translationPx = 18, fontStack, showTranslation = true, showGlow = true, glowIntensity = 1, spread = 1, opacity = 0.45, speed = 1, accentColor = 'var(--primary)', visualizerStyle = 'circle', visualizerOpacity = 0.82, visualizerSmoothing = 0.16, visualizerOffsetY = 0, visualizerScale = 1, visualizerIntensity = 1 }) {
+export default function InkFlowLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 40, translationPx = 18, fontStack, showTranslation = true, showGlow = true, glowIntensity = 1, spread = 1, opacity = 0.45, speed = 1, accentColor = 'var(--primary)', visualizerStyle = 'circle', visualizerOpacity = 0.82, visualizerSmoothing = 0.16, visualizerOffsetY = 0, visualizerScale = 1, visualizerIntensity = 1, isPlaying = true }) {
   const lines = useMemo(() => {
     if (!lyrics.length) return [];
     const active = Math.max(0, Math.min(lyrics.length - 1, activeLineIndex));
@@ -22,7 +22,7 @@ export default function InkFlowLyrics({ lyrics = [], activeLineIndex = -1, fontP
     return lyrics.slice(start, Math.min(lyrics.length, active + 3)).map((line, offset) => ({ line, index: start + offset }));
   }, [lyrics, activeLineIndex]);
   return <div className="inkflow-lyrics" style={{ '--ink-accent': accentColor, '--ink-opacity': opacity, '--ink-spread': spread, '--ink-speed': speed }}>
-    <ImmersiveAudioVisual variant="inkflow" accentColor={accentColor} intensity={visualizerIntensity} visualizerStyle={visualizerStyle} opacity={visualizerOpacity} smoothing={visualizerSmoothing} offsetY={visualizerOffsetY} scale={visualizerScale} />
+    <ImmersiveAudioVisual variant="inkflow" isPlaying={isPlaying} accentColor={accentColor} intensity={visualizerIntensity} visualizerStyle={visualizerStyle} opacity={visualizerOpacity} smoothing={visualizerSmoothing} offsetY={visualizerOffsetY} scale={visualizerScale} />
     <div className="ink-wash ink-wash-a" /><div className="ink-wash ink-wash-b" /><div className="ink-grain" />
     <div className="ink-lines">{lines.map(({ line, index }) => <InkLine key={`${line.time}-${index}`} line={line} index={index} activeLineIndex={activeLineIndex} fontPx={fontPx} translationPx={translationPx} fontStack={fontStack} showTranslation={showTranslation} showGlow={showGlow} glowIntensity={glowIntensity} />)}</div>
     <style>{`

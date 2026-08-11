@@ -101,7 +101,13 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
   }, [flatTimings]);
 
   useEffect(() => {
+    // Only the active line, its immediate predecessor and the next line need
+    // time-driven updates. Older retained lines stay visually settled and do
+    // not need a subscription on every lyric-clock frame.
+    if (!isActive && Math.abs(dist) > 1) return undefined;
     const charElements = charRefs.current;
+    const lastPaint = [];
+    let lastTranslationOpacity = null;
     
     const update = () => {
       const currentTime = (engineRef.current?.getCurrentTime() || 0) + globalOffset;
@@ -163,15 +169,19 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
           }
         }
 
+        const glowing = glowIntensity > 0.05;
+        const paintKey = `${Math.round(opacity * 240)}|${Math.round(x * 10)}|${Math.round(y * 10)}|${Math.round(rot * 10)}|${Math.round(scale * 1000)}|${glowing ? 'g' : 'n'}`;
+        if (lastPaint[idx] === paintKey) return;
+        lastPaint[idx] = paintKey;
         el.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${scale})`;
         el.style.opacity = opacity;
-        el.style.color = glowIntensity > 0.05 ? themeColor : 'var(--text-main)';
-        el.style.textShadow = glowIntensity > 0.05
+        el.style.color = glowing ? themeColor : 'var(--text-main)';
+        el.style.textShadow = glowing
           ? `0 0 ${fontPx * 0.15}px ${themeColor}, 0 0 ${fontPx * 0.35}px ${themeColor}`
           : 'none';
 
         // Use dataset for fast GPU-accelerated CSS state transitions instead of rAF text-shadow mutation
-        if (glowIntensity > 0.05) {
+        if (glowing) {
           if (el.dataset.state !== 'glowing') el.dataset.state = 'glowing';
         } else {
           if (el.dataset.state === 'glowing') el.dataset.state = 'normal';
@@ -180,13 +190,19 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
 
       // Handle translation opacity - only show during active time
       if (translationRef.current) {
+        let nextTranslationOpacity;
         if (currentTime >= line.time && currentTime <= lineEndTime) {
-          translationRef.current.style.opacity = 0.6;
+          nextTranslationOpacity = 0.6;
         } else if (currentTime > lineEndTime) {
           const postLineElapsed = currentTime - lineEndTime;
-          translationRef.current.style.opacity = Math.max(0, 0.6 - (postLineElapsed / 1.0));
+          nextTranslationOpacity = Math.max(0, 0.6 - (postLineElapsed / 1.0));
         } else {
-          translationRef.current.style.opacity = 0;
+          nextTranslationOpacity = 0;
+        }
+        const roundedTranslationOpacity = Math.round(nextTranslationOpacity * 240) / 240;
+        if (roundedTranslationOpacity !== lastTranslationOpacity) {
+          lastTranslationOpacity = roundedTranslationOpacity;
+          translationRef.current.style.opacity = roundedTranslationOpacity;
         }
       }
 
@@ -194,7 +210,7 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
 
     update();
     return subscribeLyricClock(update);
-  }, [line, flatTimings, fontPx, themeColor, showGlow, globalOffset, engineRef, chaosOffsets]);
+  }, [line, flatTimings, fontPx, themeColor, showGlow, globalOffset, engineRef, chaosOffsets, isActive, dist]);
 
   // Determine alignment based on the 4 tracks
   const trackStyles = [
@@ -263,7 +279,7 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
             ref={el => { charRefs.current[idx] = el; }}
             style={{
               display: 'inline-block',
-              willChange: 'transform, opacity',
+              willChange: isActive || Math.abs(dist) <= 1 ? 'transform, opacity' : 'auto',
               whiteSpace: timing.text.trim() === '' ? 'pre' : 'normal',
               transformOrigin: 'center center',
               opacity: 0 // Prevent initial flash before rAF hook takes over

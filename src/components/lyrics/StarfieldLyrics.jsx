@@ -14,7 +14,7 @@ function makeStars(count) {
   }));
 }
 
-function StarLine({ line, index, activeLineIndex, fontPx, translationPx, fontStack, showTranslation, showGlow, glowIntensity }) {
+const StarLine = React.memo(function StarLine({ line, index, activeLineIndex, fontPx, translationPx, fontStack, showTranslation, showGlow, glowIntensity }) {
   const status = index === activeLineIndex ? 'active' : index < activeLineIndex ? 'passed' : 'waiting';
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
   return <div className={`star-line star-${status}`}>
@@ -23,9 +23,9 @@ function StarLine({ line, index, activeLineIndex, fontPx, translationPx, fontSta
     </div>
     {showTranslation && line.translation && <div className="star-translation" style={{ fontSize: `${translationPx}px`, fontFamily: fontStack }}>{line.translation}</div>}
   </div>;
-}
+});
 
-export default function StarfieldLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 38, translationPx = 18, fontStack, showTranslation = true, showGlow = true, glowIntensity = 1, density = 42, speed = 1, depth = 1, accentColor = 'var(--primary)', visualizerStyle = 'circle', visualizerOpacity = 0.82, visualizerSmoothing = 0.16, visualizerOffsetY = 0, visualizerScale = 1, visualizerIntensity = 1 }) {
+export default function StarfieldLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 38, translationPx = 18, fontStack, showTranslation = true, showGlow = true, glowIntensity = 1, density = 42, speed = 1, depth = 1, accentColor = 'var(--primary)', visualizerStyle = 'circle', visualizerOpacity = 0.82, visualizerSmoothing = 0.16, visualizerOffsetY = 0, visualizerScale = 1, visualizerIntensity = 1, isPlaying = true }) {
   const stars = useMemo(() => makeStars(Math.max(12, Math.min(120, density))), [density]);
   const lines = useMemo(() => {
     if (!lyrics.length) return [];
@@ -34,7 +34,7 @@ export default function StarfieldLyrics({ lyrics = [], activeLineIndex = -1, fon
     return lyrics.slice(start, Math.min(lyrics.length, active + 3)).map((line, offset) => ({ line, index: start + offset }));
   }, [lyrics, activeLineIndex]);
   return <div className="starfield-lyrics" style={{ '--star-accent': accentColor, '--star-speed': Math.max(0.2, speed), '--star-depth': depth }}>
-    <ImmersiveAudioVisual variant="starfield" accentColor={accentColor} intensity={visualizerIntensity} visualizerStyle={visualizerStyle} opacity={visualizerOpacity} smoothing={visualizerSmoothing} offsetY={visualizerOffsetY} scale={visualizerScale} />
+    <ImmersiveAudioVisual variant="starfield" isPlaying={isPlaying} accentColor={accentColor} intensity={visualizerIntensity} visualizerStyle={visualizerStyle} opacity={visualizerOpacity} smoothing={visualizerSmoothing} offsetY={visualizerOffsetY} scale={visualizerScale} />
     <div className="starfield-background" aria-hidden="true">{stars.map(star => <i key={star.id} style={{ left: `${star.x}%`, top: `${star.y}%`, width: `${star.size}px`, height: `${star.size}px`, opacity: star.opacity, animationDelay: `${star.delay}s` }} />)}</div>
     <div className="starfield-lines">{lines.map(({ line, index }) => <StarLine key={`${line.time}-${index}`} line={line} index={index} activeLineIndex={activeLineIndex} fontPx={fontPx} translationPx={translationPx} fontStack={fontStack} showTranslation={showTranslation} showGlow={showGlow} glowIntensity={glowIntensity} />)}</div>
     <style>{`

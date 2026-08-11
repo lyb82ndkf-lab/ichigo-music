@@ -96,7 +96,20 @@ export const api = {
 
   // Song details & URLs
   getSongUrls: (ids, level = 'exhigh') => request(`/song/url/v1?id=${ids}&level=${level}&timestamp=${Date.now()}`),
-  scrobble: ({ id, time, total, sourceid, name, artist, level = 'exhigh' }) => {
+  // Legacy feedback endpoint: this is the endpoint used by the official
+  // desktop/web clients to update recent-play and listening statistics.
+  scrobble: ({ id, time, sourceid }) => {
+    const params = new URLSearchParams({
+      id: String(id),
+      sourceid: String(sourceid || id),
+      time: String(Math.max(1, Math.round(Number(time) || 0))),
+      timestamp: String(Date.now())
+    });
+    return request(`/scrobble?${params.toString()}`, { timeout: 12000 });
+  },
+  // NCBL desktop-client report. Keep this as a fallback for servers/accounts
+  // where the legacy feedback endpoint is temporarily unavailable.
+  scrobbleV1: ({ id, time, total, sourceid, name, artist, level = 'exhigh' }) => {
     const params = new URLSearchParams({
       id: String(id),
       time: String(Math.max(1, Math.round(Number(time) || 0))),
@@ -109,6 +122,7 @@ export const api = {
     });
     return request(`/scrobble/v1?${params.toString()}`, { timeout: 12000 });
   },
+  getRecentSongs: (limit = 100) => request(`/record/recent/song?limit=${Math.max(1, Math.min(200, Number(limit) || 100))}&timestamp=${Date.now()}`, { timeout: 12000 }),
   getSongDetails: (ids) => request(`/song/detail?ids=${ids}`),
   getLyrics: (id) => request(`/lyric?id=${id}`),
   getMatchedLyrics: ({ id, title, artist, album, durationMs, sources = 'amll,qq,kugou' }) => {

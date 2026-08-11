@@ -39,6 +39,28 @@ const ModernHome = lazy(() => import('./views/ModernHome'));
 // Icons
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';
 
+const KTV_TEMPLATE_GALLERY = [
+  ['blue-impact', '蓝色冲击', 'linear-gradient(135deg,#071a73,#1b5dff)'],
+  ['kinetic-split', '斩击构成', 'linear-gradient(135deg,#18121d,#ff5f80)'],
+  ['blue-structure', '蓝色构成', 'linear-gradient(135deg,#f5f2eb,#1642c4)'],
+  ['cyber-grunge', '赛博废墟', 'linear-gradient(135deg,#090a0e,#d61931)'],
+  ['geometric', '几何', 'linear-gradient(135deg,#0e1720,#f5bd45)'],
+  ['matrix', '黑客帝国', 'linear-gradient(135deg,#00150a,#39e980)'],
+  ['night-city', '夜城监视', 'linear-gradient(135deg,#001d1d,#7cffc8)'],
+  ['emotion-cinema', '情绪电影', 'linear-gradient(135deg,#100b0e,#b77e55)'],
+  ['hysteric-night', '歇斯底里', 'linear-gradient(135deg,#160014,#ff35c6)'],
+  ['spider-web', '蛛网', 'linear-gradient(135deg,#130b11,#ff334d)'],
+  ['staggered-text', '错落文字', 'linear-gradient(135deg,#11142c,#96baff)'],
+  ['calm-villain', '冷静反派', 'linear-gradient(135deg,#060f25,#376eff)'],
+  ['girly-clouds', '少女云朵', 'linear-gradient(135deg,#fff0f6,#ff9bcb)'],
+  ['sweet-pink', '格子花边', 'linear-gradient(135deg,#ffcad9,#ff75b5)'],
+  ['fly-me-to-the-moon', 'Fly Me to the Moon', 'linear-gradient(135deg,#03050c,#d9ba56)'],
+  ['kawaii-pixel', 'Kawaii 像素', 'linear-gradient(135deg,#bcefff,#ffd0e4)'],
+  ['crime-scene', '案发现场', 'linear-gradient(135deg,#15130d,#d99b19)'],
+  ['haruhikage', '春日影', 'linear-gradient(135deg,#dff4ff,#5d91cb)'],
+  ['custom', 'Custom 自定义', 'linear-gradient(135deg,#111421,#8374ff)']
+];
+
 function AppContent() {
   const {
     currentView,
@@ -145,6 +167,7 @@ function AppContent() {
   };
 
   const currentLyricsMode = normalizeImmersiveMode(advancedLyricConfig?.lyricsMode);
+  const currentKtvSongTemplate = advancedLyricConfig?.ktvSongTemplates?.[String(currentSong?.id)] || '';
   const legacyDedicatedBars = ['spotlight', 'starfield', 'filmstrip', 'inkflow'].includes(currentLyricsMode)
     && advancedLyricConfig?.visualizerStyleByMode?.[currentLyricsMode] === 'bars';
   const currentModeVisualizerStyle = (!legacyDedicatedBars && advancedLyricConfig?.visualizerStyleByMode?.[currentLyricsMode])
@@ -535,7 +558,7 @@ function AppContent() {
             />
             <div className="lyrics-overlay-wash" />
 
-            {advancedLyricConfig.showDecor === true && <MonetFloatingDecor />}
+            {advancedLyricConfig.showDecor === true && <MonetFloatingDecor isPlaying={isPlaying} currentSong={currentSong} advancedLyricConfig={advancedLyricConfig} />}
 
             {/* Custom window control buttons for Modern Layout Immersive View */}
             {layoutMode === 'modern' && (
@@ -940,45 +963,162 @@ function AppContent() {
                         </>
                       )}
 
-                      {/* ================= 混乱模式 (talk) 可视化参数================= */}
+                      {/* ================= KTV 文字 PV (talk) 参数================= */}
                       {advancedLyricConfig.lyricsMode === 'talk' && (
                         <>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>视差粒子参数 (混乱模式)</div>
+                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>文字 PV 编排（按歌词行自动切换构图）</div>
                           <label className="setting-row-inline">
-                            <span>常驻粒子数：{advancedLyricConfig.talkParticleCount ?? 80}</span>
-                            <input type="range" min="20" max="200" step="10" value={advancedLyricConfig.talkParticleCount ?? 80}
-                              onChange={(e) => updateAdvancedLyricConfig({ talkParticleCount: Number(e.target.value) })} />
+                            <span>PV 模板</span>
+                            <select className="setting-select" value={advancedLyricConfig.ktvPreset || 'auto'}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvPreset: e.target.value })}>
+                              <option value="auto">自动：按封面颜色固定选择</option>
+                              <option value="blue-impact">蓝色冲击</option>
+                              <option value="kinetic-split">斩击构成</option>
+                              <option value="blue-structure">蓝色构成</option>
+                              <option value="cyber-grunge">赛博废墟</option>
+                              <option value="geometric">几何</option>
+                              <option value="matrix">黑客帝国</option>
+                              <option value="night-city">夜城监视</option>
+                              <option value="emotion-cinema">情绪电影</option>
+                              <option value="hysteric-night">歇斯底里</option>
+                              <option value="spider-web">蛛网</option>
+                              <option value="staggered-text">错落文字</option>
+                              <option value="calm-villain">冷静的反派</option>
+                              <option value="girly-clouds">少女云朵</option>
+                              <option value="sweet-pink">格子花边</option>
+                              <option value="fly-me-to-the-moon">Fly Me to the Moon</option>
+                              <option value="kawaii-pixel">Kawaii 像素</option>
+                              <option value="crime-scene">案发现场</option>
+                              <option value="haruhikage">春日影</option>
+                              <option value="custom">Custom 自定义</option>
+                            </select>
                           </label>
+                          <div aria-label="PV 模板速选" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '6px', margin: '-2px 0 10px' }}>
+                            {KTV_TEMPLATE_GALLERY.map(([value, label, background]) => {
+                              const selected = (advancedLyricConfig.ktvPreset || 'auto') === value;
+                              return <button
+                                key={value}
+                                type="button"
+                                title={`使用${label}模板`}
+                                onClick={() => updateAdvancedLyricConfig({ ktvPreset: value })}
+                                style={{
+                                  minWidth: 0,
+                                  minHeight: '34px',
+                                  padding: '5px 7px',
+                                  borderRadius: '7px',
+                                  border: selected ? '2px solid #fff' : '1px solid rgba(255,255,255,.18)',
+                                  outline: selected ? '2px solid var(--primary)' : 'none',
+                                  outlineOffset: selected ? '1px' : 0,
+                                  color: '#fff',
+                                  background,
+                                  boxShadow: selected ? '0 0 14px var(--primary-glow)' : 'none',
+                                  cursor: 'pointer',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  lineHeight: 1.15,
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >{label}</button>;
+                            })}
+                          </div>
+                          {currentSong?.id && <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '-2px 0 10px', padding: '7px 8px', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', background: 'rgba(255,255,255,.035)' }}>
+                            <span style={{ minWidth: 0, flex: 1, color: currentKtvSongTemplate ? 'var(--primary)' : 'var(--text-muted)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {currentKtvSongTemplate ? `本曲已锁定：${KTV_TEMPLATE_GALLERY.find(([value]) => value === currentKtvSongTemplate)?.[1] || currentKtvSongTemplate}` : '本曲跟随全局 / 封面自动模板'}
+                            </span>
+                            {currentKtvSongTemplate ? <button type="button" onClick={() => {
+                              const next = { ...(advancedLyricConfig.ktvSongTemplates || {}) };
+                              delete next[String(currentSong.id)];
+                              updateAdvancedLyricConfig({ ktvSongTemplates: next });
+                            }} style={{ flex: '0 0 auto', padding: '4px 7px', borderRadius: '5px', border: '1px solid rgba(255,255,255,.18)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px' }}>恢复自动</button> : <button type="button" disabled={(advancedLyricConfig.ktvPreset || 'auto') === 'auto'} onClick={() => updateAdvancedLyricConfig({ ktvSongTemplates: { ...(advancedLyricConfig.ktvSongTemplates || {}), [String(currentSong.id)]: advancedLyricConfig.ktvPreset } })} style={{ flex: '0 0 auto', padding: '4px 7px', borderRadius: '5px', border: '1px solid rgba(255,255,255,.18)', background: 'transparent', color: (advancedLyricConfig.ktvPreset || 'auto') === 'auto' ? 'var(--text-muted)' : 'var(--primary)', cursor: (advancedLyricConfig.ktvPreset || 'auto') === 'auto' ? 'default' : 'pointer', fontSize: '10px', opacity: (advancedLyricConfig.ktvPreset || 'auto') === 'auto' ? .45 : 1 }}>锁定本曲</button>}
+                          </div>}
                           <label className="setting-row-inline">
-                            <span>粒子发光半径：{(advancedLyricConfig.talkParticleSize ?? 1.0).toFixed(1)}</span>
-                            <input type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.talkParticleSize ?? 1.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ talkParticleSize: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>粒子不透明度：{(advancedLyricConfig.talkParticleOpacity ?? 0.7).toFixed(2)}</span>
-                            <input type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.talkParticleOpacity ?? 0.7}
-                              onChange={(e) => updateAdvancedLyricConfig({ talkParticleOpacity: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>粒子形状</span>
-                            <select className="setting-select" value={advancedLyricConfig.talkParticleShape || 'triangle'}
-                              onChange={(e) => updateAdvancedLyricConfig({ talkParticleShape: e.target.value })}>
-                              <option value="triangle">经典三角</option>
-                              <option value="diamond">华丽菱形</option>
-                              <option value="dot">圆点星辰</option>
-                              <option value="line">律动短线</option>
+                            <span>构图节奏</span>
+                            <select className="setting-select" value={advancedLyricConfig.ktvComposition || 'auto'}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvComposition: e.target.value })}>
+                              <option value="auto">自动切换（推荐）</option>
+                              <option value="poster">海报留白</option>
+                              <option value="split">斜切分屏</option>
+                              <option value="stack">居中叠构</option>
+                              <option value="impact">冲击标题</option>
+                              <option value="orbit">轨道构图</option>
                             </select>
                           </label>
                           <label className="setting-row-inline">
-                            <span>冲击爆发阈值：{advancedLyricConfig.talkBurstThreshold ?? 200}</span>
-                            <input type="range" min="100" max="250" step="5" value={advancedLyricConfig.talkBurstThreshold ?? 200}
-                              onChange={(e) => updateAdvancedLyricConfig({ talkBurstThreshold: Number(e.target.value) })} />
+                            <span>逐字动画</span>
+                            <select className="setting-select" value={advancedLyricConfig.ktvTextEffect || 'auto'}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvTextEffect: e.target.value })}>
+                              <option value="auto">自动：跟随模板</option>
+                              <option value="slice">切片扫入</option>
+                              <option value="slash">斜切飞入</option>
+                              <option value="stagger">错落弹入</option>
+                              <option value="glitch">故障闪入</option>
+                              <option value="typewriter">逐字打字机</option>
+                              <option value="terminal">终端输入</option>
+                              <option value="scatter">散落归位</option>
+                              <option value="orbit">环绕落位</option>
+                              <option value="wave">波浪起伏</option>
+                              <option value="shatter">碎裂聚合</option>
+                              <option value="cards">字符卡片</option>
+                              <option value="float">漂浮显现</option>
+                              <option value="pixel">像素跳入</option>
+                              <option value="stamp">印章落字</option>
+                              <option value="fade">虚焦显影</option>
+                              <option value="slide">横向滑入</option>
+                            </select>
                           </label>
                           <label className="setting-row-inline">
-                            <span>喷涌爆发强度：{(advancedLyricConfig.talkBurstIntensity ?? 1.0).toFixed(1)}</span>
-                            <input type="range" min="0.3" max="2.0" step="0.1" value={advancedLyricConfig.talkBurstIntensity ?? 1.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ talkBurstIntensity: Number(e.target.value) })} />
+                            <span>镜头动势：{(advancedLyricConfig.ktvMotion ?? 1).toFixed(2)}x</span>
+                            <input type="range" min="0.35" max="1.8" step="0.05" value={advancedLyricConfig.ktvMotion ?? 1}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvMotion: Number(e.target.value) })} />
                           </label>
+                          <label className="setting-row-inline">
+                            <span>镜头缩放：{Math.round((advancedLyricConfig.ktvCameraZoom ?? 0) * 100)}%</span>
+                            <input type="range" min="0" max="1" step="0.05" value={advancedLyricConfig.ktvCameraZoom ?? 0}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvCameraZoom: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>镜头倾斜：{advancedLyricConfig.ktvCameraTilt ?? 0}°</span>
+                            <input type="range" min="-8" max="8" step="1" value={advancedLyricConfig.ktvCameraTilt ?? 0}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvCameraTilt: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>镜头抖动：{Math.round((advancedLyricConfig.ktvCameraShake ?? 0) * 100)}%</span>
+                            <input type="range" min="0" max="1" step="0.05" value={advancedLyricConfig.ktvCameraShake ?? 0}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvCameraShake: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>PV 流畅度</span>
+                            <select className="setting-select" value={advancedLyricConfig.ktvRenderQuality || 'auto'}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvRenderQuality: e.target.value })}>
+                              <option value="auto">自动（推荐）</option>
+                              <option value="rich">视觉优先</option>
+                              <option value="balanced">平衡</option>
+                              <option value="efficient">流畅优先</option>
+                            </select>
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>高亮色</span>
+                            <select className="setting-select" value={advancedLyricConfig.ktvAccent || 'auto'}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvAccent: e.target.value })}>
+                              <option value="auto">自动：封面色 / 模板色</option>
+                              <option value="preset">使用模板配色</option>
+                              <option value="theme">跟随封面</option>
+                              <option value="coral">珊瑚红</option>
+                              <option value="cyan">极光青</option>
+                              <option value="lime">酸性黄绿</option>
+                              <option value="paper">纸白</option>
+                              <option value="custom">自定义</option>
+                            </select>
+                          </label>
+                          {advancedLyricConfig.ktvAccent === 'custom' && <label className="setting-row-inline"><span>自定义高亮</span><input type="color" value={advancedLyricConfig.ktvCustomColor || '#ff6b79'} onChange={(e) => updateAdvancedLyricConfig({ ktvCustomColor: e.target.value })} style={{ width: '36px', height: '24px', padding: 0, border: 'none', borderRadius: '4px', cursor: 'pointer' }} /></label>}
+                          <label className="setting-row-inline compact-toggle"><span>融入专辑封面素材</span><input type="checkbox" checked={advancedLyricConfig.ktvUseCoverTexture !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvUseCoverTexture: e.target.checked })} /></label>
+                          <label className="setting-row-inline compact-toggle"><span>随音乐驱动镜头</span><input type="checkbox" checked={advancedLyricConfig.ktvBeatReactive !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvBeatReactive: e.target.checked })} /></label>
+                          <label className="setting-row-inline compact-toggle"><span>预览 PV 舞台（示例歌词）</span><input type="checkbox" checked={advancedLyricConfig.ktvPreviewEnabled === true} onChange={(e) => updateAdvancedLyricConfig({ ktvPreviewEnabled: e.target.checked })} /></label>
+                          <label className="setting-row-inline compact-toggle"><span>显示歌曲开场标题卡</span><input type="checkbox" checked={advancedLyricConfig.ktvShowTitleCard !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvShowTitleCard: e.target.checked })} /></label>
+                          <label className="setting-row-inline compact-toggle"><span>显示翻译 / 罗马音</span><input type="checkbox" checked={advancedLyricConfig.ktvShowTranslation !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvShowTranslation: e.target.checked })} /></label>
+                          <label className="setting-row-inline compact-toggle"><span>显示上一句歌词</span><input type="checkbox" checked={advancedLyricConfig.ktvShowPreviousLine === true} onChange={(e) => updateAdvancedLyricConfig({ ktvShowPreviousLine: e.target.checked })} /></label>
                         </>
                       )}
 

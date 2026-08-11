@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+﻿import React, { useEffect, useRef } from 'react';
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value));
 
@@ -41,10 +41,18 @@ export default function ImmersiveAudioVisual({
   opacity = 0.82,
   smoothing = 0.16,
   offsetY = 0,
-  scale = 1
+  scale = 1,
+  isPlaying = true
 }) {
   const canvasRef = useRef(null);
   const stateRef = useRef({ bass: 0, mid: 0, treble: 0, energy: 0, time: 0 });
+  const playingRef = useRef(isPlaying);
+  const wakeRef = useRef(null);
+
+  useEffect(() => {
+    playingRef.current = isPlaying;
+    wakeRef.current?.();
+  }, [isPlaying]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -60,6 +68,8 @@ export default function ImmersiveAudioVisual({
     let dpr = 1;
     let visualEnergy = 0;
     let lastDrawAt = 0;
+    let idleTimer = 0;
+    let idleCleared = false;
 
     const resize = () => {
       const rect = parent?.getBoundingClientRect() || canvas.getBoundingClientRect();
@@ -114,18 +124,20 @@ export default function ImmersiveAudioVisual({
         context.stroke();
       }
       context.restore();
-      // 閼辨艾鍘滈悘顖欑瑩鐏炵儑绱扮粣鍕潡鎼达箒鍨堕崣鏉垮帨閺夌喎鎷版稉顓炵妇闂€婊冦仈閸忓婀€閿涘矂浼╅崗宥夆偓鈧崠鏍ㄥ灇閺咁噣鈧氨骞嗚ぐ銏ゎ暥鐠嬩究鈧?
+      // 闁艰鲸鑹鹃崢婊堟倶椤栨瑧鐟╅悘鐐靛剳缁辨壆绮ｉ崟顕呮健閹艰揪绠掗崹鍫曞矗閺夊灝甯ㄩ柡澶屽枎閹风増绋夐鐐靛闂傗偓濠婂啨浠堥柛蹇擃槸濠€鈧柨娑樼焸娴尖晠宕楀澶嗗亾閳ь剟宕犻弽銊ョ亣闁哄拋鍣ｉ埀顒佹皑楠炲棜銇愰姀銈庢殽閻犲绌堕埀?
       context.save();
       context.translate(cx, cy);
       context.rotate(-now * 0.00018);
       const beamCount = 6;
+      // All beams share the same radial falloff. Build the gradient once per
+      // frame instead of allocating six identical CanvasGradient objects.
+      const beamGradient = context.createRadialGradient(0, 0, radius * 0.3, 0, 0, Math.max(width, height));
+      beamGradient.addColorStop(0, rgba(rgb, 0.16 + levels.mid * 0.12));
+      beamGradient.addColorStop(1, rgba(rgb, 0));
       for (let index = 0; index < beamCount; index += 1) {
         const angle = (index / beamCount) * Math.PI * 2;
         const beamWidth = 0.08 + levels.treble * 0.08;
-        const gradient = context.createRadialGradient(0, 0, radius * 0.3, 0, 0, Math.max(width, height));
-        gradient.addColorStop(0, rgba(rgb, 0.16 + levels.mid * 0.12));
-        gradient.addColorStop(1, rgba(rgb, 0));
-        context.fillStyle = gradient;
+        context.fillStyle = beamGradient;
         context.beginPath();
         context.moveTo(0, 0);
         context.arc(0, 0, Math.max(width, height), angle - beamWidth, angle + beamWidth);
@@ -142,7 +154,7 @@ export default function ImmersiveAudioVisual({
       for (const particle of particles) {
         const depth = particle.z;
         const travel = ((now * speed * particle.speed + particle.x) % 1 + 1) % 1;
-        // 閻㈠彉鑵戣箛鍐ㄦ倻婢舵牜娈戦柅蹇氼潒閺勭喕寤洪敍姘箒鎼达箑鎮撻弮鑸靛付閸掓湹缍呯純顔衡偓浣峰瘨鎼达箑鎷伴幏鏍х啲闂€鍨閵?
+        // 闁汇垹褰夐懙鎴ｇ疀閸愩劍鍊诲鑸电墱濞堟垿鏌呰箛姘兼綊闁哄嫮鍠曞娲晬濮橆厾绠掗幖杈剧畱閹捇寮懜闈涗粯闁告帗婀圭紞鍛磾椤旇　鍋撴担宄扮槰閹艰揪绠戦幏浼村箯閺嵮呭暡闂傗偓閸喖顔婇柕?
         const perspective = 0.12 + travel * (0.88 + depth * 0.35);
         const x = (particle.x - 0.5) * width * perspective + centerX;
         const y = (particle.y - 0.5) * height * perspective + centerY;
@@ -169,7 +181,7 @@ export default function ImmersiveAudioVisual({
       const centerY = height * 0.5;
       const barCount = Math.min(64, data.length || 64);
       const step = width / barCount;
-      // 閼冲墎澧栧Ο鈥崇础娑撴挸鐫橀敍姘厬鏉炲顥嗙敮锔衡偓浣瑰閹诲繐銇旈崪灞肩瑐娑撳濞囩€涙棑绱濇稉宥勫▏閻劍娅橀柅姘弿鐏炲繑鐓撮悩璺烘禈閵?
+      // 闁煎啿澧庢晶鏍熼垾宕囩濞戞挻鎸搁惈姗€鏁嶅顐ュ幀閺夌偛顕ˉ鍡欐暜閿旇　鍋撴担鐟邦棁闁硅绻愰妵鏃堝椽鐏炶偐鐟愬☉鎾愁儔婵炲洨鈧稒妫戠槐婵囩▔瀹ュ嫬鈻忛柣顫妽濞呮﹢鏌呭顒€寮块悘鐐茬箲閻撴挳鎮╃捄鐑樼闁?
       context.fillStyle = rgba(rgb, 0.05 + levels.energy * 0.06);
       context.fillRect(0, centerY - 2, width, 4);
       for (let hole = 0; hole < Math.ceil(width / 34); hole += 1) {
@@ -194,7 +206,7 @@ export default function ImmersiveAudioVisual({
     };
 
     const drawInkflow = (rgb, levels, now) => {
-      // 濮樻潙鈪峰Ο鈥崇础娑撴挸鐫橀敍姘▏閻劌鐢柅蹇旀鎼达妇娈戦梻顓炴値婢с劌鐢崪灞筋樋娑擃亜鈪峰杈剧礉閼板矂娼弰鐔诲缓/閻滎垰鑸扮痪鎸庢蒋閵?
+      // 婵ɑ娼欓埅宄拔熼垾宕囩濞戞挻鎸搁惈姗€鏁嶅顐⑩枏闁活潿鍔岄悽顐︽焻韫囨梹顫栭幖杈惧濞堟垿姊婚鐐村€ゅ褋鍔岄悽顐﹀椽鐏炵瓔妯嬪☉鎿冧簻閳嘲顭ㄦ潏鍓х闁兼澘鐭傚顏堝及閻旇缂?闁绘粠鍨伴懜鎵棯閹稿孩钂嬮柕?
       const ribbons = 5;
       for (let ribbon = 0; ribbon < ribbons; ribbon += 1) {
         const baseY = height * (0.18 + ribbon / (ribbons - 1) * 0.64);
@@ -228,11 +240,52 @@ export default function ImmersiveAudioVisual({
       }
     };
 
+    const schedule = (idle = false) => {
+      if (idle) {
+        if (!idleTimer) {
+          idleTimer = window.setTimeout(() => {
+            idleTimer = 0;
+            frameId = window.requestAnimationFrame(tick);
+          }, 300);
+        }
+      } else {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+    const wake = () => {
+      if (idleTimer) {
+        window.clearTimeout(idleTimer);
+        idleTimer = 0;
+      }
+      if (!frameId && playingRef.current && !document.hidden && visualizerStyle !== 'off') {
+        frameId = window.requestAnimationFrame(tick);
+      }
+    };
+    wakeRef.current = wake;
+    const handleVisibility = () => {
+      if (!document.hidden) wake();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     const tick = (now) => {
-      frameId = window.requestAnimationFrame(tick);
+      frameId = 0;
       // The lyric clock remains at display rate; background visualizers are
       // deliberately capped to a stable 30fps to prevent canvas work from
       // competing with per-word timing and causing visible jitter.
+      // When paused or hidden, keep the RAF callback lightweight and avoid
+      // analyser reads / gradient allocation. This keeps all immersive modes
+      // responsive while the audio element is buffering or the window is
+      // backgrounded.
+      if (document.hidden || !playingRef.current || visualizerStyle === 'off') {
+        if (!idleCleared) {
+          context.clearRect(0, 0, width, height);
+          idleCleared = true;
+        }
+        schedule(true);
+        return;
+      }
+      idleCleared = false;
+      schedule(false);
       if (now - lastDrawAt < 1000 / 24) return;
       lastDrawAt = now;
       const analyser = window.ichigoAnalyser;
@@ -263,13 +316,13 @@ export default function ImmersiveAudioVisual({
       previous.treble += (target.treble - previous.treble) * smoothingFactor;
       previous.energy = (previous.bass + previous.mid + previous.treble) / 3;
       visualEnergy += (previous.energy - visualEnergy) * 0.08;
-      // 閻欘剛鐝涢惃鍕潒鐟欏瀵樼紒婊勭槷閸樼喎顫愭０鎴ｆ皑閺囧瓨鍙冮敍宀勪缉閸忓秳瀵掓惔?鐏忓搫顕崷銊ф祲闁鎶氭稊瀣？鐠哄啿褰夐妴?      visualEnergy += (previous.energy - visualEnergy) * 0.08;
+      // Keep the visual response smoothed once per sample.
       previous.time = now;
       const rgb = visualRgb;
       context.clearRect(0, 0, width, height);
       context.globalCompositeOperation = 'screen';
       context.save();
-      // 濞屽韫堥懗灞炬珯閸欘亜浠涙担搴暥閸涚厧鎯涢敍灞肩瑝閻劌鍙忕仦蹇涚彯鐎佃鐦梻顏嗗剨閵?
+      // 婵炲苯顦伴煫鍫ユ嚄鐏炵偓鐝柛娆樹簻娴犳稒鎷呮惔顭戞殽闁告稓鍘ч幆娑㈡晬鐏炶偐鐟濋柣顫妼閸欏繒浠﹁箛娑氬蒋閻庝絻顫夐惁顕€姊婚鍡楀墾闁?
       context.globalAlpha = clamp(Number(opacity) || 0.82, 0, 1) * 0.64;
       context.translate(0, Number(offsetY) || 0);
       context.translate(width / 2, height / 2);
@@ -320,6 +373,9 @@ export default function ImmersiveAudioVisual({
     frameId = window.requestAnimationFrame(tick);
     return () => {
       window.cancelAnimationFrame(frameId);
+      window.clearTimeout(idleTimer);
+      if (wakeRef.current === wake) wakeRef.current = null;
+      document.removeEventListener('visibilitychange', handleVisibility);
       observer?.disconnect();
     };
   // All inputs above are scalar values. Do not depend on an object created by

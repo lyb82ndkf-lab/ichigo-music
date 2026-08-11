@@ -1,68 +1,66 @@
-// 听歌打卡
-
 const createOption = require('../util/option.js')
 const { APP_CONF } = require('../util/config.json')
+
 const DOMAIN = APP_CONF.clDomian
+
+/**
+ * Submit the two feedback records used by the web/desktop clients.
+ *
+ * `startplay` updates the account's recent-play list while `play` updates the
+ * listening statistics.  Keep these requests separate: the upstream API can
+ * accept one while rejecting the other, and returning both responses makes it
+ * possible for the renderer to retry or diagnose the failure.
+ */
 module.exports = async (query, request) => {
-  // 注入 os=osx 的 cookie
   let cookie = query.cookie || ''
   if (typeof cookie === 'object') {
     cookie = Object.assign({ os: 'osx' }, cookie)
   } else if (typeof cookie === 'string') {
-    if (cookie.indexOf('os=') > -1) {
-      cookie = cookie.replace(/os=[^;]+/g, 'os=osx')
-    } else {
-      cookie = cookie + '; os=osx'
-    }
+    cookie = cookie.includes('os=')
+      ? cookie.replace(/os=[^;]+/g, 'os=osx')
+      : `${cookie}; os=osx`
   } else {
     cookie = 'os=osx'
   }
   query.cookie = cookie
 
-  // 1) startplay → 进「最近播放」
   const startplayData = {
-    logs: JSON.stringify([
-      {
-        action: 'startplay',
-        json: {
-          id: query.id,
-          type: 'song',
-          mainsite: '1',
-          mainsiteWeb: '1',
-          content: `id=${query.sourceid}`,
-        },
+    logs: JSON.stringify([{
+      action: 'startplay',
+      json: {
+        id: query.id,
+        type: 'song',
+        mainsite: '1',
+        mainsiteWeb: '1',
+        content: `id=${query.sourceid || query.id}`,
       },
-    ]),
+    }]),
   }
 
-  // 2) play → 涨「听歌排行」计数
   const playData = {
-    logs: JSON.stringify([
-      {
-        action: 'play',
-        json: {
-          download: 0,
-          end: 'playend',
-          id: query.id,
-          sourceId: query.sourceid,
-          time: query.time,
-          type: 'song',
-          wifi: 0,
-          source: 'list',
-          mainsite: '1',
-          mainsiteWeb: '1',
-          content: `id=${query.sourceid}`,
-        },
+    logs: JSON.stringify([{
+      action: 'play',
+      json: {
+        download: 0,
+        end: 'playend',
+        id: query.id,
+        sourceId: query.sourceid || query.id,
+        time: query.time,
+        type: 'song',
+        wifi: 0,
+        source: 'list',
+        mainsite: '1',
+        mainsiteWeb: '1',
+        content: `id=${query.sourceid || query.id}`,
       },
-    ]),
+    }]),
   }
 
   const option = createOption(query, 'eapi')
   option.domain = DOMAIN
 
-  // 发送两次请求
-  const res1 = await request(`/api/feedback/weblog`, startplayData, option)
-  const res2 = await request(`/api/feedback/weblog`, playData, option)
+  const startplayResponse = await request('/api/feedback/weblog', startplayData, option)
+  const playResponse = await request('/api/feedback/weblog', playData, option)
 
   return {
     status: 200,
@@ -70,8 +68,8 @@ module.exports = async (query, request) => {
       code: 200,
       data: 'success',
       details: {
-        startplay: res1.body,
-        play: res2.body,
+        startplay: startplayResponse?.body,
+        play: playResponse?.body,
       },
     },
   }

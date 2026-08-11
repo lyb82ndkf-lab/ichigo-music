@@ -7,9 +7,31 @@ import { getPersistentSongCoverUrl, getSongCoverUrl, isLocalCoverUrl, isRemoteCo
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.8.1';
+export const APP_VERSION = 'v1.8.2';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
+
+// Profile persistence normalizes/clones nested objects. Keep immutable config
+// references stable when only playback progress changes so memoized immersive
+// stages do not re-render once per progress write.
+const samePlainValue = (a, b) => {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) {
+      if (!samePlainValue(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    if (!Object.prototype.hasOwnProperty.call(b, key) || !samePlainValue(a[key], b[key])) return false;
+  }
+  return true;
+};
 
 export function isVersionLessThan(current, latest) {
   const parse = (v) => v.replace(/^v/, '').split('.').map(Number);
@@ -86,7 +108,12 @@ export function AppProvider({ children }) {
   const appearanceConfig = profile.appearance || DEFAULT_PROFILE.appearance;
   const coverConfig = profile.cover || DEFAULT_PROFILE.cover;
   const backgroundConfig = profile.background || DEFAULT_PROFILE.background;
-  const advancedLyricConfig = profile.immersiveLyrics || DEFAULT_PROFILE.immersiveLyrics;
+  const rawAdvancedLyricConfig = profile.immersiveLyrics || DEFAULT_PROFILE.immersiveLyrics;
+  const advancedLyricConfigRef = useRef(rawAdvancedLyricConfig);
+  if (!samePlainValue(advancedLyricConfigRef.current, rawAdvancedLyricConfig)) {
+    advancedLyricConfigRef.current = rawAdvancedLyricConfig;
+  }
+  const advancedLyricConfig = advancedLyricConfigRef.current;
   const visualizerConfig = profile.visualizer || DEFAULT_PROFILE.visualizer;
   const desktopLyricsConfig = profile.desktopLyrics || DEFAULT_PROFILE.desktopLyrics;
   const audioConfig = profile.audio || DEFAULT_PROFILE.audio;
@@ -504,6 +531,36 @@ export function AppProvider({ children }) {
     }
   }, []);
 
+  // Pull the account's server-side recent-play list after login.  The local
+  // `recentlyPlayed` array is only a UI cache; without this reconciliation the
+  // desktop player could play successfully while the official account page
+  // remained stale.
+  const fetchRemoteRecentlyPlayed = useCallback(async () => {
+    try {
+      const response = await api.getRecentSongs(100);
+      const rows = response?.data?.list || response?.list || [];
+      const remote = Array.isArray(rows)
+        ? rows.map(row => row?.data || row?.song || row?.resource || row).filter(item => item?.id)
+        : [];
+      if (remote.length === 0) return;
+      const local = stateRef.current.recentlyPlayed || [];
+      const merged = [];
+      const seen = new Set();
+      [...remote, ...local].forEach(song => {
+        const id = String(song?.id ?? '');
+        if (!id || seen.has(id)) return;
+        seen.add(id);
+        merged.push(song);
+      });
+      const next = merged.slice(0, 100);
+      setRecentlyPlayed(next);
+      updateProfile({ recentlyPlayed: next });
+    } catch (err) {
+      // A logged-out/expired session should not affect local playback history.
+      console.debug('Remote recent-play sync skipped:', err?.message || err);
+    }
+  }, [updateProfile]);
+
   // Check login
   const checkUserLogin = useCallback(async () => {
     try {
@@ -511,6 +568,7 @@ export function AppProvider({ children }) {
       if (res.data && res.data.profile) {
         setUser(res.data.profile);
         fetchLikedSongs(res.data.profile.userId);
+        fetchRemoteRecentlyPlayed();
       } else {
         setUser(null);
         setLikedSongIds(new Set());
@@ -519,7 +577,7 @@ export function AppProvider({ children }) {
       console.log('Login check failed:', err);
       setUser(null);
     }
-  }, [setUser, fetchLikedSongs]);
+  }, [setUser, fetchLikedSongs, fetchRemoteRecentlyPlayed]);
 
   // Toggle Song Like/Dislike state
   const toggleLike = useCallback(async (songId) => {
@@ -915,8 +973,11 @@ export function AppProvider({ children }) {
         try {
           audioElement.pause();
           audioElement.currentTime = 0;
-          audioElement.removeAttribute('src');
-          audioElement.load();
+          // Keep the last committed media URL on the element until React has
+          // committed the newly resolved one. Calling load() after removing
+          // src creates MEDIA_ERR_SRC_NOT_SUPPORTED ("Empty src attribute")
+          // on a cold start, and that stale error can win the first-play race.
+          // AudioPlayer owns the actual source replacement and its load().
         } catch {}
       }
 
@@ -1206,6 +1267,7 @@ export function AppProvider({ children }) {
     playMode,
     setPlayMode: setPlayModeAndPersist,
     recentlyPlayed,
+    refreshRecentlyPlayed: fetchRemoteRecentlyPlayed,
     resolveSongCover,
     isQueueOpen,
     setIsQueueOpen,
@@ -1290,7 +1352,7 @@ export function AppProvider({ children }) {
     saveNavbarConfig, saveLyricStyle, saveVisualizerMode, saveAppearanceConfig, saveCoverConfig, saveBackgroundConfig,
     saveAdvancedLyricConfig, saveVisualizerConfig, saveDesktopLyricsConfig, mergeDesktopLyricsConfigFromIpc,
     saveAudioConfig, saveCacheConfig, savePlaybackConfig, saveRenderingConfig, saveShortcuts, persistResumeTime,
-    navigateTo, goBack, goForward, checkUserLogin, toggleLike, playSong, togglePlay, playNext, playPrev, setAudioQuality, addToRecent, logout,
+    navigateTo, goBack, goForward, checkUserLogin, fetchRemoteRecentlyPlayed, toggleLike, playSong, togglePlay, playNext, playPrev, setAudioQuality, addToRecent, logout,
     resolveSongCover,
     extractedColors, immersiveColor, updateInfo, checkForUpdates, downloadUpdate, installUpdate
   ]);

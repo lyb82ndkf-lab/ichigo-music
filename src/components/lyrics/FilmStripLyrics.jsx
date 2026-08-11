@@ -3,7 +3,7 @@ import MonetWordSweep from './MonetWordSweep';
 import { parseDisplayTokens } from './MonetLyricsEngine';
 import ImmersiveAudioVisual from './ImmersiveAudioVisual';
 
-function FilmLine({ line, index, activeLineIndex, fontPx, translationPx, fontStack, showTranslation, showGlow, glowIntensity }) {
+const FilmLine = React.memo(function FilmLine({ line, index, activeLineIndex, fontPx, translationPx, fontStack, showTranslation, showGlow, glowIntensity }) {
   const status = index === activeLineIndex ? 'active' : index < activeLineIndex ? 'passed' : 'waiting';
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
   return <div className={`film-frame film-${status}`}>
@@ -13,9 +13,9 @@ function FilmLine({ line, index, activeLineIndex, fontPx, translationPx, fontSta
     </div>
     {showTranslation && line.translation && <div className="film-translation" style={{ fontSize: `${translationPx}px`, fontFamily: fontStack }}>{line.translation}</div>}
   </div>;
-}
+});
 
-export default function FilmStripLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 36, translationPx = 17, fontStack, showTranslation = true, showGlow = true, glowIntensity = 1, frameGap = 18, filmOpacity = 0.22, activeScale = 1.08, accentColor = 'var(--primary)', visualizerStyle = 'circle', visualizerOpacity = 0.82, visualizerSmoothing = 0.16, visualizerOffsetY = 0, visualizerScale = 1, visualizerIntensity = 1 }) {
+export default function FilmStripLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 36, translationPx = 17, fontStack, showTranslation = true, showGlow = true, glowIntensity = 1, frameGap = 18, filmOpacity = 0.22, activeScale = 1.08, accentColor = 'var(--primary)', visualizerStyle = 'circle', visualizerOpacity = 0.82, visualizerSmoothing = 0.16, visualizerOffsetY = 0, visualizerScale = 1, visualizerIntensity = 1, isPlaying = true }) {
   const frames = useMemo(() => {
     if (!lyrics.length) return [];
     const active = Math.max(0, Math.min(lyrics.length - 1, activeLineIndex));
@@ -23,7 +23,7 @@ export default function FilmStripLyrics({ lyrics = [], activeLineIndex = -1, fon
     return lyrics.slice(start, Math.min(lyrics.length, active + 3)).map((line, offset) => ({ line, index: start + offset }));
   }, [lyrics, activeLineIndex]);
   return <div className="filmstrip-lyrics" style={{ '--film-accent': accentColor, '--film-gap': `${frameGap}px`, '--film-dim': filmOpacity, '--film-active-scale': activeScale }}>
-    <ImmersiveAudioVisual variant="filmstrip" accentColor={accentColor} intensity={visualizerIntensity} visualizerStyle={visualizerStyle} opacity={visualizerOpacity} smoothing={visualizerSmoothing} offsetY={visualizerOffsetY} scale={visualizerScale} />
+    <ImmersiveAudioVisual variant="filmstrip" isPlaying={isPlaying} accentColor={accentColor} intensity={visualizerIntensity} visualizerStyle={visualizerStyle} opacity={visualizerOpacity} smoothing={visualizerSmoothing} offsetY={visualizerOffsetY} scale={visualizerScale} />
     <div className="film-perforations film-perforations-top" aria-hidden="true" />
     <div className="film-track">{frames.map(({ line, index }) => <FilmLine key={`${line.time}-${index}`} line={line} index={index} activeLineIndex={activeLineIndex} fontPx={fontPx} translationPx={translationPx} fontStack={fontStack} showTranslation={showTranslation} showGlow={showGlow} glowIntensity={glowIntensity} />)}</div>
     <div className="film-perforations film-perforations-bottom" aria-hidden="true" />

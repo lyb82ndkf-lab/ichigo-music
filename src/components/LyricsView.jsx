@@ -5,7 +5,7 @@ import { wordRegistry } from './lyrics/MonetWordSweep';
 import { setLyricClockEnabled, subscribeLyricClock } from '../utils/lyricClock';
 
 export default function LyricsView({ engineRef, lyrics = [], activeLineIndex = -1, currentTime, coverUrl, audioAnalyser }) {
-  const { currentSong, isPlaying, advancedLyricConfig, immersiveColor } = useApp();
+  const { currentSong, isPlaying, advancedLyricConfig, immersiveColor, seekTo, layoutMode, renderingConfig, coverConfig } = useApp();
 
   useEffect(() => {
     setLyricClockEnabled(isPlaying);
@@ -53,6 +53,11 @@ export default function LyricsView({ engineRef, lyrics = [], activeLineIndex = -
       audioAnalyser={audioAnalyser}
       themeColor={immersiveColor}
       engineRef={engineRef}
+      advancedLyricConfig={advancedLyricConfig}
+      visualizerFps={renderingConfig?.visualizerFps}
+      showCoverPreference={coverConfig?.showCover !== false}
+      seekTo={seekTo}
+      layoutMode={layoutMode}
     />
   );
 }

@@ -211,7 +211,28 @@ export const DEFAULT_PROFILE = {
     streamerBarCustomColor: '#ff4081',
     streamerBarSmoothing: 0.35,
 
-    // Talk Mode Visualizer
+    // KTV Text PV mode
+    ktvPreset: 'auto',
+    ktvSongTemplates: {},
+    ktvTextEffect: 'auto',
+    ktvComposition: 'auto',
+    ktvMotion: 1,
+    ktvCameraZoom: 0,
+    ktvCameraTilt: 0,
+    ktvCameraShake: 0,
+    ktvRenderQuality: 'auto',
+    ktvAccent: 'auto',
+    ktvUseCoverTexture: true,
+    ktvBeatReactive: true,
+    ktvPreviewEnabled: false,
+    ktvShowTitleCard: true,
+    ktvCustomColor: '#ff6b79',
+    ktvShowTranslation: true,
+    // Keep the PV stage focused on the current line by default. The previous
+    // line can be enabled explicitly from the immersive PV settings.
+    ktvShowPreviousLine: false,
+
+    // Legacy Talk Mode Visualizer values (retained so saved profiles remain compatible)
     talkParticleCount: 80,
     talkParticleSize: 1.0,
     talkParticleOpacity: 0.7,

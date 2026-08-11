@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { useApp } from '../../context/AppContext';
 import { getVisualizerStyleForMode } from '../../utils/immersiveModes';
 
 function resolveCanvasColor(color, fallback = '#ff3366') {
@@ -27,12 +26,11 @@ function hexToRgba(hex, alpha = 1) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMode = 'regular', isBehindCover = false }) {
+export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMode = 'regular', isBehindCover = false, advancedLyricConfig = {}, visualizerFps = 30, showCover = true }) {
   const canvasRef = useRef(null);
-  const { renderingConfig, advancedLyricConfig, coverConfig } = useApp();
   
-  const visualizerFps = renderingConfig?.visualizerFps !== undefined ? Number(renderingConfig.visualizerFps) : 30;
-  const fps = visualizerFps === 0 ? 0 : Math.min(120, Math.max(24, visualizerFps));
+  const requestedFps = Number(visualizerFps);
+  const fps = requestedFps === 0 ? 0 : Math.min(120, Math.max(24, Number.isFinite(requestedFps) ? requestedFps : 30));
 
   const scaleRef = useRef(1.0);
   const offsetYRef = useRef(0);
@@ -48,8 +46,8 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
   useEffect(() => {
     scaleRef.current = advancedLyricConfig?.visualizerScale ?? 1.0;
     offsetYRef.current = advancedLyricConfig?.visualizerOffsetY ?? 0;
-    showCoverRef.current = coverConfig?.showCover !== false && advancedLyricConfig?.showCover !== false;
-  }, [advancedLyricConfig, coverConfig]);
+    showCoverRef.current = showCover !== false && advancedLyricConfig?.showCover !== false;
+  }, [advancedLyricConfig, showCover]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -62,9 +60,11 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
     let width = 0;
     let height = 0;
     let lastFrame = 0;
+    let idleTimer = 0;
+    let idleCleared = false;
     
     // Smooth data cache for interpolation
-    let smoothedData = [];
+    let smoothedData = new Float32Array(0);
     
     const minFrameMs = fps === 0 ? 0 : 1000 / fps;
     const resolvedPrimary = resolveCanvasColor(primaryColor || 'var(--primary)');
@@ -99,7 +99,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
         if (analyser.frequencyBinCount !== currentBufferLength) {
           currentBufferLength = analyser.frequencyBinCount;
           dataArray = new Uint8Array(currentBufferLength);
-          smoothedData = new Array(currentBufferLength).fill(0);
+          smoothedData = new Float32Array(currentBufferLength);
         }
         analyser.getByteFrequencyData(dataArray);
         for (let i = 0; i < Math.min(16, dataArray.length); i++) {
@@ -111,7 +111,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
         if (currentBufferLength !== 128) {
           currentBufferLength = 128;
           dataArray = new Uint8Array(currentBufferLength);
-          smoothedData = new Array(currentBufferLength).fill(0);
+          smoothedData = new Float32Array(currentBufferLength);
         }
         for (let i = 0; i < currentBufferLength; i++) {
           dataArray[i] = Math.max(0, (dataArray[i] || 0) * 0.82);
@@ -511,8 +511,51 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       ctx.globalAlpha = 1.0;
     };
 
+    const schedule = (idle = false) => {
+      if (idle) {
+        if (!idleTimer) {
+          idleTimer = window.setTimeout(() => {
+            idleTimer = 0;
+            if (isPlaying && !document.hidden && configuredVisualizerStyle !== 'off') {
+              animationId = requestAnimationFrame(draw);
+            }
+          }, 300);
+        }
+      } else {
+        animationId = requestAnimationFrame(draw);
+      }
+    };
+
     const draw = (now) => {
-      animationId = requestAnimationFrame(draw);
+      animationId = 0;
+      if (document.hidden) {
+        if (!idleCleared) {
+          ctx.clearRect(0, 0, width, height);
+          idleCleared = true;
+        }
+        schedule(true);
+        return;
+      }
+      if (!isPlaying) {
+        if (!idleCleared) {
+          ctx.clearRect(0, 0, width, height);
+          idleCleared = true;
+        }
+        schedule(true);
+        return;
+      }
+      if (configuredVisualizerStyle === 'off') {
+        if (!idleCleared) {
+          ctx.clearRect(0, 0, width, height);
+          particlesRef.current = [];
+          talkParticlesRef.current = [];
+          idleCleared = true;
+        }
+        schedule(true);
+        return;
+      }
+      idleCleared = false;
+      schedule(false);
       const frameBudgetMs = isPlaying ? minFrameMs : 1000 / 12;
       if ((isPlaying ? fps !== 0 : true) && now - lastFrame < frameBudgetMs) return;
       
@@ -524,12 +567,6 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
 
       prepareData();
       ctx.clearRect(0, 0, width, height);
-
-      if (configuredVisualizerStyle === 'off') {
-        particlesRef.current = [];
-        talkParticlesRef.current = [];
-        return;
-      }
 
       // Draw particle system first (background layer)
       drawParticles();
@@ -556,6 +593,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
 
     return () => {
       cancelAnimationFrame(animationId);
+      window.clearTimeout(idleTimer);
       window.removeEventListener('resize', resizeCanvas);
     };
   }, [isPlaying, primaryColor, animationMode, fps, advancedLyricConfig, isBehindCover]);

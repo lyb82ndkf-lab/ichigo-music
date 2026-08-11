@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useEffect } from 'react';
-import { useApp } from '../../context/AppContext';
 import { parseDisplayTokens } from './MonetLyricsEngine';
 import { subscribeLyricClock } from '../../utils/lyricClock';
 
@@ -13,6 +12,7 @@ const VinylTimedText = React.memo(({ line, isActive, isPassed, engineRef, global
 
   useEffect(() => {
     if (!isActive) return undefined;
+    tokenRefs.current.forEach((el) => { if (el) delete el.dataset.vinylState; });
 
     const update = () => {
       const currentTime = (engineRef.current?.getCurrentTime?.() || 0) + globalOffset;
@@ -22,18 +22,26 @@ const VinylTimedText = React.memo(({ line, isActive, isPassed, engineRef, global
         if (!el) return;
 
         if (!token.timed || currentTime >= token.endTime) {
+          if (el.dataset.vinylState === 'done') return;
+          el.dataset.vinylState = 'done';
           el.style.color = themeColor;
           el.style.opacity = '1';
           el.style.transform = 'translateY(0) scale(1)';
           el.style.textShadow = `0 0 ${fontPx * 0.35}px ${themeColor}`;
         } else if (currentTime >= token.startTime) {
           const progress = Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)));
-          const pulse = Math.sin(progress * Math.PI);
+          const paintProgress = Math.round(progress * 240) / 240;
+          const progressKey = paintProgress.toFixed(3);
+          if (el.dataset.vinylState === `active:${progressKey}`) return;
+          el.dataset.vinylState = `active:${progressKey}`;
+          const pulse = Math.sin(paintProgress * Math.PI);
           el.style.color = themeColor;
-          el.style.opacity = `${0.72 + progress * 0.28}`;
+          el.style.opacity = `${0.72 + paintProgress * 0.28}`;
           el.style.transform = `translateY(${-fontPx * 0.08 * pulse}px) scale(${1 + 0.12 * pulse})`;
-          el.style.textShadow = `0 0 ${fontPx * (0.28 + progress * 0.32)}px ${themeColor}`;
+          el.style.textShadow = `0 0 ${fontPx * (0.28 + paintProgress * 0.32)}px ${themeColor}`;
         } else {
+          if (el.dataset.vinylState === 'waiting') return;
+          el.dataset.vinylState = 'waiting';
           el.style.color = 'var(--text-main)';
           el.style.opacity = '0.38';
           el.style.transform = 'translateY(0) scale(1)';
@@ -64,7 +72,7 @@ const VinylTimedText = React.memo(({ line, isActive, isPassed, engineRef, global
             opacity: isPassed ? 1 : 0.38,
             transform: 'translateY(0) scale(1)',
             transition: 'opacity 0.18s ease, transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease',
-            willChange: 'opacity, transform, color'
+            willChange: 'opacity, transform'
           }}
         >
           {token.text}
@@ -85,139 +93,191 @@ export default function VinylRecordLyrics({
   isPlaying,
   globalOffset = 0,
   lineSpacing = 0.7,
-  tiltAngle = 0
+  tiltAngle = 0,
+  config = {}
 }) {
   const containerRef = useRef(null);
   const grooveCanvasRef = useRef(null);
-  const { advancedLyricConfig } = useApp();
+  const configRef = useRef(config);
+  const themeRef = useRef(themeColor);
+  const playingRef = useRef(isPlaying);
+  const wakeRef = useRef(null);
+  useEffect(() => {
+    configRef.current = config;
+    wakeRef.current?.();
+  }, [config]);
+  useEffect(() => { themeRef.current = themeColor; }, [themeColor]);
+  useEffect(() => {
+    playingRef.current = isPlaying;
+    wakeRef.current?.();
+  }, [isPlaying]);
 
   // Center of rotation logic
   // The disc is on the left, so we set transformOrigin far to the left.
   const rotationRadius = 60; // vw
 
-  // Render pulsing concentric groove lines and stylus contact points on vinyl disc
+  // Canvas work is throttled to 30fps, reuses typed buffers and sleeps while
+  // paused/hidden. This keeps the vinyl scene responsive without continuous
+  // allocations or repainting an invisible canvas.
   useEffect(() => {
     const canvas = grooveCanvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return undefined;
     const ctx = canvas.getContext('2d');
-    let animId;
-    let smoothedData = [];
+    if (!ctx) return undefined;
+    let frameId = 0;
+    let idleTimer = 0;
+    let lastDrawAt = 0;
+    let buffer = null;
+    let smoothed = null;
+    let cleared = false;
 
-    const draw = () => {
-      animId = requestAnimationFrame(draw);
-      
-      const analyser = window.ichigoAnalyser;
-      if (advancedLyricConfig?.visualizerEnabled === false || advancedLyricConfig?.visualizerStyleByMode?.vinyl === 'off' || (advancedLyricConfig?.visualizerStyleByMode?.vinyl === undefined && advancedLyricConfig?.visualizerStyle === 'off')) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const isDisabled = (config) => config?.visualizerEnabled === false
+      || config?.visualizerStyleByMode?.vinyl === 'off'
+      || (config?.visualizerStyleByMode?.vinyl === undefined && config?.visualizerStyle === 'off');
+    const schedule = (idle) => {
+      if (idle) {
+        if (idleTimer) return;
+        idleTimer = window.setTimeout(() => {
+          idleTimer = 0;
+          if (!document.hidden && playingRef.current && !isDisabled(configRef.current)) {
+            frameId = requestAnimationFrame(draw);
+          }
+        }, 300);
+      } else if (!frameId) {
+        frameId = requestAnimationFrame(draw);
+      }
+    };
+    const draw = (now = performance.now()) => {
+      frameId = 0;
+      const config = configRef.current;
+      const idle = document.hidden || !playingRef.current || isDisabled(config);
+      if (idle) {
+        if (!cleared) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          cleared = true;
+        }
+        schedule(true);
         return;
       }
-      let dataArray = null;
-      let bufferLength = 128;
-      if (analyser) {
-        bufferLength = analyser.frequencyBinCount;
-        dataArray = new Uint8Array(bufferLength);
-        analyser.getByteFrequencyData(dataArray);
-      } else {
-        dataArray = new Uint8Array(bufferLength);
+      if (now - lastDrawAt < 33) {
+        schedule(false);
+        return;
       }
-
-      if (smoothedData.length !== bufferLength) {
-        smoothedData = new Array(bufferLength).fill(0);
+      lastDrawAt = now;
+      cleared = false;
+      const analyser = window.ichigoAnalyser;
+      const bufferLength = analyser?.frequencyBinCount || 128;
+      if (!buffer || buffer.length !== bufferLength) {
+        buffer = new Uint8Array(bufferLength);
+        smoothed = new Float32Array(bufferLength);
       }
-
-      const upSmooth = 1 - (advancedLyricConfig?.vinylSmoothing ?? 0.25);
-      for (let i = 0; i < bufferLength; i++) {
-        smoothedData[i] += ((dataArray[i] || 0) - smoothedData[i]) * upSmooth;
-      }
+      if (analyser?.getByteFrequencyData) analyser.getByteFrequencyData(buffer);
+      else buffer.fill(0);
+      const smoothFactor = 1 - (config?.vinylSmoothing ?? 0.25);
+      for (let index = 0; index < bufferLength; index += 1) smoothed[index] += ((buffer[index] || 0) - smoothed[index]) * smoothFactor;
 
       const width = canvas.offsetWidth;
       const height = canvas.offsetHeight;
+      if (!width || !height) {
+        schedule(false);
+        return;
+      }
       if (canvas.width !== width || canvas.height !== height) {
         canvas.width = width;
         canvas.height = height;
       }
       ctx.clearRect(0, 0, width, height);
-
       const cx = width / 2;
       const cy = height / 2;
       const discRadius = width / 2;
-
-      const grooveCount = advancedLyricConfig?.vinylGrooveCount ?? 12;
-      const baseWidth = advancedLyricConfig?.vinylGrooveWidth ?? 1.0;
-      const maxWidth = advancedLyricConfig?.vinylGrooveMaxWidth ?? 4.0;
-      const opacity = (advancedLyricConfig?.vinylGrooveOpacity ?? 0.6) * (advancedLyricConfig?.visualizerOpacity ?? 0.82);
-      const intensity = Math.max(0.2, Number(advancedLyricConfig?.visualizerIntensity ?? 1));
-      const colorMode = advancedLyricConfig?.vinylGrooveColorMode || 'theme';
-      const resolvedColor = colorMode === 'theme' ? themeColor : 'rgba(255, 255, 255, 0.4)';
-
+      const grooveCount = Math.max(2, Number(config?.vinylGrooveCount ?? 12));
+      const baseWidth = Number(config?.vinylGrooveWidth ?? 1);
+      const maxWidth = Number(config?.vinylGrooveMaxWidth ?? 4);
+      const opacity = Number(config?.vinylGrooveOpacity ?? 0.6) * Number(config?.visualizerOpacity ?? 0.82);
+      const intensity = Math.max(0.2, Number(config?.visualizerIntensity ?? 1));
+      const color = (config?.vinylGrooveColorMode || 'theme') === 'theme' ? (themeRef.current || '#ff3366') : 'rgba(255,255,255,.4)';
       ctx.globalAlpha = opacity;
-      ctx.strokeStyle = resolvedColor;
-      
-      // Draw concentric groove rings
+      ctx.strokeStyle = color;
       const sampleSpan = bufferLength / grooveCount;
-      for (let i = 0; i < grooveCount; i++) {
-        const val = Math.min(255, (smoothedData[Math.floor(i * sampleSpan)] || 0) * intensity);
-        const startRad = discRadius * 0.23;
-        const endRad = discRadius * 0.92;
-        const ringRad = startRad + (i / (grooveCount - 1)) * (endRad - startRad);
-        
-        ctx.lineWidth = baseWidth + (val / 255) * (maxWidth - baseWidth);
+      const startRad = discRadius * 0.23;
+      const endRad = discRadius * 0.92;
+      for (let index = 0; index < grooveCount; index += 1) {
+        const value = Math.min(255, (smoothed[Math.floor(index * sampleSpan)] || 0) * intensity);
+        const ringRad = startRad + (index / (grooveCount - 1)) * (endRad - startRad);
+        ctx.lineWidth = baseWidth + (value / 255) * (maxWidth - baseWidth);
         ctx.beginPath();
         ctx.arc(cx, cy, ringRad, 0, Math.PI * 2);
         ctx.stroke();
       }
-
-      // Draw reflective highlights if configured
-      if (advancedLyricConfig?.vinylEdgeReflection !== false) {
-        const reflectionVal = advancedLyricConfig?.vinylEdgeReflectionIntensity ?? 0.5;
-        const highVal = smoothedData[Math.floor(bufferLength * 0.85)] || 0;
-        
-        const grad = ctx.createConicGradient(Math.PI / 4, cx, cy);
-        grad.addColorStop(0, 'rgba(255,255,255,0)');
-        grad.addColorStop(0.2, `rgba(255,255,255,${0.08 * reflectionVal * (1 + highVal / 255)})`);
-        grad.addColorStop(0.4, 'rgba(255,255,255,0)');
-        grad.addColorStop(0.5, 'rgba(255,255,255,0)');
-        grad.addColorStop(0.7, `rgba(255,255,255,${0.08 * reflectionVal * (1 + highVal / 255)})`);
-        grad.addColorStop(0.9, 'rgba(255,255,255,0)');
-        
-        ctx.fillStyle = grad;
+      if (config?.vinylEdgeReflection !== false && typeof ctx.createConicGradient === 'function') {
+        const strength = Number(config?.vinylEdgeReflectionIntensity ?? 0.5);
+        const high = smoothed[Math.floor(bufferLength * 0.85)] || 0;
+        const alpha = 0.08 * strength * (1 + high / 255);
+        const gradient = ctx.createConicGradient(Math.PI / 4, cx, cy);
+        gradient.addColorStop(0, 'rgba(255,255,255,0)');
+        gradient.addColorStop(0.2, 'rgba(255,255,255,' + alpha + ')');
+        gradient.addColorStop(0.4, 'rgba(255,255,255,0)');
+        gradient.addColorStop(0.5, 'rgba(255,255,255,0)');
+        gradient.addColorStop(0.7, 'rgba(255,255,255,' + alpha + ')');
+        gradient.addColorStop(0.9, 'rgba(255,255,255,0)');
+        ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(cx, cy, discRadius * 0.95, 0, Math.PI * 2);
         ctx.fill();
       }
-
-      // Stylus touch-point glow
-      const stylusGlow = advancedLyricConfig?.vinylStylusGlowStrength ?? 0.7;
-      if (stylusGlow > 0) {
-        const stylusSize = advancedLyricConfig?.vinylStylusGlowSize ?? 20;
-        const stylusAngle = -Math.PI / 4; 
-        const stylusRad = discRadius * 0.82;
-        const sx = cx + Math.cos(stylusAngle) * stylusRad;
-        const sy = cy + Math.sin(stylusAngle) * stylusRad;
-        
-        const highVal = smoothedData[Math.floor(bufferLength * 0.7)] || 0;
-        const currentSize = stylusSize * (0.65 + (highVal / 255) * 0.8);
-        
-        const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, currentSize);
-        grad.addColorStop(0, themeColor || '#ff3366');
-        grad.addColorStop(1, 'rgba(0,0,0,0)');
-        
+      const glow = Number(config?.vinylStylusGlowStrength ?? 0.7);
+      if (glow > 0) {
+        const size = Number(config?.vinylStylusGlowSize ?? 20);
+        const angle = -Math.PI / 4;
+        const radius = discRadius * 0.82;
+        const sx = cx + Math.cos(angle) * radius;
+        const sy = cy + Math.sin(angle) * radius;
+        const high = smoothed[Math.floor(bufferLength * 0.7)] || 0;
+        const currentSize = size * (0.65 + (high / 255) * 0.8);
+        const gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, currentSize);
+        gradient.addColorStop(0, themeRef.current || '#ff3366');
+        gradient.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.save();
-        ctx.globalAlpha = stylusGlow * (0.55 + (highVal / 255) * 0.45);
-        ctx.fillStyle = grad;
+        ctx.globalAlpha = glow * (0.55 + (high / 255) * 0.45);
+        ctx.fillStyle = gradient;
         ctx.beginPath();
         ctx.arc(sx, sy, currentSize, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
-      
-      ctx.globalAlpha = 1.0;
+      ctx.globalAlpha = 1;
+      schedule(false);
     };
 
-    draw();
-
-    return () => cancelAnimationFrame(animId);
-  }, [isPlaying, themeColor, advancedLyricConfig]);
+    const wake = () => {
+      if (idleTimer) {
+        window.clearTimeout(idleTimer);
+        idleTimer = 0;
+      }
+      if (!frameId && playingRef.current && !document.hidden && !isDisabled(configRef.current)) {
+        frameId = requestAnimationFrame(draw);
+      }
+    };
+    wakeRef.current = wake;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (frameId) {
+          window.cancelAnimationFrame(frameId);
+          frameId = 0;
+        }
+      } else {
+        wake();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    wake();
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(idleTimer);
+      if (wakeRef.current === wake) wakeRef.current = null;
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
 
   return (
     <div 
@@ -231,8 +291,8 @@ export default function VinylRecordLyrics({
         gap: '4vw',
         padding: '0 4vw',
         perspective: '1200px',
-        opacity: Number(advancedLyricConfig?.visualizerOpacity ?? 0.82),
-        transform: `translateY(${Number(advancedLyricConfig?.visualizerOffsetY || 0)}px) scale(${Number(advancedLyricConfig?.visualizerScale || 1)})`,
+        opacity: Number(config?.visualizerOpacity ?? 0.82),
+        transform: `translateY(${Number(config?.visualizerOffsetY || 0)}px) scale(${Number(config?.visualizerScale || 1)})`,
         transformOrigin: 'center center'
       }}
     >

@@ -1,7 +1,7 @@
 ﻿// 单一模式目录：设置页只负责选择，具体渲染由各模式组件负责。
 const MODE_DESCRIPTIONS = {
   regular: '将正在播放的歌词稳定对齐到封面中心，适合长时间阅读。',
-  talk: '逐字高亮并配合轻微的浮动动画，突出每个字的演唱进度。',
+  talk: '以逐字填充、构图切换和前后句残影呈现整首歌的文字 PV。',
   streamer: '把歌词变成流动气泡，适合节奏明显、氛围感强的歌曲。',
   cloudstep: '歌词以阶梯式布局展开，适合观察上下句的关系。',
   spatial: '将歌词放入全屏空间画布，强调景深和空间移动。',
@@ -14,7 +14,7 @@ const MODE_DESCRIPTIONS = {
 
 export const IMMERSIVE_MODE_OPTIONS = [
   { value: 'regular', label: '常规滚动' },
-  { value: 'talk', label: '逐字模式' },
+  { value: 'talk', label: 'KTV · 文字 PV' },
   { value: 'streamer', label: '气泡模式' },
   { value: 'cloudstep', label: '云阶模式' },
   { value: 'spatial', label: '空间画布' },
@@ -27,7 +27,7 @@ export const IMMERSIVE_MODE_OPTIONS = [
 
 export const IMMERSIVE_MODE_PARAMETER_KEYS = {
   regular: ['ringStyle', 'ringBarCount', 'ringMaxAmplitude', 'ringInnerOffset', 'ringLineWidth', 'ringColorMode', 'ringRotationSpeed', 'ringRotationBeatSync', 'ringGlowIntensity', 'ringGlowPulse', 'ringSmoothing', 'ringTrailDecay', 'ringOpacity'],
-  talk: ['talkParticleCount', 'talkParticleSize', 'talkParticleOpacity', 'talkParticleShape', 'talkBurstThreshold', 'talkBurstIntensity', 'talkDriftSpeed', 'talkColorMode', 'talkCustomColor', 'talkGravity'],
+  talk: ['ktvPreset', 'ktvSongTemplates', 'ktvTextEffect', 'ktvComposition', 'ktvMotion', 'ktvCameraZoom', 'ktvCameraTilt', 'ktvCameraShake', 'ktvRenderQuality', 'ktvAccent', 'ktvCustomColor', 'ktvShowTranslation', 'ktvUseCoverTexture', 'ktvBeatReactive', 'ktvPreviewEnabled', 'ktvShowTitleCard'],
   streamer: ['streamerBarHeight', 'streamerBarMaxHeight', 'streamerBarOpacity', 'streamerBarGlowSpread', 'streamerBarFlowSpeed', 'streamerBarColorMode', 'streamerBarCustomColor', 'streamerBarSmoothing', 'bubbleAlign'],
   cloudstep: ['cloudWaveBlur', 'cloudWaveHeight', 'cloudWaveOpacity', 'cloudWaveSmoothing', 'cloudWaveColorMode', 'cloudWaveCustomColor', 'cloudWaveVerticalSpread', 'cloudWaveSyncToLines', 'cloudStepSpacing'],
   spatial: ['spatialParticleCount', 'spatialParticleSize', 'spatialParticleOpacity', 'spatialSpreadX', 'spatialSpreadY', 'spatialSpreadZ', 'spatialConnectLines', 'spatialConnectOpacity', 'spatialColorMode', 'spatialCustomColor', 'spatialDepthBlur'],

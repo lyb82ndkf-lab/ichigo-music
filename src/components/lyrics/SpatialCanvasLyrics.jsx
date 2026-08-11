@@ -1,5 +1,4 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
-import { useApp } from '../../context/AppContext';
 import { parseDisplayTokens } from './MonetLyricsEngine';
 import { subscribeLyricClock } from '../../utils/lyricClock';
 
@@ -19,6 +18,7 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
 
   useEffect(() => {
     if (!isActive) return undefined;
+    tokenRefs.current.forEach((el) => { if (el) delete el.dataset.spatialState; });
 
     const update = () => {
       const currentTime = (engineRef.current?.getCurrentTime?.() || 0) + globalOffset;
@@ -28,18 +28,26 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
         if (!el) return;
 
         if (!token.timed || currentTime >= token.endTime) {
+          if (el.dataset.spatialState === 'done') return;
+          el.dataset.spatialState = 'done';
           el.style.color = themeColor;
           el.style.opacity = '1';
           el.style.transform = 'translateY(0) scale(1)';
           el.style.textShadow = `0 0 ${fontPx * 0.45}px ${themeColor}`;
         } else if (currentTime >= token.startTime) {
           const progress = Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)));
-          const pulse = Math.sin(progress * Math.PI);
+          const paintProgress = Math.round(progress * 240) / 240;
+          const progressKey = paintProgress.toFixed(3);
+          if (el.dataset.spatialState === `active:${progressKey}`) return;
+          el.dataset.spatialState = `active:${progressKey}`;
+          const pulse = Math.sin(paintProgress * Math.PI);
           el.style.color = themeColor;
-          el.style.opacity = `${0.72 + progress * 0.28}`;
+          el.style.opacity = `${0.72 + paintProgress * 0.28}`;
           el.style.transform = `translateY(${-fontPx * 0.08 * pulse}px) scale(${1 + 0.14 * pulse})`;
-          el.style.textShadow = `0 0 ${fontPx * (0.35 + progress * 0.35)}px ${themeColor}`;
+          el.style.textShadow = `0 0 ${fontPx * (0.35 + paintProgress * 0.35)}px ${themeColor}`;
         } else {
+          if (el.dataset.spatialState === 'waiting') return;
+          el.dataset.spatialState = 'waiting';
           el.style.color = 'var(--text-main)';
           el.style.opacity = '0.36';
           el.style.transform = 'translateY(0) scale(1)';
@@ -70,7 +78,7 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
             opacity: isPassed ? 1 : 0.36,
             transform: 'translateY(0) scale(1)',
             transition: 'opacity 0.18s ease, transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease',
-            willChange: 'opacity, transform, color'
+            willChange: 'opacity, transform'
           }}
         >
           {token.text}
@@ -80,10 +88,9 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
   );
 });
 
-export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1, engineRef, fontPx = 36, fontStack, themeColor, globalOffset = 0 }) {
+export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1, engineRef, fontPx = 36, fontStack, themeColor, isPlaying = true, globalOffset = 0, config = {} }) {
   const containerRef = useRef(null);
   const parentRef = useRef(null);
-  const { advancedLyricConfig } = useApp();
   const [viewportSize, setViewportSize] = useState({ w: 800, h: 600 });
 
   useEffect(() => {
@@ -117,7 +124,7 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
   // Generate stable particle points
   const particles = useMemo(() => {
     const list = [];
-    const count = advancedLyricConfig?.spatialParticleCount ?? 200;
+    const count = config?.spatialParticleCount ?? 200;
     for (let i = 0; i < count; i++) {
       const angle = seededRandom(i * 123.45) * Math.PI * 2;
       const radius = 150 + seededRandom(i * 543.21) * 1000;
@@ -127,79 +134,149 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
       list.push({ x: px, y: py, z: pz, id: i });
     }
     return list;
-  }, [advancedLyricConfig?.spatialParticleCount]);
+  }, [config?.spatialParticleCount]);
 
-  const configRef = useRef(advancedLyricConfig);
+  const configRef = useRef(config);
   useEffect(() => {
-    configRef.current = advancedLyricConfig;
-  }, [advancedLyricConfig]);
+    configRef.current = config;
+  }, [config]);
 
-  // Audio visualizer loop: updates CSS properties on the parent container to animate elements in 3D
+  const playingRef = useRef(isPlaying);
+  const wakeRef = useRef(null);
   useEffect(() => {
-    let animId;
+    playingRef.current = isPlaying;
+    wakeRef.current?.();
+  }, [isPlaying]);
+
+  // Sample the analyser at a controlled rate and write only changed CSS
+  // variables. The old loop allocated a Uint8Array every animation frame and
+  // accidentally queued two RAF callbacks while disabled, which made this
+  // immersive mode progressively heavier than the others.
+  useEffect(() => {
+    let frameId = 0;
+    let idleTimer = 0;
+    let idleCleared = false;
     const parent = parentRef.current;
-    if (!parent) return;
+    if (!parent) return undefined;
 
-    let pulseX = 1.0;
-    let pulseY = 1.0;
-    let pulseZ = 1.0;
+    let pulseX = 1;
+    let pulseY = 1;
+    let pulseZ = 1;
+    let lastSampleAt = 0;
+    let lastPainted = '';
+    let buffer = null;
 
-    const tick = () => {
-      animId = requestAnimationFrame(tick);
-      
-      const analyser = window.ichigoAnalyser;
-      if (configRef.current?.visualizerEnabled === false || configRef.current?.visualizerStyleByMode?.spatial === 'off' || (configRef.current?.visualizerStyleByMode?.spatial === undefined && configRef.current?.visualizerStyle === 'off')) {
-        parent.style.setProperty('--pulse-x', '1');
-        parent.style.setProperty('--pulse-y', '1');
-        parent.style.setProperty('--pulse-z', '1');
-        animId = requestAnimationFrame(tick);
+    const reset = () => {
+      const next = '1|1|1';
+      if (lastPainted === next) return;
+      lastPainted = next;
+      parent.style.setProperty('--pulse-x', '1');
+      parent.style.setProperty('--pulse-y', '1');
+      parent.style.setProperty('--pulse-z', '1');
+    };
+    const isDisabled = (config) => config?.visualizerEnabled === false
+      || config?.visualizerStyleByMode?.spatial === 'off'
+      || (config?.visualizerStyleByMode?.spatial === undefined && config?.visualizerStyle === 'off');
+    const schedule = (idle) => {
+      if (idle) {
+        if (idleTimer) return;
+        idleTimer = window.setTimeout(() => {
+          idleTimer = 0;
+          if (!document.hidden && playingRef.current && !isDisabled(configRef.current)) {
+            frameId = requestAnimationFrame(tick);
+          }
+        }, 300);
+      } else if (!frameId) {
+        frameId = requestAnimationFrame(tick);
+      }
+    };
+    const tick = (now = performance.now()) => {
+      frameId = 0;
+      const config = configRef.current;
+      const idle = document.hidden || !playingRef.current || isDisabled(config);
+      if (idle) {
+        pulseX = pulseY = pulseZ = 1;
+        if (!idleCleared) {
+          reset();
+          idleCleared = true;
+        }
+        schedule(true);
         return;
       }
-      let dataArray = null;
-      let bufferLength = 128;
-      if (analyser) {
-        bufferLength = analyser.frequencyBinCount;
-        dataArray = new Uint8Array(bufferLength);
-        analyser.getByteFrequencyData(dataArray);
+      idleCleared = false;
+      // 15fps analyser sampling is enough because CSS keeps the spatial field
+      // interpolated; it removes most main-thread and GC pressure on dense scenes.
+      if (now - lastSampleAt < 66) {
+        schedule(false);
+        return;
       }
-
+      lastSampleAt = now;
+      const analyser = window.ichigoAnalyser;
+      if (!analyser?.getByteFrequencyData || !analyser.frequencyBinCount) {
+        schedule(false);
+        return;
+      }
+      if (!buffer || buffer.length !== analyser.frequencyBinCount) buffer = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(buffer);
+      const bufferLength = buffer.length;
+      const bandSize = Math.max(1, Math.floor(bufferLength / 3));
       let bass = 0;
       let mid = 0;
       let treble = 0;
+      for (let index = 0; index < bandSize; index += 1) bass += buffer[index] || 0;
+      for (let index = bandSize; index < bandSize * 2; index += 1) mid += buffer[index] || 0;
+      for (let index = bandSize * 2; index < bufferLength; index += 1) treble += buffer[index] || 0;
+      bass /= bandSize;
+      mid /= bandSize;
+      treble /= Math.max(1, bufferLength - bandSize * 2);
 
-      if (dataArray) {
-        const bandSize = Math.floor(bufferLength / 3);
-        for (let i = 0; i < bandSize; i++) bass += dataArray[i] || 0;
-        for (let i = bandSize; i < bandSize * 2; i++) mid += dataArray[i] || 0;
-        for (let i = bandSize * 2; i < bufferLength; i++) treble += dataArray[i] || 0;
-
-        bass = bass / bandSize;
-        mid = mid / bandSize;
-        treble = treble / (bufferLength - bandSize * 2);
+      const intensity = Math.max(0.2, Number(config?.visualizerIntensity ?? 1));
+      const targetX = 1 + (bass / 255) * 0.45 * (config?.spatialSpreadX ?? 1) * intensity;
+      const targetY = 1 + (mid / 255) * 0.45 * (config?.spatialSpreadY ?? 1) * intensity;
+      const targetZ = 1 + (treble / 255) * 0.8 * (config?.spatialSpreadZ ?? 1) * intensity;
+      const smoothing = Math.max(0.04, Math.min(0.8, Number(config?.visualizerSmoothing ?? 0.16)));
+      pulseX += (targetX - pulseX) * smoothing;
+      pulseY += (targetY - pulseY) * smoothing;
+      pulseZ += (targetZ - pulseZ) * smoothing;
+      const next = [pulseX.toFixed(3), pulseY.toFixed(3), pulseZ.toFixed(3)].join('|');
+      if (next !== lastPainted) {
+        lastPainted = next;
+        const [x, y, z] = next.split('|');
+        parent.style.setProperty('--pulse-x', x);
+        parent.style.setProperty('--pulse-y', y);
+        parent.style.setProperty('--pulse-z', z);
       }
-
-      // Configured scaling ranges
-      const spreadX = configRef.current?.spatialSpreadX ?? 1.0;
-      const spreadY = configRef.current?.spatialSpreadY ?? 1.0;
-      const spreadZ = configRef.current?.spatialSpreadZ ?? 1.0;
-
-      const intensity = Math.max(0.2, Number(configRef.current?.visualizerIntensity ?? 1));
-      const targetPulseX = 1.0 + (bass / 255) * 0.45 * spreadX * intensity;
-      const targetPulseY = 1.0 + (mid / 255) * 0.45 * spreadY * intensity;
-      const targetPulseZ = 1.0 + (treble / 255) * 0.8 * spreadZ * intensity;
-      const smoothing = Math.max(0.04, Math.min(0.8, Number(configRef.current?.visualizerSmoothing ?? 0.16)));
-
-      pulseX += (targetPulseX - pulseX) * smoothing;
-      pulseY += (targetPulseY - pulseY) * smoothing;
-      pulseZ += (targetPulseZ - pulseZ) * smoothing;
-
-      parent.style.setProperty('--pulse-x', pulseX.toFixed(3));
-      parent.style.setProperty('--pulse-y', pulseY.toFixed(3));
-      parent.style.setProperty('--pulse-z', pulseZ.toFixed(3));
+      schedule(false);
     };
 
-    tick();
-    return () => cancelAnimationFrame(animId);
+    const wake = () => {
+      if (idleTimer) {
+        window.clearTimeout(idleTimer);
+        idleTimer = 0;
+      }
+      if (!frameId && playingRef.current && !document.hidden && !isDisabled(configRef.current)) {
+        frameId = requestAnimationFrame(tick);
+      }
+    };
+    wakeRef.current = wake;
+    const handleVisibility = () => {
+      if (document.hidden) {
+        if (frameId) {
+          window.cancelAnimationFrame(frameId);
+          frameId = 0;
+        }
+      } else {
+        wake();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    wake();
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(idleTimer);
+      if (wakeRef.current === wake) wakeRef.current = null;
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const activePos = linePositions[Math.max(0, activeLineIndex)] || { x: 0, y: 0, z: 0, rot: 0 };
@@ -209,11 +286,11 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
   const camZ = -activePos.z + 150; // Pull back slightly from the active text
   const camRot = -activePos.rot * 0.5;
 
-  const particleSize = advancedLyricConfig?.spatialParticleSize ?? 1.0;
-  const particleOpacity = advancedLyricConfig?.spatialParticleOpacity ?? 0.7;
-  const colorMode = advancedLyricConfig?.spatialColorMode || 'adaptive';
+  const particleSize = config?.spatialParticleSize ?? 1.0;
+  const particleOpacity = config?.spatialParticleOpacity ?? 0.7;
+  const colorMode = config?.spatialColorMode || 'adaptive';
   const resolvedParticleColor = colorMode === 'custom' 
-    ? (advancedLyricConfig?.spatialCustomColor || '#ff4081') 
+    ? (config?.spatialCustomColor || '#ff4081')
     : themeColor || '#ffffff';
   
   return (
@@ -225,8 +302,8 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
         overflow: 'hidden',
         position: 'relative',
         perspective: '1200px',
-        opacity: Number(advancedLyricConfig?.visualizerOpacity ?? 0.82),
-        transform: `translateY(${Number(advancedLyricConfig?.visualizerOffsetY || 0)}px) scale(${Number(advancedLyricConfig?.visualizerScale || 1)})`,
+        opacity: Number(config?.visualizerOpacity ?? 0.82),
+        transform: `translateY(${Number(config?.visualizerOffsetY || 0)}px) scale(${Number(config?.visualizerScale || 1)})`,
         transformOrigin: 'center center'
       }}
     >
@@ -245,7 +322,7 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
       >
         {/* Render 3D dynamic visualizer particles */}
         {particles.map((p) => {
-          const depthBlur = advancedLyricConfig?.spatialDepthBlur ?? 0.5;
+          const depthBlur = config?.spatialDepthBlur ?? 0.5;
           // Apply basic depth-blur simulation using CSS filter based on particle base coordinate
           const blurFactor = Math.max(0, Math.min(6, (Math.abs(p.z) / 900) * 4.5 * depthBlur));
           

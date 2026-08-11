@@ -37,7 +37,11 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
       return;
     }
 
-    const update = () => {
+    let lastPaintAt = 0;
+    const update = (clockNow = performance.now()) => {
+      const paintNow = clockNow;
+      if (paintNow - lastPaintAt < 33) return;
+      lastPaintAt = paintNow;
       const currentTime = (engineRef.current?.getCurrentTime() || 0) + globalOffset;
 
       // Word level discrete typing
@@ -46,9 +50,12 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
         if (!el) return;
 
         if (!token.timed) {
-          if (el.style.display !== 'inline-block') {
+          if (el.dataset.streamState !== 'done') {
+            el.dataset.streamState = 'done';
             el.style.display = 'inline-block';
             el.style.opacity = 1;
+            el.style.transform = 'translateY(0) scale(1)';
+            el.style.color = themeColor || '#fff';
           }
           return;
         }
@@ -56,15 +63,30 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
         if (currentTime < token.startTime) {
           // Keep unrevealed tokens out of layout so the bubble starts at the
           // translation width (when present) and grows with the lyric.
-          el.style.display = 'none';
-          el.style.opacity = '0';
-          el.style.transform = 'translateY(10px) scale(0.96)';
-          el.style.color = 'rgba(255,255,255,0.58)';
+          if (el.dataset.streamState !== 'waiting') {
+            el.dataset.streamState = 'waiting';
+            el.style.display = 'none';
+            el.style.opacity = '0';
+            el.style.transform = 'translateY(10px) scale(0.96)';
+            el.style.color = 'rgba(255,255,255,0.58)';
+          }
+        } else if (currentTime >= token.endTime) {
+          if (el.dataset.streamState !== 'done') {
+            el.dataset.streamState = 'done';
+            el.style.display = 'inline-block';
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0) scale(1)';
+            el.style.color = themeColor || '#fff';
+          }
         } else {
-          el.style.display = 'inline-block';
           const progress = token.timed
             ? Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)))
             : 1;
+          const progressKey = progress.toFixed(3);
+          if (el.dataset.streamState === 'active' && el.dataset.streamProgress === progressKey) return;
+          el.dataset.streamState = 'active';
+          el.dataset.streamProgress = progressKey;
+          el.style.display = 'inline-block';
           const pulse = Math.sin(progress * Math.PI);
           el.style.opacity = '1';
           el.style.transform = `translateY(${-fontPx * 0.06 * pulse}px) scale(${1 + pulse * 0.08})`;
@@ -76,7 +98,7 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
 
     update();
     return subscribeLyricClock(update);
-  }, [isActive, isPassed, tokens, engineRef, globalOffset]);
+  }, [isActive, isPassed, tokens, engineRef, globalOffset, fontPx, themeColor]);
 
   // If the line hasn't started and we're not active or passed, don't show it at all
   if (index > activeLineIndex) return null;
@@ -162,7 +184,7 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
                 color: isPassed ? '#fff' : 'rgba(255,255,255,0.58)',
                 transition: 'opacity 0.12s linear, transform 0.12s linear, color 0.12s linear',
                 textShadow: `0 0 ${fontPx * 0.2}px rgba(255,255,255,0.5)`,
-                willChange: 'opacity, transform'
+                willChange: isActive && token.timed ? 'opacity, transform' : 'auto'
               }}
             >
               {token.text}

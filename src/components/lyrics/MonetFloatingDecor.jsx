@@ -1,9 +1,14 @@
 import React, { useEffect, useRef } from 'react';
-import { useApp } from '../../context/AppContext';
 
-export default function MonetFloatingDecor() {
-  const { currentSong, advancedLyricConfig } = useApp();
+export default function MonetFloatingDecor({ isPlaying = true, currentSong = null, advancedLyricConfig = {} } = {}) {
   const canvasRef = useRef(null);
+  const playingRef = useRef(isPlaying);
+  const wakeRef = useRef(null);
+
+  useEffect(() => {
+    playingRef.current = isPlaying;
+    wakeRef.current?.();
+  }, [isPlaying]);
 
   const configRef = useRef(advancedLyricConfig);
   useEffect(() => {
@@ -14,7 +19,9 @@ export default function MonetFloatingDecor() {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    let animationId;
+    let animationId = 0;
+    let idleTimer = 0;
+    let idleCleared = false;
     let particles = [];
     let meteors = [];
     
@@ -43,6 +50,7 @@ export default function MonetFloatingDecor() {
     let lastFrameTime = 0;
     let frameCount = 0;
     let burstCooldown = 0;
+    let analyserBuffer = null;
 
     function createParticle(cvs, isBurst = false) {
       const sizeVal = configRef.current?.decorSize ?? 1.0;
@@ -81,7 +89,37 @@ export default function MonetFloatingDecor() {
       return `rgba(${r}, ${g}, ${b}, ${alpha})`;
     }
 
+    const scheduleIdle = () => {
+      if (idleTimer) return;
+      idleTimer = window.setTimeout(() => {
+        idleTimer = 0;
+        if (playingRef.current && !document.hidden) {
+          animationId = requestAnimationFrame(draw);
+        }
+      }, 300);
+    };
+    const wake = () => {
+      if (idleTimer) {
+        window.clearTimeout(idleTimer);
+        idleTimer = 0;
+      }
+      if (!animationId && playingRef.current && !document.hidden) {
+        animationId = requestAnimationFrame(draw);
+      }
+    };
+    wakeRef.current = wake;
+
     const draw = (time) => {
+      animationId = 0;
+      if (document.hidden || !playingRef.current) {
+        if (!idleCleared) {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          idleCleared = true;
+        }
+        scheduleIdle();
+        return;
+      }
+      idleCleared = false;
       animationId = requestAnimationFrame(draw);
       if (time - lastFrameTime < 1000 / 30) return;
       lastFrameTime = time;
@@ -101,11 +139,13 @@ export default function MonetFloatingDecor() {
       let bassAvg = 0;
 
       if (analyser) {
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(dataArray);
+        if (!analyserBuffer || analyserBuffer.length !== analyser.frequencyBinCount) {
+          analyserBuffer = new Uint8Array(analyser.frequencyBinCount);
+        }
+        analyser.getByteFrequencyData(analyserBuffer);
 
         let bassSum = 0;
-        for (let i = 0; i < 10; i++) bassSum += dataArray[i];
+        for (let i = 0; i < Math.min(10, analyserBuffer.length); i++) bassSum += analyserBuffer[i];
         bassAvg = bassSum / 10;
 
         const enableTwinkleBurst = configRef.current?.decorTwinkle === true;
@@ -173,19 +213,25 @@ export default function MonetFloatingDecor() {
       ctx.globalAlpha = 1.0;
     };
 
-    animationId = requestAnimationFrame(draw);
+    wake();
 
     // When the window becomes visible again after being hidden (app switched to background),
     // reset lastTime so dt doesn't spike to a huge value on the first resumed frame.
     const handleVisibilityChange = () => {
       if (!document.hidden) {
         lastTime = performance.now();
+        wake();
+      } else if (animationId) {
+        window.cancelAnimationFrame(animationId);
+        animationId = 0;
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      cancelAnimationFrame(animationId);
+      window.cancelAnimationFrame(animationId);
+      window.clearTimeout(idleTimer);
+      if (wakeRef.current === wake) wakeRef.current = null;
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };

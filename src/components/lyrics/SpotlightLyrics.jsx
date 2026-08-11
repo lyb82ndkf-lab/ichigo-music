@@ -45,7 +45,7 @@ function seeded(index) {
   return value - Math.floor(value);
 }
 
-function StageLine({ line, effect, fontPx, translationPx, fontStack, showTranslation, showGlow, glowIntensity }) {
+const StageLine = React.memo(function StageLine({ line, effect, fontPx, translationPx, fontStack, showTranslation, showGlow, glowIntensity }) {
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
   const lineEnd = line.time + (line.duration || 5);
   return (
@@ -64,7 +64,7 @@ function StageLine({ line, effect, fontPx, translationPx, fontStack, showTransla
       {showTranslation && line.translation && <div className="kashi-translation" style={{ fontSize: `${translationPx}px`, fontFamily: fontStack }}>{line.translation}</div>}
     </article>
   );
-}
+});
 
 export default function SpotlightLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 40, translationPx = 18, fontStack, showTranslation = true, showGlow = true, glowIntensity = 1, accentColor = 'var(--primary)', effect = 'auto', motion = 1 }) {
   const active = Math.max(0, Math.min(Math.max(0, lyrics.length - 1), activeLineIndex));
