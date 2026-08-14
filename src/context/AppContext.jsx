@@ -1,13 +1,13 @@
-import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
+﻿import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import { api } from '../utils/api';
 import { DEFAULT_PROFILE, deepMerge, loadProfile, saveProfile } from '../utils/settingsProfile';
 import { extractWarmColdColors } from '../utils/colorExtractor';
-import { isLocalMediaSource } from '../utils/audioSource';
+import { isLegacyFileMediaSource, isLocalMediaSource } from '../utils/audioSource';
 import { getPersistentSongCoverUrl, getSongCoverUrl, isLocalCoverUrl, isRemoteCoverUrl } from '../utils/songCover';
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.8.2';
+export const APP_VERSION = 'v1.8.3';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
@@ -298,6 +298,7 @@ export function AppProvider({ children }) {
     document.body.classList.add(`mode-${activeMode}`);
     document.body.classList.add(`layout-${layoutMode}`);
     document.body.classList.toggle('reduced-motion', renderingConfig.reducedMotion === true);
+    document.body.classList.toggle('surface-flat', appearanceConfig.surfaceStyle === 'flat');
 
     if (theme === 'custom') {
       document.body.classList.add('theme-custom');
@@ -314,7 +315,7 @@ export function AppProvider({ children }) {
       document.body.style.removeProperty('--custom-bg-end');
     }
     document.body.dataset.appearanceReady = 'true';
-  }, [theme, colorMode, customThemeColors, layoutMode, renderingConfig.reducedMotion]);
+  }, [theme, colorMode, customThemeColors, layoutMode, renderingConfig.reducedMotion, appearanceConfig.surfaceStyle]);
 
   // System color scheme change listener
   useEffect(() => {
@@ -414,7 +415,7 @@ export function AppProvider({ children }) {
         return { hasUpdate: true, latestVersion: latestTag, ...browserAsset };
       } else {
         if (isManual) {
-          alert('当前已是最新版本！');
+          alert('褰撳墠宸叉槸鏈€鏂扮増鏈紒');
         }
         return { hasUpdate: false, latestVersion: latestTag || APP_VERSION };
       }
@@ -430,7 +431,7 @@ export function AppProvider({ children }) {
   const downloadUpdate = useCallback(async () => {
     setUpdateInfo(prev => ({ ...prev, downloading: true, progress: 0, error: '' }));
     try {
-      if (!window.electronAPI?.downloadUpdate) throw new Error('当前环境不支持应用内更新');
+      if (!window.electronAPI?.downloadUpdate) throw new Error('褰撳墠鐜涓嶆敮鎸佸簲鐢ㄥ唴鏇存柊');
       const result = await window.electronAPI.downloadUpdate({ assetName: updateInfo.assetName });
       setUpdateInfo(prev => ({ ...prev, downloading: false, downloaded: true, progress: 100, error: '' }));
       return result;
@@ -444,7 +445,7 @@ export function AppProvider({ children }) {
     try {
       await window.electronAPI?.installUpdate?.();
     } catch (error) {
-      setUpdateInfo(prev => ({ ...prev, error: error.message || '启动安装失败' }));
+      setUpdateInfo(prev => ({ ...prev, error: error.message || '鍚姩瀹夎澶辫触' }));
     }
   }, []);
 
@@ -583,7 +584,7 @@ export function AppProvider({ children }) {
   const toggleLike = useCallback(async (songId) => {
     const { user, likedSongIds } = stateRef.current;
     if (!user) {
-      alert('请先登录您的网易云账号！');
+      alert('璇峰厛鐧诲綍鎮ㄧ殑缃戞槗浜戣处鍙凤紒');
       navigateTo('settings');
       return;
     }
@@ -599,7 +600,7 @@ export function AppProvider({ children }) {
       setLikedSongIds(newLikedIds);
     } catch (err) {
       console.error('Failed to toggle like:', err);
-      alert('操作失败，请重试');
+      alert('鎿嶄綔澶辫触锛岃閲嶈瘯');
     }
   }, [navigateTo]);
 
@@ -935,11 +936,11 @@ export function AppProvider({ children }) {
     // below does this). Previously playNext() cleared the active source and
     // waited for /song/url/v1 before updating the media element, which made
     // cover/lyrics advance while audio appeared frozen after a restart.
-    if (!forceRefreshUrl && song.url) {
+    if (!forceRefreshUrl && song.url && !isLegacyFileMediaSource(song.url)) {
       const optimisticSong = {
         ...song,
         title: song.name || song.title,
-        artist: song.ar?.map(a => a.name).join(' / ') || song.artists?.map(a => a.name).join(' / ') || song.artist || '未知歌手',
+        artist: song.ar?.map(a => a.name).join(' / ') || song.artists?.map(a => a.name).join(' / ') || song.artist || '鏈煡姝屾墜',
         durationMs: song.dt || song.duration || song.durationMs || 0
       };
 
@@ -954,12 +955,9 @@ export function AppProvider({ children }) {
         if (existingIdx !== -1) setPlaylistIndexAndPersist(existingIdx);
       }
 
-      if (audioElement && !sameSongId(currentSong?.id, song.id)) {
-        try {
-          audioElement.pause();
-          audioElement.currentTime = 0;
-        } catch {}
-      }
+      // AudioPlayer owns source replacement. Calling pause() here emits a
+      // native pause event before the new currentSong has committed, which
+      // can race setIsPlaying(true) and create a play/pause loop.
       setCurrentSongAndPersist(optimisticSong);
       cacheCoverInBackground(optimisticSong);
       setIsPlaying(true);
@@ -1079,7 +1077,8 @@ export function AppProvider({ children }) {
     if (!currentSong?.id) return undefined;
     const quality = audioQuality;
     const cachedAt = Number(currentSong.urlCachedAt || 0);
-    const hasFreshUrl = currentSong.url && cachedAt && Date.now() - cachedAt < 15 * 60 * 1000;
+    const hasFreshUrl = currentSong.url && !isLegacyFileMediaSource(currentSong.url)
+      && cachedAt && Date.now() - cachedAt < 15 * 60 * 1000;
 
     let cancelled = false;
     getPlayableSongUrl(currentSong, quality).then(songUrl => {
@@ -1367,3 +1366,6 @@ export function AppProvider({ children }) {
 export function useApp() {
   return useContext(AppContext);
 }
+
+
+

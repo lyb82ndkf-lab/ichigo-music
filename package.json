@@ -1,85 +1,103 @@
 {
-  "name": "ichigomusic",
-  "version": "1.8.2",
-  "description": "A beautiful music player with desktop lyrics and particle visualizers.",
-  "author": "Antigravity",
-  "private": true,
-  "type": "module",
-  "main": "main-electron.js",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "check:immersive": "node scripts/check-immersive-config.mjs",
-    "check": "npm run build && npm run check:immersive && npm run check:cover && npm run check:playback && npm run check:runtime && npm run check:listen && node --check main-electron.js && node --check preload-electron.cjs",
-    "preview": "vite preview",
-    "electron": "electron .",
-    "electron:build": "vite build && electron-builder",
-    "check:cover": "node scripts/check-cover-state.mjs",
-    "check:playback": "node scripts/check-playback-startup.mjs",
-    "check:runtime": "node scripts/check-runtime-log.mjs",
-    "check:listen": "node scripts/check-listen-together.mjs"
-  },
-  "dependencies": {
-    "@neteasecloudmusicapienhanced/unblockmusic-utils": "^0.3.3",
-    "axios": "^1.18.0",
-    "crypto-js": "^4.2.0",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "express-fileupload": "^1.5.2",
-    "framer-motion": "^12.42.2",
-    "gzip": "^0.1.0",
-    "lucide-react": "^0.400.0",
-    "music-metadata": "^11.13.0",
-    "node-forge": "^1.4.0",
-    "pac-proxy-agent": "^7.2.0",
-    "qrcode": "^1.5.4",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "safe-decode-uri-component": "^1.2.1",
-    "tunnel": "^0.0.6",
-    "xml2js": "^0.6.2",
-    "yargs": "^18.0.0",
-    "ws": "^8.17.1",
-    "socket.io": "^4.7.5",
-    "socket.io-client": "^4.7.5"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3",
-    "vite": "^5.3.1"
-  },
-  "build": {
-    "appId": "com.ichigo.music",
-    "productName": "ICHIGOMusic",
-    "asar": true,
-    "directories": {
-      "output": "release"
+    "name": "ichigomusic",
+    "version": "1.8.3",
+    "description": "A beautiful music player with desktop lyrics and particle visualizers.",
+    "author": "Antigravity",
+    "private": true,
+    "type": "module",
+    "main": "main-electron.js",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "check:immersive": "node scripts/check-immersive-config.mjs",
+        "check": "npm run build && npm run check:ui && npm run check:immersive && npm run check:cover && npm run check:playback && npm run check:runtime && npm run check:packaged-entry && npm run check:listen && npm run check:ktv && npm run check:ktv-pv && npm run check:playlist && npm run check:lyrics && node --check main-electron.js && node --check preload-electron.cjs",
+        "preview": "vite preview",
+        "electron": "electron .",
+        "electron:build": "vite build && electron-builder",
+        "check:cover": "node scripts/check-cover-state.mjs",
+        "check:playback": "node scripts/check-playback-startup.mjs",
+        "check:runtime": "node scripts/check-runtime-log.mjs",
+        "check:packaged-entry": "node scripts/check-packaged-entry.mjs",
+        "check:listen": "node scripts/check-listen-together.mjs",
+        "check:ktv": "node scripts/check-ktv-text.mjs",
+        "check:ktv-pv": "node scripts/check-ktv-pv.mjs",
+        "check:playlist": "node scripts/check-playlist-loading.mjs",
+        "check:lyrics": "node --test src/hooks/useLyricEngine.test.js",
+        "check:ui": "node scripts/check-ui-primitives.mjs"
     },
-    "files": [
-      "dist/**/*",
-      "main-electron.js",
-      "preload-electron.cjs",
-      "package.json",
-      "static/**/*",
-      "server/**/*",
-      "!server/node_modules/**/*",
-      "!server/package-lock.json",
-      "!server/pnpm-lock.yaml"
-    ],
-    "win": {
-      "target": [
-        "nsis",
-        "dir"
-      ],
-      "icon": "build/icon.png"
+    "dependencies": {
+        "@fontsource/dotgothic16": "^5.3.0",
+        "@neteasecloudmusicapienhanced/unblockmusic-utils": "^0.3.3",
+        "@radix-ui/react-context-menu": "^2.3.7",
+        "@radix-ui/react-dialog": "^1.1.23",
+        "@radix-ui/react-dropdown-menu": "^2.1.24",
+        "@radix-ui/react-popover": "^1.1.23",
+        "@radix-ui/react-scroll-area": "^1.2.18",
+        "@radix-ui/react-slider": "^1.4.7",
+        "@radix-ui/react-switch": "^1.3.7",
+        "@radix-ui/react-tabs": "^1.1.21",
+        "@radix-ui/react-toggle-group": "^1.1.19",
+        "@radix-ui/react-tooltip": "^1.2.16",
+        "@radix-ui/react-visually-hidden": "^1.2.11",
+        "axios": "^1.18.0",
+        "crypto-js": "^4.2.0",
+        "dotenv": "^17.4.2",
+        "express": "^5.2.1",
+        "express-fileupload": "^1.5.2",
+        "framer-motion": "^12.42.2",
+        "gzip": "^0.1.0",
+        "lucide-react": "^0.400.0",
+        "music-metadata": "^11.13.0",
+        "node-forge": "^1.4.0",
+        "pac-proxy-agent": "^7.2.0",
+        "qrcode": "^1.5.4",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "safe-decode-uri-component": "^1.2.1",
+        "socket.io": "^4.7.5",
+        "socket.io-client": "^4.7.5",
+        "tunnel": "^0.0.6",
+        "ws": "^8.17.1",
+        "xml2js": "^0.6.2",
+        "yargs": "^18.0.0"
     },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": "always"
+    "devDependencies": {
+        "@types/react": "^18.3.3",
+        "@types/react-dom": "^18.3.0",
+        "@vitejs/plugin-react": "^4.3.1",
+        "electron": "^31.0.0",
+        "electron-builder": "^24.13.3",
+        "vite": "^5.3.1"
+    },
+    "build": {
+        "appId": "com.ichigo.music",
+        "productName": "ICHIGOMusic",
+        "asar": true,
+        "directories": {
+            "output": "release"
+        },
+        "files": [
+            "dist/**/*",
+            "main-electron.js",
+            "preload-electron.cjs",
+            "package.json",
+            "static/**/*",
+            "server/**/*",
+            "!server/node_modules/**/*",
+            "!server/package-lock.json",
+            "!server/pnpm-lock.yaml"
+        ],
+        "win": {
+            "target": [
+                "nsis",
+                "dir"
+            ],
+            "icon": "build/icon.png"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true,
+            "createDesktopShortcut": "always"
+        }
     }
-  }
 }

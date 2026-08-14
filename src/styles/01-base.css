@@ -1,0 +1,41 @@
+/* index.css - ICHIGOMusic Design System */
+
+/* User-controlled global motion reduction. */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Prevent text selection across UI elements for native desktop feel */
+body,
+button,
+a,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+img,
+svg,
+.desktop-app-title {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Enable selection specifically for text inputs and code snippets */
+input,
+textarea,
+[contenteditable="true"],
+code,
+pre {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+

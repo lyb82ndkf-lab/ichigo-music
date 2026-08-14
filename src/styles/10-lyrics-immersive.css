@@ -1,0 +1,84 @@
+/* ========= Immersive Lyrics Player Bar Auto-Hide & Hover Pop-Up ========= */
+
+/* Sensor area at the bottom of the screen to detect hover */
+.lyrics-open .lyrics-immersive-hover-sensor {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px; /* 60px sensor zone */
+  z-index: 1290; /* below player bars but above fullscreen lyrics-overlay (z-index: 1200) */
+  background: transparent;
+  pointer-events: auto;
+}
+
+/* 1. Classic Layout Player Bar Auto-Hide */
+.lyrics-open .app-player-bar {
+  transform: translateY(calc(100% + 20px));
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s ease;
+  z-index: 1300 !important; /* ensure it is above full screen overlay when it slides up */
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Show classic player bar on sensor hover or bar hover */
+.lyrics-open .lyrics-immersive-hover-sensor:hover ~ .app-player-bar,
+.lyrics-open .app-player-bar:hover,
+.lyrics-open .app-player-bar:focus-within {
+  transform: translateY(0) !important;
+}
+
+/* 2. Modern Layout Player Bar Auto-Hide */
+.lyrics-open #player-bar {
+  transform: translateX(-50%) translateY(calc(100% + 36px)) scale(0.96) !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease !important;
+}
+
+/* Show modern player bar on sensor hover or bar hover */
+.lyrics-open .lyrics-immersive-hover-sensor:hover ~ #player-bar,
+.lyrics-open #player-bar:hover,
+.lyrics-open #player-bar:focus-within,
+.lyrics-open #player-bar[data-volume-open="true"] {
+  transform: translateX(-50%) translateY(0) scale(1) !important;
+  opacity: 0.95 !important;
+  pointer-events: auto !important;
+}
+
+/* PV contrast shield: the stage intentionally alternates dark and white
+   panels, so a transparent glass player bar becomes unreadable on one side.
+   Give it a stable dark control surface only while the KTV stage is open. */
+.lyrics-open:has(.kpv-stage) #player-bar {
+  background: linear-gradient(118deg, rgba(8, 13, 28, .94), rgba(19, 24, 43, .90)) !important;
+  border: 1px solid rgba(255, 255, 255, .28) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .46), inset 0 1px 0 rgba(255, 255, 255, .18), inset 0 -1px 0 rgba(0, 0, 0, .28) !important;
+  backdrop-filter: blur(24px) saturate(1.35) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(1.35) !important;
+}
+.lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:first-child > div > span:first-child,
+.lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:last-child > span {
+  color: rgba(255, 255, 255, .94) !important;
+}
+.lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:first-child > div > span:nth-child(2) {
+  color: rgba(226, 234, 255, .74) !important;
+}
+.lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn {
+  color: rgba(255, 255, 255, .86) !important;
+}
+.lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn:hover,
+.lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn.active {
+  color: #fff !important;
+  background: rgba(255, 255, 255, .14) !important;
+}
+.lyrics-open:has(.kpv-stage) #player-bar .play-btn {
+  color: #10182e !important;
+  background: linear-gradient(135deg, #fff, color-mix(in srgb, var(--primary) 42%, #fff)) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--primary) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, .8) !important;
+}
+.lyrics-open:has(.kpv-stage) #player-bar #progress-bar {
+  background: rgba(255, 255, 255, .28) !important;
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, .34), 0 0 12px rgba(255, 255, 255, .08) !important;
+}
+.lyrics-open:has(.kpv-stage) #player-bar #progress-fill {
+  background: linear-gradient(90deg, #fff, var(--primary, #ff6b9a)) !important;
+}

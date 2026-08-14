@@ -1,8 +1,18 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { isLocalMediaSource } from '../utils/audioSource';
+import { isLegacyFileMediaSource, isLocalMediaSource } from '../utils/audioSource';
 import { api } from '../utils/api';
 import { appendRuntimeLog } from '../utils/runtimeLog';
+
+function isWebAudioEligibleSource(source) {
+  if (!source) return false;
+  if (isLocalMediaSource(source)) return true;
+  try {
+    return new URL(source, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
 
 export default function AudioPlayer({ canControlPlayback = true }) {
   const {
@@ -28,15 +38,26 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   // Audio Context and Analyzer references
   const audioContextRef = useRef(null);
   const sourceNodeRef = useRef(null);
+  const sourceElementRef = useRef(null);
   const analyserNodeRef = useRef(null);
   const playRequestIdRef = useRef(0);
+  const playPendingRef = useRef(null);
   const lastLoadedKeyRef = useRef('');
   const zeroTimeRecoveryRef = useRef({ key: '', attempts: 0, startedAt: 0 });
   const urlRefreshAttemptRef = useRef({ songId: null, count: 0 });
+  const playbackIntentRef = useRef(isPlaying);
+  const currentSongRef = useRef(currentSong);
+  const sourceTransitionRef = useRef(false);
+  const errorSkipTimerRef = useRef(null);
   // One report is emitted at the end of a listening session.  The old code
   // reported at 50%/30 seconds and then permanently marked the song as sent;
   // consequently a four-minute song was recorded as only 30 seconds.
   const scrobbleRef = useRef({ songId: null, lastTime: 0, reported: false, inFlight: false });
+
+  // Media events may arrive after React has committed a new track. Keep the
+  // latest intent and song metadata available to those event handlers.
+  playbackIntentRef.current = isPlaying;
+  currentSongRef.current = currentSong;
 
   const reportScrobble = (playedSeconds, force = false) => {
     const song = currentSong;
@@ -147,6 +168,8 @@ export default function AudioPlayer({ canControlPlayback = true }) {
           sourceNodeRef.current.disconnect();
         } catch (err) {}
       }
+      sourceNodeRef.current = null;
+      sourceElementRef.current = null;
       delete window.ichigoAnalyser;
       delete window.ichigoAudioContext;
     };
@@ -154,7 +177,14 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   const safePlay = () => {
     const audio = audioRef.current;
-    if (!audio || !audioSource) return;
+    if (!audio || !audioSource || !playbackIntentRef.current) return;
+    const requestKey = `${currentSong?.id || ''}|${audioSource}|${crossOriginMode ?? 'no-cors'}`;
+    if (playPendingRef.current?.key === requestKey) return;
+    // onCanPlay, the source-sync effect and the startup watchdog can all
+    // converge on the same media element. Never issue a second play() while
+    // the first promise is still deciding; Chromium otherwise emits a noisy
+    // pause/play sequence during source stalls.
+    if (!audio.paused && !audio.ended) return;
 
     appendRuntimeLog('debug', '璇锋眰鎾斁闊抽', {
       songId: currentSong?.id || null,
@@ -181,15 +211,24 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       }
     }
     const requestId = ++playRequestIdRef.current;
+    playPendingRef.current = { key: requestKey, requestId };
     const playPromise = audio.play();
     if (playPromise !== undefined) {
-      playPromise.catch(error => {
+      playPromise.then(() => {
+        if (playPendingRef.current?.requestId === requestId) playPendingRef.current = null;
+      }).catch(error => {
+        if (playPendingRef.current?.requestId === requestId) playPendingRef.current = null;
         // load()/src changes legitimately abort older play() calls during song
         // switches. Treat only the latest non-abort failure as a real playback
         // failure. This prevents the app from flipping to a stuck paused/0.00
         // state during normal source replacement.
         if (requestId !== playRequestIdRef.current) return;
         if (error?.name === 'AbortError') return;
+        // Chromium can surface a generic DOMException after a source swap or
+        // after the user has already pressed pause. The media event that
+        // follows owns the state in those cases; do not turn a stale promise
+        // rejection into a new pause/retry cycle.
+        if (!playbackIntentRef.current || sourceTransitionRef.current) return;
         console.warn('Playback prevented or error occurred:', error);
         const mediaCode = audio.error?.code;
         const retry = urlRefreshAttemptRef.current;
@@ -201,6 +240,8 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         }
         setIsPlaying(false);
       });
+    } else {
+      playPendingRef.current = null;
     }
   };
 
@@ -220,11 +261,13 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     const loadKey = `${audioSource}|${crossOriginMode ?? 'no-cors'}`;
     if (lastLoadedKeyRef.current !== loadKey) {
       lastLoadedKeyRef.current = loadKey;
+      playPendingRef.current = null;
       playRequestIdRef.current += 1; // invalidate play() promises aborted by load()
+      sourceTransitionRef.current = true;
       audio.load();
     }
 
-    if (isPlaying) {
+    if (playbackIntentRef.current) {
       safePlay();
     } else {
       audio.pause();
@@ -233,6 +276,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   // Handle song change
   useEffect(() => {
+    playPendingRef.current = null;
     if (audioRef.current) {
       audioRef.current._hasRetriedUrl = false;
     }
@@ -243,11 +287,23 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     // src 娓呯┖銆傚湴鍧€鍒锋柊鐢?AppContext 鍦ㄥ悗鍙板畬鎴愶紱娓呯┖ src 浼氳棣栨洸
     // 蹇呴』绛夊緟缃戠粶璇锋眰缁撴潫锛岃〃鐜颁负灏侀潰/姝岃瘝宸插嚭鐜颁絾杩涘害鏉￠暱鏃堕棿涓?0銆?
     if (currentSong?.url) {
+      sourceTransitionRef.current = true;
       setProgress(0);
       setDuration(0);
-      zeroTimeRecoveryRef.current = { key: currentSong.url, attempts: 0, startedAt: Date.now() };
-      setAudioSource(currentSong.url);
-      setCrossOriginMode(isLocalMediaSource(currentSong.url) ? null : 'anonymous');
+      const persistedSource = isLegacyFileMediaSource(currentSong.url) ? '' : currentSong.url;
+      zeroTimeRecoveryRef.current = { key: persistedSource, attempts: 0, startedAt: Date.now() };
+      // A legacy file:// URL is not loadable from the http renderer origin.
+      // Let AppContext resolve it to ichigo-cache://audio or a fresh CDN URL
+      // instead of committing a guaranteed MEDIA_ERR_SRC_NOT_SUPPORTED frame.
+      setAudioSource(persistedSource);
+      // Direct music CDN URLs commonly omit Access-Control-Allow-Origin. If
+      // such an element is attached to MediaElementAudioSourceNode, Chromium
+      // reports zeroes and the audible output becomes silent. Keep those
+      // sources on the native media path; same-origin proxy/cache URLs can
+      // still use Web Audio for the visualizer.
+      const webAudioEligible = isWebAudioEligibleSource(persistedSource);
+      setCrossOriginMode(webAudioEligible ? 'anonymous' : null);
+      if (!webAudioEligible) window.ichigoAnalyser = null;
       appendRuntimeLog('info', '闊抽婧愬凡鎻愪氦', {
         songId: currentSong.id || null,
         source: isLocalMediaSource(currentSong.url) ? 'local-cache' : 'remote',
@@ -263,6 +319,19 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       setCrossOriginMode('anonymous');
     }
   }, [currentSong?.url]);
+
+  useEffect(() => {
+    if (errorSkipTimerRef.current) {
+      window.clearTimeout(errorSkipTimerRef.current);
+      errorSkipTimerRef.current = null;
+    }
+    return () => {
+      if (errorSkipTimerRef.current) {
+        window.clearTimeout(errorSkipTimerRef.current);
+        errorSkipTimerRef.current = null;
+      }
+    };
+  }, [currentSong?.id]);
 
   // Recovery for the intermittent 0.00s startup stall: if a source is
   // requested to play but the media clock never starts, retry once without CORS
@@ -288,6 +357,10 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       }
 
       if (audio.paused) {
+        // Once the bounded recovery budget is exhausted, leave the media
+        // element alone. Repeated safePlay() calls here caused the visible
+        // play/pause loop reported by users when a CDN never delivered bytes.
+        if (recovery.attempts >= 2) return;
         safePlay();
         return;
       }
@@ -301,6 +374,11 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
       if (recovery.attempts < 2) {
         recovery.attempts += 1;
+        // audio.load() emits a native pause event even when the user's play
+        // intent is still active. Mark this as an internal source transition
+        // first, otherwise handlePause() turns the bounded recovery attempt
+        // into a user-visible play/pause loop and PV loses its clock.
+        sourceTransitionRef.current = true;
         playRequestIdRef.current += 1;
         audio.load();
         safePlay();
@@ -310,17 +388,42 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     return () => window.clearInterval(timerId);
   }, [isPlaying, audioSource, crossOriginMode]);
 
+  const audioRoutingMode = isWebAudioEligibleSource(audioSource) ? 'web-audio' : 'direct';
+  // Keep direct CDN media native from the very first React commit.  Using the
+  // previous render's `anonymous` value for one frame is enough for Chromium
+  // to attach a CORS media pipeline; the timeline can still advance while the
+  // audible output is silent.  Same-origin/local media may opt into Web Audio.
+  const effectiveCrossOriginMode = audioRoutingMode === 'direct'
+    ? null
+    : crossOriginMode;
+
   // Expose audio element to global context
   useEffect(() => {
     if (audioRef.current) {
       setAudioElement(audioRef.current);
     }
-  }, []);
+  }, [audioRoutingMode, setAudioElement]);
+
+  // A MediaElementAudioSourceNode permanently takes ownership of the media
+  // element's output. When a direct CDN track follows an analysed local or
+  // same-origin track, disconnect the old node before the direct element is
+  // allowed to play natively.
+  useEffect(() => {
+    if (audioRoutingMode !== 'direct') return;
+    window.ichigoAnalyser = null;
+    if (sourceNodeRef.current) {
+      try {
+        sourceNodeRef.current.disconnect();
+      } catch (err) {}
+      sourceNodeRef.current = null;
+      sourceElementRef.current = null;
+    }
+  }, [audioRoutingMode]);
 
   // Initialize Web Audio API Analyser
   const setupWebAudio = () => {
     const localMedia = isLocalMediaSource(audioSource);
-    if (!audioRef.current || (crossOriginMode === null && !localMedia)) return;
+    if (!audioRef.current || !isWebAudioEligibleSource(audioSource) || (crossOriginMode === null && !localMedia)) return;
 
     try {
       let audioCtx = audioContextRef.current;
@@ -348,8 +451,15 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       // If source node is already created for this audio element, reuse it, but
       // still restore the global analyser refs. Last-session playback can reuse
       // the media element before immersive mode mounts.
-      if (sourceNodeRef.current) {
+      if (sourceNodeRef.current && sourceElementRef.current === audioRef.current) {
         return;
+      }
+
+      if (sourceNodeRef.current) {
+        try {
+          sourceNodeRef.current.disconnect();
+        } catch (err) {}
+        sourceNodeRef.current = null;
       }
 
       // Create Media Element Source node only once
@@ -358,6 +468,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       analyser.connect(audioCtx.destination);
 
       sourceNodeRef.current = source;
+      sourceElementRef.current = audioRef.current;
     } catch (e) {
       console.warn("Web Audio API analyser setup failed:", e);
     }
@@ -386,6 +497,12 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   // When play starts, setup audio analyser
   const handlePlay = () => {
+    playPendingRef.current = null;
+    if (!playbackIntentRef.current) {
+      audioRef.current?.pause();
+      return;
+    }
+    sourceTransitionRef.current = false;
     // A pause/resume starts a new report window for the same track.  This
     // allows a short pause checkpoint to be replaced by the later, longer
     // duration instead of freezing the account at the first pause position.
@@ -411,10 +528,18 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   };
 
   const handlePause = () => {
+    playPendingRef.current = null;
+    const audio = audioRef.current;
+    const songSource = currentSong?.url || '';
+    const sourceChanging = sourceTransitionRef.current
+      || (songSource && audioSource && songSource !== audioSource);
+    // load()/src replacement also emits pause. Do not let that stale event
+    // turn a still-playing intent off during a track transition.
+    if (sourceChanging && playbackIntentRef.current) return;
     reportScrobble(audioRef.current?.currentTime || 0, true);
-    appendRuntimeLog('debug', '闊抽鏆傚仠', {
+    appendRuntimeLog('debug', 'audio paused', {
       songId: currentSong?.id || null,
-      currentTime: audioRef.current?.currentTime || 0
+      currentTime: audio?.currentTime || 0
     }, 'audio');
     setIsPlaying(false);
   };
@@ -439,6 +564,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   const handleLoadedMetadata = () => {
     if (audioRef.current) {
+      if (!playbackIntentRef.current) sourceTransitionRef.current = false;
       const mediaDuration = Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : 0;
       appendRuntimeLog('info', '闊抽鍏冩暟鎹凡鍔犺浇', {
         songId: currentSong?.id || null,
@@ -490,6 +616,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     }, 'audio');
     console.error("Audio playback error event:", e);
     const code = audio?.error?.code;
+    sourceTransitionRef.current = false;
     
     const urlRetry = urlRefreshAttemptRef.current;
     if (isPlaying && code === 4 && currentSong && urlRetry.count < 1) {
@@ -517,9 +644,13 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         // Try to refresh the URL once before skipping to the next song.
         console.log("Skipping to next song in 1.5 seconds...");
         setIsPlaying(false);
-        setTimeout(() => {
-          playNext();
-        }, 1500);
+        if (!errorSkipTimerRef.current) {
+          const failedSongId = currentSong.id;
+          errorSkipTimerRef.current = setTimeout(() => {
+            errorSkipTimerRef.current = null;
+            if (currentSongRef.current?.id === failedSongId) playNext();
+          }, 1500);
+        }
       } else {
         console.warn("Audio failed to load, but player is paused. Ignoring auto-skip to prevent auto-play loop.");
       }
@@ -544,17 +675,23 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   return (
     <audio
-      key="ichigo-audio-element" // Reuse static element to prevent decoding lockups in Chrome
+      key={`ichigo-audio-element-${audioRoutingMode}`}
       ref={audioRef}
       src={audioSource || undefined}
-      crossOrigin={crossOriginMode}
+      crossOrigin={effectiveCrossOriginMode}
       onPlay={handlePlay}
       onPause={handlePause}
       onTimeUpdate={handleTimeUpdate}
       onLoadedMetadata={handleLoadedMetadata}
       onDurationChange={handleDurationChange}
-      onCanPlay={() => { if (isPlaying) safePlay(); }}
-      onPlaying={() => appendRuntimeLog('info', 'Audio entered stable playback', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0 }, 'audio')}
+      onCanPlay={() => {
+        if (playbackIntentRef.current) safePlay();
+        else sourceTransitionRef.current = false;
+      }}
+      onPlaying={() => {
+        sourceTransitionRef.current = false;
+        appendRuntimeLog('info', 'Audio entered stable playback', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0 }, 'audio');
+      }}
       onWaiting={() => appendRuntimeLog('warn', '闊抽绛夊緟鏁版嵁', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0, readyState: audioRef.current?.readyState ?? -1 }, 'audio')}
       onStalled={() => appendRuntimeLog('warn', '闊抽缃戠粶璇诲彇鍋滄粸', { songId: currentSong?.id || null, networkState: audioRef.current?.networkState ?? -1 }, 'audio')}
       onError={handleAudioError}

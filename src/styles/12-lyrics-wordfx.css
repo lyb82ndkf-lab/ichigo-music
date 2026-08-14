@@ -1,0 +1,25 @@
+
+/* Dedicated word treatments for the four cinematic immersive modes. */
+.monet-word-sweep--spotlight .monet-word-fill {
+  color: #fff;
+  text-shadow: 0 0 5px color-mix(in srgb, var(--primary) 62%, white), 0 0 18px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+.monet-word-sweep--starfield .monet-word-fill {
+  background: linear-gradient(105deg, #fff 0%, color-mix(in srgb, var(--primary) 42%, white) 48%, var(--primary) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 14px color-mix(in srgb, var(--primary) 44%, transparent);
+}
+.monet-word-sweep--filmstrip .monet-word-fill {
+  color: #fff7df;
+  text-shadow: 2px 0 0 color-mix(in srgb, var(--primary) 60%, transparent), -2px 0 0 rgba(255,255,255,.16);
+}
+.monet-word-sweep--inkflow .monet-word-fill {
+  color: color-mix(in srgb, var(--primary) 76%, white);
+  text-shadow: 0 1px 0 rgba(255,255,255,.22), 0 0 13px color-mix(in srgb, var(--primary) 28%, transparent);
+}
+@media (prefers-reduced-motion: reduce) {
+  .monet-word-sweep { filter: none !important; transform: none !important; }
+}

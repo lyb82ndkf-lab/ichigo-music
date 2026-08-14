@@ -173,6 +173,7 @@ export function computeLineDurations(lines) {
     return {
       time: start,
       text: '......',
+      isInterlude: true,
       isYrc: true,
       duration: duration,
       words: words,

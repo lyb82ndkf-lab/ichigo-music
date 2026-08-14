@@ -96,7 +96,7 @@ export default function ModernHome() {
               />
               <div 
                 className="hero-cover-glow" 
-                style={{ position: 'absolute', inset: 0, background: `url(${coverUrl})`, filter: 'blur(32px)', opacity: 0.6, zIndex: 1, transform: 'translateY(10px) scale(1.05)', backgroundSize: 'cover' }} 
+                style={{ position: 'absolute', inset: 0, backgroundImage: `url(${coverUrl})`, backgroundSize: 'cover', filter: 'blur(32px)', opacity: 0.6, zIndex: 1, transform: 'translateY(10px) scale(1.05)' }}
               />
             </div>
           ) : (

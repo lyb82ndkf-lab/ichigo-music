@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { parseLrc, parseYrc, mergeTranslation, computeLineDurations } from '../utils/lyrics/lyricParser';
-import { api } from '../utils/api';
+import { parseLrc, parseYrc, mergeTranslation, computeLineDurations } from '../utils/lyrics/lyricParser.js';
+import { api } from '../utils/api.js';
 
 function getDurationSec(songMeta) {
   const raw = songMeta?.durationMs ?? songMeta?.duration ?? songMeta?.dt ?? 0;
@@ -9,14 +9,14 @@ function getDurationSec(songMeta) {
 }
 
 function hasWordTimedLyrics(lines) {
-  return (lines || []).some(line => Array.isArray(line.words) && line.words.length > 0);
+  return (lines || []).some(line => !line.isInterlude && Array.isArray(line.words) && line.words.length > 0);
 }
 
 function getRealLyricLines(lines) {
   return (lines || []).filter(line => line && line.text && !/^\.+$/.test(line.text.trim()));
 }
 
-function assessLyricQuality(lines, durationSec = 0) {
+export function assessLyricQuality(lines, durationSec = 0) {
   const realLines = getRealLyricLines(lines);
   const creditPrefixes = ['\u4f5c\u8bcd', '\u4f5c\u66f2', '\u7f16\u66f2', '\u8bcd', '\u66f2', 'composer', 'lyricist', 'lyrics'];
   const isCreditLine = (line) => {
@@ -32,9 +32,35 @@ function assessLyricQuality(lines, durationSec = 0) {
   const lastEnd = realLines.reduce((max, line) => Math.max(max, Number(line.time || 0) + Number(line.duration || 0)), 0);
   const firstStart = realLines.reduce((min, line) => Math.min(min, Number(line.time || 0)), Number.POSITIVE_INFINITY);
   const coverage = durationSec > 0 ? lastEnd / durationSec : 1;
-  const durationMismatch = durationSec >= 90 && coverage > 0 && (coverage < 0.62 || coverage > 1.22);
   const timeSpread = Number.isFinite(firstStart) ? Math.max(0, lastEnd - firstStart) : 0;
-  const timedLineCount = realLines.filter(line => Number.isFinite(line.time) && line.time >= 0).length;
+  // Matched providers sometimes serialize timestamps as strings. Treat those
+  // values exactly like parser-produced numbers; otherwise usable line-timed
+  // LRC is downgraded to the no-lyrics placeholder before PV gets a chance to
+  // apply its deterministic line-level choreography.
+  const timedLineCount = realLines.filter(line => {
+    const time = Number(line.time);
+    return Number.isFinite(time) && time >= 0;
+  }).length;
+  // Word-level timing is optional. A short song can still have perfectly
+  // usable line-timed LRC, so judge sparse lyrics by temporal coverage rather
+  // than an arbitrary ten-line minimum.
+  const minimumSpread = durationSec > 0 ? Math.min(8, Math.max(2, durationSec * 0.08)) : 2;
+  const lineTimed = realLines.length > 0
+    && timedLineCount === realLines.length
+    && (realLines.length === 1 || timeSpread >= minimumSpread);
+  // A valid line-timed LRC may intentionally stop before a long instrumental
+  // outro. Do not discard it merely because its coverage is below the song's
+  // duration; the PV can still render those timed lines deterministically.
+  const durationMismatch = durationSec >= 90 && coverage > 0 && !lineTimed
+    && (coverage < 0.62 || coverage > 1.22);
+  // A word-timed response with only a tiny early slice is often a partial YRC
+  // payload, not a song with an unusually long outro. Keep it available when
+  // it is the only source, but let choosePrimaryLyricLines prefer a complete
+  // line-timed companion when one was returned by the same request.
+  const likelyPartialWordTiming = wordTimed
+    && durationSec >= 30
+    && coverage < 0.35
+    && realLines.length < 10;
 
   let score = 0;
   score += Math.min(30, realLines.length * 1.4);
@@ -47,20 +73,56 @@ function assessLyricQuality(lines, durationSec = 0) {
   }
   if (timedLineCount >= 3 && timeSpread > 10) score += 10;
   if (creditOnly && !instrumentalLike) score -= 100;
-  if (realLines.length < 10 && !instrumentalLike) score -= 60;
+  if (realLines.length < 10 && !instrumentalLike && !lineTimed) score -= 60;
+  if (lineTimed && !wordTimed) score += 8;
 
   const lowQuality = !instrumentalLike && (realLines.length === 0
     || creditOnly
-    || realLines.length < 10
-    || (durationSec >= 90 && realLines.length <= 4)
+    || (realLines.length < 10 && !lineTimed)
+    || (durationSec >= 90 && realLines.length <= 4 && !lineTimed)
     || durationMismatch
-    || (timedLineCount >= 2 && timeSpread < 5));
+    || (timedLineCount >= 2 && timeSpread < minimumSpread));
 
-  return { lowQuality, score, wordTimed, realLineCount: realLines.length, coverage, lastEnd, instrumentalLike, creditLineCount };
+  return { lowQuality, score, wordTimed, lineTimed, likelyPartialWordTiming, realLineCount: realLines.length, coverage, lastEnd, instrumentalLike, creditLineCount };
 }
 
 function isLowQualityLyric(lines, durationSec = 0) {
   return assessLyricQuality(lines, durationSec).lowQuality;
+}
+
+// NetEase may return a partial YRC blob together with a complete plain LRC
+// blob. Prefer word timing only when that candidate is itself coherent;
+// otherwise keep the complete line-timed source so PV can render real lyrics
+// instead of replacing the song with the generic no-lyrics card.
+export function choosePrimaryLyricLines(yrcLines = [], lrcLines = [], durationSec = 0) {
+  if (!yrcLines.length) return lrcLines;
+  if (!lrcLines.length) return yrcLines;
+  const yrcQuality = assessLyricQuality(yrcLines, durationSec);
+  const lrcQuality = assessLyricQuality(lrcLines, durationSec);
+  if (yrcQuality.lowQuality && !lrcQuality.lowQuality) return lrcLines;
+  if (yrcQuality.likelyPartialWordTiming
+    && lrcQuality.lineTimed
+    && lrcQuality.coverage >= 0.45
+    && lrcQuality.realLineCount >= yrcQuality.realLineCount * 2) return lrcLines;
+  if (!yrcQuality.wordTimed && lrcQuality.wordTimed && lrcQuality.score > yrcQuality.score + 8) return lrcLines;
+  return yrcLines;
+}
+
+function findNextLyricIndex(lines = [], currentTime = 0) {
+  const target = Number(currentTime) + 0.001;
+  let low = 0;
+  let high = lines.length - 1;
+  let result = -1;
+  while (low <= high) {
+    const middle = (low + high) >> 1;
+    if (Number(lines[middle]?.time || 0) > target) {
+      result = middle;
+      high = middle - 1;
+    } else {
+      low = middle + 1;
+    }
+  }
+  return result;
 }
 
 function normalizeMatchedLines(result) {
@@ -96,6 +158,7 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
   const [lyrics, setLyrics] = useState([]);
   const [activeLineIndex, setActiveLineIndex] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
+  const [lyricsSongId, setLyricsSongId] = useState(songId || null);
   const displayedSongIdRef = useRef(null);
 
   const durationSec = getDurationSec(songMeta || {});
@@ -147,6 +210,7 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
   // Fetch and parse lyrics
   useEffect(() => {
     if (!songId) {
+      setLyricsSongId(null);
       setLyrics([]);
       setActiveLineIndex(-1);
       engineRef.current.lyrics = [];
@@ -159,6 +223,7 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
     const isDifferentSong = displayedSongIdRef.current !== songId;
     if (isDifferentSong) {
       displayedSongIdRef.current = songId;
+      setLyricsSongId(songId);
       setLyrics([]);
       setActiveLineIndex(-1);
       engineRef.current.lyrics = [];
@@ -175,7 +240,11 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
         }).catch(() => null);
         if (fileCached) {
           const fileCacheQuality = assessLyricQuality(fileCached, durationSec);
-          const fileCacheCanSatisfy = !fileCacheQuality.lowQuality && (lyricSources === 'netease' || fileCacheQuality.wordTimed || fileCacheQuality.instrumentalLike);
+          // Word-level timing is an enhancement, not a requirement. A valid
+          // line-timed LRC cache must also be reusable, otherwise songs that
+          // only expose plain LRC refetch on every open and fall through to a
+          // misleading "no lyrics" placeholder.
+          const fileCacheCanSatisfy = !fileCacheQuality.lowQuality;
           if (fileCacheCanSatisfy) {
             if (isMounted) {
               setLyrics(fileCached);
@@ -193,7 +262,7 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
         try {
           const parsedCache = JSON.parse(cached);
           const cacheQuality = assessLyricQuality(parsedCache, durationSec);
-          const cacheCanSatisfy = !cacheQuality.lowQuality && (lyricSources === 'netease' || cacheQuality.wordTimed || cacheQuality.instrumentalLike);
+          const cacheCanSatisfy = !cacheQuality.lowQuality;
           if (cacheCanSatisfy) {
             if (isMounted) {
               setLyrics(parsedCache);
@@ -214,9 +283,13 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
         const res = await api.getLyrics(songId);
         if (!isMounted) return;
 
-        let neteaseLines = [];
-        if (res.yrc && res.yrc.lyric) neteaseLines = parseYrc(res.yrc.lyric);
-        if (neteaseLines.length === 0 && res.lrc && res.lrc.lyric) neteaseLines = parseLrc(res.lrc.lyric);
+        const yrcLines = res.yrc && res.yrc.lyric ? parseYrc(res.yrc.lyric) : [];
+        const lrcLines = res.lrc && res.lrc.lyric ? parseLrc(res.lrc.lyric) : [];
+        let neteaseLines = choosePrimaryLyricLines(
+          computeLineDurations(yrcLines),
+          computeLineDurations(lrcLines),
+          durationSec
+        );
         if (res.tlyric && res.tlyric.lyric && neteaseLines.length > 0) {
           neteaseLines = mergeTranslation(neteaseLines, res.tlyric.lyric);
         }
@@ -248,7 +321,10 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
           }
         }
 
-        if (bestLines.length > 0 && !bestQuality.lowQuality && (lyricSources === 'netease' || bestQuality.wordTimed || bestQuality.instrumentalLike)) {
+        // Keep usable line-timed lyrics even when no provider returned
+        // word-by-word data. KTV/PV supplies a deterministic line-level
+        // choreography for this case.
+        if (bestLines.length > 0 && !bestQuality.lowQuality) {
           try {
             localStorage.setItem(cacheKey, JSON.stringify(bestLines));
             if (lyricCacheEnabled && window.electronAPI?.writeLyricCache) {
@@ -359,7 +435,8 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
     const scheduleNextBoundary = (currentTime) => {
       if (boundaryTimerId) window.clearTimeout(boundaryTimerId);
       const currentLyrics = engineRef.current.lyrics;
-      const nextLine = currentLyrics.find(line => Number(line.time || 0) > currentTime + 0.001);
+      const nextIndex = findNextLyricIndex(currentLyrics, currentTime);
+      const nextLine = nextIndex >= 0 ? currentLyrics[nextIndex] : null;
       if (!nextLine) return;
       const delay = Math.max(20, Math.min(2000, (Number(nextLine.time || 0) - currentTime) * 1000 + 8));
       boundaryTimerId = window.setTimeout(() => {
@@ -385,5 +462,5 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
     };
   }, [audioElement, lyrics]);
 
-  return { lyrics, activeLineIndex, isLoading, engineRef };
+  return { lyrics, activeLineIndex, isLoading, engineRef, lyricsSongId };
 }

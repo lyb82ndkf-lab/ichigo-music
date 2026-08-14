@@ -1,6 +1,5 @@
 ﻿import React from 'react';
 import StreamerLyrics from './StreamerLyrics';
-import KineticKtvLyrics from './KineticKtvLyrics';
 import CloudStepLyrics from './CloudStepLyrics';
 import SpatialCanvasLyrics from './SpatialCanvasLyrics';
 import VinylRecordLyrics from './VinylRecordLyrics';
@@ -9,6 +8,11 @@ import StarfieldLyrics from './StarfieldLyrics';
 import FilmStripLyrics from './FilmStripLyrics';
 import InkFlowLyrics from './InkFlowLyrics';
 import { normalizeImmersiveMode, getVisualizerStyleForMode } from '../../utils/immersiveModes';
+
+// The PV stylesheet and choreography tables are intentionally substantial.
+// Keep them out of every normal player/immersive route, then load the module
+// only when the user actually chooses the Text PV renderer.
+const KineticKtvLyrics = React.lazy(() => import('./KineticKtvLyrics'));
 
 // 每个模式只声明自己的参数映射，布局容器不需要知道各组件的细节
 const IMMERSIVE_RENDERERS = {
@@ -25,13 +29,19 @@ const IMMERSIVE_RENDERERS = {
 
 export const IMMERSIVE_RENDERER_IDS = Object.keys(IMMERSIVE_RENDERERS);
 
+export function preloadKineticKtvLyrics() {
+  return import('./KineticKtvLyrics');
+}
+
 export default function ImmersiveLyricsStage({ mode, lyrics = [], activeLineIndex = -1, engineRef, dimensions, fontStack, themeColor, coverUrl, isPlaying, songKey, songTitle, songArtist, config }) {
   const normalizedMode = normalizeImmersiveMode(mode);
   const renderer = IMMERSIVE_RENDERERS[normalizedMode] || IMMERSIVE_RENDERERS.talk;
   const Component = renderer.component;
   const modeProps = renderer.props({ config, themeColor, coverUrl, isPlaying, songKey, songTitle, songArtist, fontPx: dimensions.fontPx, translationPx: dimensions.transPx });
   return <div style={{ width: '100%', height: '100%' }}>
-    <Component lyrics={lyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} fontPx={dimensions.fontPx} fontStack={fontStack} {...modeProps} />
+    <React.Suspense fallback={<div aria-label="正在载入文字 PV" style={{ width: '100%', height: '100%', background: 'radial-gradient(circle at 50% 45%, rgba(109,156,255,.16), transparent 34%), #090d18' }} />}>
+      <Component lyrics={lyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} fontPx={dimensions.fontPx} fontStack={fontStack} {...modeProps} />
+    </React.Suspense>
   </div>;
 }
 

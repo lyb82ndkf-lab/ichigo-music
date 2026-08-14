@@ -94,6 +94,7 @@ export const DEFAULT_PROFILE = {
     textGlow: true,
     autoHideBottomBar: false,
     progressBarBottom: false,
+    surfaceStyle: 'glass',
     closeBehavior: 'prompt'
   },
 
@@ -213,8 +214,11 @@ export const DEFAULT_PROFILE = {
 
     // KTV Text PV mode
     ktvPreset: 'auto',
-    ktvSongTemplates: {},
-    ktvTextEffect: 'auto',
+    ktvPresetPool: [],
+     ktvSongTemplates: {},
+     ktvTextEffect: 'auto',
+     // Rich blends animated album art, lyric echo typography, and scene motifs.
+    ktvBackdrop: 'rich',
     ktvComposition: 'auto',
     ktvMotion: 1,
     ktvCameraZoom: 0,
@@ -226,6 +230,7 @@ export const DEFAULT_PROFILE = {
     ktvBeatReactive: true,
     ktvPreviewEnabled: false,
     ktvShowTitleCard: true,
+    ktvShowLyricIndex: false,
     ktvCustomColor: '#ff6b79',
     ktvShowTranslation: true,
     // Keep the PV stage focused on the current line by default. The previous
@@ -691,6 +696,7 @@ export function getProfileKey() {
 export function getProfileVersion() {
   return PROFILE_VERSION;
 }
+
 
 
 

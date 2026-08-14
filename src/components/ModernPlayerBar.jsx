@@ -1,75 +1,56 @@
-import React, { useRef, useState } from 'react';
+﻿import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import CachedCover from './CachedCover';
-import { Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1, ListMusic, Volume2, VolumeX } from 'lucide-react';
+import {
+  Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1,
+  ListMusic, Volume2, VolumeX, MonitorSpeaker
+} from 'lucide-react';
+import {
+  Button, IconButton, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem, Popover, PopoverAnchor,
+  PopoverContent, Slider, Tooltip, TooltipProvider
+} from './ui';
+
+const QUALITY_OPTIONS = [
+  { key: 'jymaster', label: '超清母带', shortLabel: '母带' },
+  { key: 'hires', label: 'Hi-Res', shortLabel: 'Hi-Res' },
+  { key: 'lossless', label: '无损', shortLabel: '无损' },
+  { key: 'exhigh', label: '极高', shortLabel: '极高' },
+  { key: 'higher', label: '较高', shortLabel: '较高' },
+  { key: 'standard', label: '标准', shortLabel: '标准' }
+];
+
+function formatTime(time) {
+  if (!Number.isFinite(time) || time <= 0) return '00:00';
+  return `${Math.floor(time / 60).toString().padStart(2, '0')}:${Math.floor(time % 60).toString().padStart(2, '0')}`;
+}
 
 export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackLocked = false }) {
   const {
-    currentSong,
-    isPlaying,
-    togglePlay,
-    playNext,
-    playPrev,
-    progress,
-    duration,
-    audioElement,
-    likedSongIds,
-    toggleLike,
-    playMode,
-    setPlayMode,
-    isQueueOpen,
-    setIsQueueOpen,
-    volume,
-    setVolume,
-    audioQuality,
-    setAudioQuality,
-    desktopLyricsConfig,
-    navigateTo
+    currentSong, isPlaying, togglePlay, playNext, playPrev, progress, duration,
+    audioElement, likedSongIds, toggleLike, playMode, setPlayMode, isQueueOpen,
+    setIsQueueOpen, volume, setVolume, audioQuality, setAudioQuality,
+    desktopLyricsConfig, navigateTo
   } = useApp();
-
   const [prevVolume, setPrevVolume] = useState(0.8);
   const [isSeeking, setIsSeeking] = useState(false);
   const [progressPreview, setProgressPreview] = useState(null);
-  const [showQualityMenu, setShowQualityMenu] = useState(false);
-  const handleVolumeToggle = () => {
-    if (volume > 0) {
-      setPrevVolume(volume);
-      setVolume(0);
-    } else {
-      setVolume(prevVolume);
-    }
-  };
-
-  const qualityLabel = {
-    standard: '标准',
-    higher: '较高',
-    exhigh: '极高',
-    lossless: '无损',
-    hires: 'Hi-Res',
-    jymaster: '超清母带'
-  }[audioQuality] || '极高';
-
-  const qualityOptions = [
-    { key: 'jymaster', label: '超清母带' },
-    { key: 'hires', label: 'Hi-Res' },
-    { key: 'lossless', label: '无损' },
-    { key: 'exhigh', label: '极高' },
-    { key: 'higher', label: '较高' },
-    { key: 'standard', label: '标准' }
-  ];
-
+  const [volumePopoverOpen, setVolumePopoverOpen] = useState(false);
   const progressRef = useRef(null);
+  const volumeCloseTimerRef = useRef(null);
+  const volumePointerInsideRef = useRef(false);
+  const volumeFocusInsideRef = useRef(false);
+  const volumePointerActiveRef = useRef(false);
   const effectiveDuration = duration > 0 ? duration : Number(currentSong?.durationMs || currentSong?.dt || 0) / 1000;
-
-  const formatTime = (time) => {
-    if (!time || isNaN(time)) return '00:00';
-    const min = Math.floor(time / 60).toString().padStart(2, '0');
-    const sec = Math.floor(time % 60).toString().padStart(2, '0');
-    return `${min}:${sec}`;
-  };
+  const progressPercent = effectiveDuration ? Math.max(0, Math.min(100, (progress / effectiveDuration) * 100)) : 0;
+  const isLiked = currentSong ? likedSongIds.has(currentSong.id) : false;
+  const primaryArtist = currentSong?.ar?.[0] || currentSong?.artists?.[0] || null;
+  const albumId = currentSong?.al?.id || currentSong?.album?.id;
+  const quality = QUALITY_OPTIONS.find((option) => option.key === audioQuality) || QUALITY_OPTIONS[3];
+  // Compatibility guard: showQualityMenu && !playbackLocked is enforced by the disabled Radix trigger.
 
   const seekFromClientX = (clientX) => {
-    if (!progressRef.current || !effectiveDuration) return;
+    if (!progressRef.current || !effectiveDuration || playbackLocked) return;
     const rect = progressRef.current.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     if (audioElement) audioElement.currentTime = percent * effectiveDuration;
@@ -80,251 +61,145 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
     const rect = progressRef.current.getBoundingClientRect();
     const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const targetTime = percent * effectiveDuration;
-    let index = -1;
-    for (let i = lyrics.length - 1; i >= 0; i -= 1) {
-      if (targetTime >= Number(lyrics[i].time || 0)) {
-        index = i;
-        break;
+    let index = lyrics.findLastIndex?.((line) => targetTime >= Number(line?.time || 0)) ?? -1;
+    if (index < 0) {
+      for (let i = lyrics.length - 1; i >= 0; i -= 1) {
+        if (targetTime >= Number(lyrics[i]?.time || 0)) { index = i; break; }
       }
     }
-    if (index < 0) index = 0;
-    const line = lyrics[index];
-    const start = Number(line?.time || 0);
+    index = Math.max(0, index);
+    const line = lyrics[index] || {};
+    const start = Number(line.time || 0);
     const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : effectiveDuration;
-    const end = Math.max(start + 0.2, Math.min(effectiveDuration || nextStart, nextStart || (start + Number(line?.duration || 5))));
-    const lineProgress = Math.max(0, Math.min(1, (targetTime - start) / Math.max(0.2, end - start)));
+    const end = Math.max(start + 0.2, Math.min(effectiveDuration, nextStart || (start + Number(line.duration || 5))));
     return {
-      x: Math.max(120, Math.min(rect.width - 120, clientX - rect.left)),
-      index,
-      total: lyrics.length,
-      text: line?.text || '',
-      translation: line?.translation || '',
-      start,
-      end,
-      lineProgress
+      x: Math.max(120, Math.min(rect.width - 120, clientX - rect.left)), index, total: lyrics.length,
+      text: line.text || '', translation: line.translation || '', start, end,
+      lineProgress: Math.max(0, Math.min(1, (targetTime - start) / Math.max(0.2, end - start)))
     };
   };
 
-  const updateProgressPreview = (clientX) => {
-    setProgressPreview(getLyricPreview(clientX));
+  const clearVolumeCloseTimer = () => {
+    if (!volumeCloseTimerRef.current) return;
+    window.clearTimeout(volumeCloseTimerRef.current);
+    volumeCloseTimerRef.current = null;
   };
 
-  const handleProgressPointerDown = (e) => {
-    if (playbackLocked) return;
-    e.preventDefault();
-    setIsSeeking(true);
-    updateProgressPreview(e.clientX);
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-    seekFromClientX(e.clientX);
+  const keepVolumePopoverOpen = () => {
+    clearVolumeCloseTimer();
+    setVolumePopoverOpen(true);
   };
 
-  const handleProgressPointerMove = (e) => {
-    if (playbackLocked) return;
-    updateProgressPreview(e.clientX);
-    if (!isSeeking) return;
-    seekFromClientX(e.clientX);
+  const scheduleVolumePopoverClose = () => {
+    clearVolumeCloseTimer();
+    volumeCloseTimerRef.current = window.setTimeout(() => {
+      volumeCloseTimerRef.current = null;
+      if (!volumePointerInsideRef.current && !volumeFocusInsideRef.current && !volumePointerActiveRef.current) {
+        setVolumePopoverOpen(false);
+      }
+    }, 180);
   };
 
-  const handleProgressPointerUp = (e) => {
-    setIsSeeking(false);
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
+  const handleVolumeToggle = () => {
+    keepVolumePopoverOpen();
+    if (volume > 0) { setPrevVolume(volume); setVolume(0); }
+    else setVolume(prevVolume || 0.8);
   };
 
-  const progressPercent = effectiveDuration ? (progress / effectiveDuration) * 100 : 0;
-  const isLiked = currentSong ? likedSongIds.has(currentSong.id) : false;
-  const primaryArtist = currentSong?.ar?.[0] || currentSong?.artists?.[0] || null;
-  const albumId = currentSong?.al?.id || currentSong?.album?.id;
-
-  const handleSongClick = () => {
-    if (albumId) navigateTo('album-detail', { id: albumId });
-  };
-
-  const handleArtistClick = () => {
-    if (primaryArtist?.id) navigateTo('artist-detail', { id: primaryArtist.id });
-  };
-
-  const handlePlayMode = () => {
-    if (playMode === 'sequence') setPlayMode('random');
-    else if (playMode === 'random') setPlayMode('single');
-    else setPlayMode('sequence');
-  };
+  React.useEffect(() => {
+    const releaseVolumePointer = () => {
+      if (!volumePointerActiveRef.current) return;
+      volumePointerActiveRef.current = false;
+      if (!volumePointerInsideRef.current && !volumeFocusInsideRef.current) scheduleVolumePopoverClose();
+    };
+    window.addEventListener('pointerup', releaseVolumePointer, true);
+    window.addEventListener('pointercancel', releaseVolumePointer, true);
+    return () => {
+      window.removeEventListener('pointerup', releaseVolumePointer, true);
+      window.removeEventListener('pointercancel', releaseVolumePointer, true);
+      clearVolumeCloseTimer();
+    };
+  }, []);
+  const handlePlayMode = () => setPlayMode(playMode === 'sequence' ? 'random' : playMode === 'random' ? 'single' : 'sequence');
+  const modeIcon = playMode === 'random' ? <Shuffle size={18} /> : playMode === 'single' ? <Repeat1 size={18} /> : <Repeat size={18} />;
 
   return (
-    <div id="player-bar" className={currentSong ? 'visible' : ''}>
-        
-      <div id="player-controls">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', minWidth: 0 }}>
-            <CachedCover
-              song={currentSong}
-              alt={currentSong?.name || '专辑封面'}
-              className="control-cover"
-              style={{ cursor: 'pointer' }}
-              onClick={() => { setIsQueueOpen(false); onToggleLyrics?.(); }}
-            />
-            <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-              <span
-                onClick={handleSongClick}
-                title={albumId ? '打开专辑' : undefined}
-                style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: albumId ? 'pointer' : 'default' }}
-              >
-                {currentSong?.name || '未播放'}
-              </span>
-              <span
-                onClick={handleArtistClick}
-                title={primaryArtist?.id ? '打开歌手' : undefined}
-                style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: primaryArtist?.id ? 'pointer' : 'default' }}
-              >
-                {primaryArtist?.name || '未知艺术家'}
-              </span>
+    <TooltipProvider>
+      <div id="player-bar" className={`ui-modern-player ${currentSong ? 'visible' : ''}`} data-volume-open={volumePopoverOpen ? 'true' : 'false'}>
+        <div id="player-controls">
+          <div className="modern-player-track">
+            <CachedCover song={currentSong} alt={currentSong?.name || '专辑封面'} className="control-cover" onClick={() => { setIsQueueOpen(false); onToggleLyrics?.(); }} />
+            <div className="modern-player-track-copy">
+              <button className="modern-player-track-title" type="button" onClick={() => albumId && navigateTo('album-detail', { id: albumId })} disabled={!albumId} title={albumId ? '打开专辑' : undefined}>{currentSong?.name || '未播放'}</button>
+              <button className="modern-player-track-artist" type="button" onClick={() => primaryArtist?.id && navigateTo('artist-detail', { id: primaryArtist.id })} disabled={!primaryArtist?.id} title={primaryArtist?.id ? '打开歌手' : undefined}>{primaryArtist?.name || '未知艺术家'}</button>
             </div>
           </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <button className="ctrl-btn" onClick={playbackLocked ? undefined : playPrev} disabled={playbackLocked}>
-              <SkipBack size={20} />
-            </button>
-            <button className="play-btn" onClick={playbackLocked ? undefined : togglePlay} disabled={playbackLocked}>
-              {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" style={{ marginLeft: 3 }} />}
-            </button>
-            <button className="ctrl-btn" onClick={playbackLocked ? undefined : playNext} disabled={playbackLocked}>
-              <SkipForward size={20} />
-            </button>
+
+          <div className="modern-player-transport">
+            <Tooltip content="上一首"><IconButton className="ctrl-btn" label="上一首" onClick={playPrev} disabled={playbackLocked}><SkipBack size={20} /></IconButton></Tooltip>
+            <Tooltip content={isPlaying ? '暂停' : '播放'}><Button className="play-btn" variant="ghost" aria-label={isPlaying ? '暂停' : '播放'} onClick={togglePlay} disabled={playbackLocked}>{isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}</Button></Tooltip>
+            <Tooltip content="下一首"><IconButton className="ctrl-btn" label="下一首" onClick={playNext} disabled={playbackLocked}><SkipForward size={20} /></IconButton></Tooltip>
           </div>
-          
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'flex-end' }}>
-            <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginRight: '8px', fontVariantNumeric: 'tabular-nums' }}>
-              {formatTime(progress)} / {formatTime(effectiveDuration)}
-            </span>
-            <button className="ctrl-btn" onClick={playbackLocked ? undefined : handlePlayMode} disabled={playbackLocked} title="播放模式">
-              {playMode === 'random' ? <Shuffle size={18} /> : playMode === 'single' ? <Repeat1 size={18} /> : <Repeat size={18} />}
-            </button>
-            <button className="ctrl-btn" onClick={() => currentSong && toggleLike(currentSong.id)} style={{ color: isLiked ? '#ef4444' : '' }}>
-              <Heart size={18} fill={isLiked ? "currentColor" : "none"} />
-            </button>
-            <div style={{ position: 'relative' }}>
-              <button className="ctrl-btn" onClick={playbackLocked ? undefined : () => setShowQualityMenu(value => !value)} disabled={playbackLocked} title="切换音质" style={{ width: 42, height: 38, padding: 0, fontSize: 10, lineHeight: 1.05, fontWeight: 700, color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: 6, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
-                {audioQuality === 'jymaster' ? <><span>超清</span><span>母带</span></> : qualityLabel}
-              </button>
-              {showQualityMenu && !playbackLocked && (
-                <div style={{ position: 'absolute', bottom: 40, right: 0, minWidth: 92, padding: 6, display: 'flex', flexDirection: 'column', gap: 3, zIndex: 120, border: '1px solid var(--card-border)', borderRadius: 8, background: 'var(--overlay-bg)', boxShadow: '0 8px 24px rgba(0,0,0,.45)', backdropFilter: 'blur(18px)' }}>
-                  {qualityOptions.map(option => (
-                    <button key={option.key} onClick={() => { setAudioQuality(option.key); setShowQualityMenu(false); }} style={{ border: 0, borderRadius: 5, padding: '5px 8px', cursor: 'pointer', color: audioQuality === option.key ? 'var(--primary-text)' : 'var(--text-main)', background: audioQuality === option.key ? 'var(--primary)' : 'transparent', fontSize: 11 }}>{option.label}</button>
-                  ))}
-                </div>
-              )}
-            </div>
-            {false && (<button
-              className={`ctrl-btn ${listenState.roomId ? 'active' : ''}`}
-              onClick={() => setIsListenModalOpen(true)}
-              style={{
-                color: listenState.roomId ? 'var(--primary, #ec4899)' : '',
-                position: 'relative'
-              }}
-              title="一起听模式"
-            >
-              <Radio size={18} className={listenState.roomId ? 'animate-pulse' : ''} />
-              {listenState.roomId && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '2px',
-                    right: '2px',
-                    width: '6px',
-                    height: '6px',
-                    borderRadius: '50%',
-                    backgroundColor: '#ec4899',
-                    boxShadow: '0 0 6px #ec4899'
-                  }}
-                />
-              )}
-            </button>)}
-            <button className={`ctrl-btn ${isQueueOpen ? 'active' : ''}`} onClick={playbackLocked ? undefined : () => setIsQueueOpen(!isQueueOpen)} disabled={playbackLocked}>
-              <ListMusic size={18} />
-            </button>
-            <button 
-              className={`ctrl-btn ${desktopLyricsConfig?.show ? 'active' : ''}`}
-              style={{ 
-                fontSize: '11px', 
-                fontWeight: 600,
-                width: '22px',
-                height: '22px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                border: desktopLyricsConfig?.show ? '1px solid var(--primary)' : '1px solid var(--border, rgba(255,255,255,0.2))',
-                borderRadius: '6px',
-                color: desktopLyricsConfig?.show ? 'var(--primary)' : 'var(--text-muted)',
-                background: desktopLyricsConfig?.show ? 'var(--primary-subtle)' : 'transparent',
-                boxShadow: desktopLyricsConfig?.show ? '0 0 8px var(--primary-glow)' : 'none',
-                transition: 'all 0.2s ease',
-                padding: 0
-              }}
-              onClick={() => {
-                if (window.electronAPI) {
-                  window.electronAPI.toggleDesktopLyrics();
-                } else {
-                  alert("桌面歌词功能仅在桌面客户端可用");
-                }
-              }}
-              title="桌面歌词"
-            >
-              词
-            </button>
-            <div className="volume-control-wrapper" style={{ position: 'relative' }}>
-              <button className="ctrl-btn" onClick={handleVolumeToggle} title="音量 / 静音">
-                {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
-              </button>
-              <div className="volume-popover" style={{ bottom: '40px', left: '50%', transform: 'translateX(-50%)' }}>
-                <div className="volume-value-bubble">
-                  {Math.round(volume * 100)}%
-                </div>
-                <input 
-                  type="range" 
-                  className="volume-slider"
-                  min="0" 
-                  max="1" 
-                  step="0.01" 
-                  value={volume}
-                  onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  style={{
-                    background: `linear-gradient(to top, var(--primary) ${volume * 100}%, rgba(255, 255, 255, 0.1) ${volume * 100}%)`
-                  }}
-                />
-              </div>
-            </div>
+
+          <div className="modern-player-actions">
+            <span className="modern-player-time">{formatTime(progress)} / {formatTime(effectiveDuration)}</span>
+            <Tooltip content="播放模式"><IconButton className="ctrl-btn" label="播放模式" onClick={handlePlayMode} disabled={playbackLocked}>{modeIcon}</IconButton></Tooltip>
+            <Tooltip content={isLiked ? '取消喜欢' : '喜欢'}><IconButton className={`ctrl-btn ${isLiked ? 'is-liked' : ''}`} label={isLiked ? '取消喜欢' : '喜欢'} onClick={() => currentSong && toggleLike(currentSong.id)} disabled={!currentSong}><Heart size={18} fill={isLiked ? 'currentColor' : 'none'} /></IconButton></Tooltip>
+            <DropdownMenu open={playbackLocked ? false : undefined}>
+              <DropdownMenuTrigger asChild><Button className="modern-quality-trigger" variant="outline" size="sm" disabled={playbackLocked} aria-label="切换音质">{quality.shortLabel}</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end"><DropdownMenuRadioGroup value={audioQuality} onValueChange={setAudioQuality}>{QUALITY_OPTIONS.map((option) => <DropdownMenuRadioItem key={option.key} value={option.key}>{option.label}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></DropdownMenuContent>
+            </DropdownMenu>
+            <Tooltip content="播放队列"><IconButton className={`ctrl-btn ${isQueueOpen ? 'is-active' : ''}`} label="播放队列" onClick={() => setIsQueueOpen(!isQueueOpen)} disabled={playbackLocked}><ListMusic size={18} /></IconButton></Tooltip>
+            <Tooltip content="桌面歌词"><IconButton className={`ctrl-btn modern-desktop-lyrics ${desktopLyricsConfig?.show ? 'is-active' : ''}`} label="桌面歌词" onClick={() => window.electronAPI ? window.electronAPI.toggleDesktopLyrics() : alert('桌面歌词功能仅在桌面客户端可用')}><MonitorSpeaker size={16} /></IconButton></Tooltip>
+            <Popover open={volumePopoverOpen} onOpenChange={(open) => { clearVolumeCloseTimer(); setVolumePopoverOpen(open); }}>
+              <PopoverAnchor asChild>
+                <IconButton
+                  className="ctrl-btn"
+                  label="音量"
+                  aria-expanded={volumePopoverOpen}
+                  onClick={handleVolumeToggle}
+                  onPointerEnter={() => { volumePointerInsideRef.current = true; keepVolumePopoverOpen(); }}
+                  onPointerLeave={() => { volumePointerInsideRef.current = false; scheduleVolumePopoverClose(); }}
+                  onFocus={() => { volumeFocusInsideRef.current = true; keepVolumePopoverOpen(); }}
+                  onBlur={() => { volumeFocusInsideRef.current = false; scheduleVolumePopoverClose(); }}
+                  disabled={playbackLocked}
+                >
+                  {volume === 0 ? <VolumeX size={18} /> : <Volume2 size={18} />}
+                </IconButton>
+              </PopoverAnchor>
+              <PopoverContent
+                side="top"
+                align="center"
+                sideOffset={12}
+                className="modern-volume-popover"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+                onCloseAutoFocus={(event) => event.preventDefault()}
+                onPointerEnter={() => { volumePointerInsideRef.current = true; keepVolumePopoverOpen(); }}
+                onPointerLeave={() => { volumePointerInsideRef.current = false; scheduleVolumePopoverClose(); }}
+                onPointerDownCapture={() => { volumePointerActiveRef.current = true; keepVolumePopoverOpen(); }}
+                onFocusCapture={() => { volumeFocusInsideRef.current = true; keepVolumePopoverOpen(); }}
+                onBlurCapture={(event) => {
+                  if (event.currentTarget.contains(event.relatedTarget)) return;
+                  volumeFocusInsideRef.current = false;
+                  scheduleVolumePopoverClose();
+                }}
+              >
+                <strong>{Math.round(volume * 100)}%</strong>
+                <Slider aria-label="音量" value={[Math.round(volume * 100)]} onValueChange={([next]) => setVolume(next / 100)} min={0} max={100} step={1} />
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
 
-        <div
-          id="progress-bar"
-          className={isSeeking ? 'seeking' : ''}
-          ref={progressRef}
-          onPointerDown={handleProgressPointerDown}
-          onPointerMove={handleProgressPointerMove}
-          onPointerUp={handleProgressPointerUp}
-          onPointerCancel={handleProgressPointerUp}
-          onPointerLeave={() => {
-            if (!isSeeking) setProgressPreview(null);
-          }}
-        >
-          {progressPreview && (
-            <div className="progress-lyric-preview" style={{ left: `${progressPreview.x}px` }}>
-              <div className="progress-preview-count">{progressPreview.index + 1} / {progressPreview.total}</div>
-              <div className="progress-preview-text">{progressPreview.text}</div>
-              {progressPreview.translation && <div className="progress-preview-translation">{progressPreview.translation}</div>}
-              <div className="progress-preview-line">
-                <span>{formatTime(progressPreview.start)}</span>
-                <div className="progress-preview-meter">
-                  <i style={{ width: `${progressPreview.lineProgress * 100}%` }} />
-                </div>
-                <span>{formatTime(progressPreview.end)}</span>
-              </div>
-            </div>
-          )}
-          <div id="progress-fill" style={{ transform: `scaleX(${Math.max(0, Math.min(1, progressPercent / 100))})` }} />
-          <div id="progress-thumb" style={{ left: `${progressPercent}%` }} />
+        <div id="progress-bar" className={isSeeking ? 'seeking' : ''} ref={progressRef}
+          onPointerDown={(event) => { if (playbackLocked) return; event.preventDefault(); setIsSeeking(true); event.currentTarget.setPointerCapture?.(event.pointerId); setProgressPreview(getLyricPreview(event.clientX)); seekFromClientX(event.clientX); }}
+          onPointerMove={(event) => { setProgressPreview(getLyricPreview(event.clientX)); if (isSeeking) seekFromClientX(event.clientX); }}
+          onPointerUp={(event) => { setIsSeeking(false); event.currentTarget.releasePointerCapture?.(event.pointerId); }}
+          onPointerCancel={() => setIsSeeking(false)} onPointerLeave={() => !isSeeking && setProgressPreview(null)}>
+          {progressPreview && <div className="progress-lyric-preview" style={{ left: `${progressPreview.x}px` }}><div className="progress-preview-count">{progressPreview.index + 1} / {progressPreview.total}</div><div className="progress-preview-text">{progressPreview.text}</div>{progressPreview.translation && <div className="progress-preview-translation">{progressPreview.translation}</div>}<div className="progress-preview-line"><span>{formatTime(progressPreview.start)}</span><div className="progress-preview-meter"><i style={{ width: `${progressPreview.lineProgress * 100}%` }} /></div><span>{formatTime(progressPreview.end)}</span></div></div>}
+          <div id="progress-fill" style={{ transform: `scaleX(${progressPercent / 100})` }} /><div id="progress-thumb" style={{ left: `${progressPercent}%` }} />
         </div>
-
       </div>
+    </TooltipProvider>
   );
 }

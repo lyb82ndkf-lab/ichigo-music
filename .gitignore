@@ -26,3 +26,6 @@ Thumbs.db
 
 # Electron user data
 electron-user-data/
+
+# Nested reference tool (separate repository)
+.reference-pv-tool/

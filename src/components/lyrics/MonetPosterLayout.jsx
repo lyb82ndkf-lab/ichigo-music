@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { buildVisibleWindow } from './MonetLyricsEngine';
 import MonetLyricsRail from './MonetLyricsRail';
-import ImmersiveLyricsStage from './ImmersiveLyricsStage';
+import ImmersiveLyricsStage, { preloadKineticKtvLyrics } from './ImmersiveLyricsStage';
 import MonetAudioOverlay from './MonetAudioOverlay';
 import MonetFloatingDecor from './MonetFloatingDecor';
 
@@ -32,11 +32,20 @@ function MonetPosterLayout({
 }) {
   const animMode = advancedLyricConfig?.lyricsMode || 'regular';
   const isRegularMode = animMode === 'regular';
+  // PV stays route-split for startup, but starting the fetch as soon as the
+  // user selects it means entering the stage normally has no loading beat.
+  useEffect(() => {
+    if (animMode === 'talk') preloadKineticKtvLyrics();
+  }, [animMode]);
   // KTV 文字 PV 和舞台模式使用全幅画面；封面/列表布局会削弱逐字构图。
   const isKashiMode = ['talk', 'spotlight'].includes(animMode);
   const showCover = advancedLyricConfig?.showCover !== false && isRegularMode;
   const showSongInfo = advancedLyricConfig?.showSongInfo !== false;
-  const enableDecor = advancedLyricConfig?.showDecor === true;
+  // Dedicated KTV/PV stages own the full canvas. The generic floating decor
+  // includes a slow horizontal watermark and canvas particles, which can
+  // look like an unrelated sweep and adds another compositor loop underneath
+  // the PV scene.
+  const enableDecor = advancedLyricConfig?.showDecor === true && !isKashiMode;
   const fontScale = (advancedLyricConfig?.fontSize || 24) / 24;
   const fontFamilyMap = {
     Inter: '"Inter", "Noto Sans SC", sans-serif',
@@ -192,7 +201,16 @@ function MonetPosterLayout({
   }, [audioAnalyser]);
 
   return (
-    <div key={introKey} className={`monet-poster-layout${isKashiMode ? ' monet-poster-layout--kashi' : ''}`} style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div
+      // Keep the poster/stage compositor mounted across song changes.  A root
+      // key here used to tear down the entire immersive scene for one React
+      // commit, exposing another background while the new PV was mounting.
+      // The small title card owns its own key below, so its entrance can still
+      // replay without replacing the visual field or lyric clock.
+      data-intro-key={introKey}
+      className={`monet-poster-layout${isKashiMode ? ' monet-poster-layout--kashi' : ''}`}
+      style={{ width: '100%', height: '100%', position: 'relative' }}
+    >
       <style>
         {`
           .monet-poster-layout {

@@ -46,7 +46,8 @@ ichigomusic/
 ├─ scripts/              构建和回归检查脚本
 ├─ main-electron.js      Electron 主进程
 ├─ preload-electron.cjs  Electron preload 脚本
-├─ index.css             全局主题和布局样式
+├─ index.css             样式入口（@import 有序加载 src/styles/）
+├─ src/styles/           全局样式（令牌、基础、双布局、歌词、设置等分区）
 └─ release/              Windows 构建输出目录
 ```
 

@@ -1,0 +1,445 @@
+/* Dynamic Lyrics Full Screen View */
+.lyrics-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-gradient-start);
+  z-index: 1200;
+  overflow: hidden;
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  user-select: none;
+  -webkit-user-select: none;
+
+  /* Force dark mode variables for immersive view */
+  --bg-gradient-start: #09090b;
+  --bg-gradient-end: #09090b;
+  --text-main: #f3f4f6;
+  --text-muted: rgba(255, 255, 255, 0.55);
+  --text-active: #ffffff;
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-bg-hover: rgba(255, 255, 255, 0.12);
+  --glass-bg-strong: rgba(255, 255, 255, 0.18);
+  --surface-bg: rgba(255, 255, 255, 0.03);
+  --surface-border: rgba(255, 255, 255, 0.06);
+  --divider-color: rgba(255, 255, 255, 0.08);
+  --input-bg: rgba(255, 255, 255, 0.06);
+  --card-border: rgba(255, 255, 255, 0.08);
+  color: var(--text-main);
+}
+
+.lyrics-overlay-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(60px) brightness(0.36) saturate(1.2);
+  transform: scale(1.16);
+  z-index: 0;
+}
+
+.lyrics-overlay-wash {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 16% 20%, var(--primary-glow) 0%, transparent 32%),
+    linear-gradient(135deg, rgba(0,0,0,0.1) 0%, var(--bg-gradient-start) 56%, var(--bg-gradient-end) 100%);
+  opacity: 0.65;
+}
+
+.lyrics-overlay-content {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+}
+
+/*
+ * KTV/PV owns its entire canvas. Do not leave the generic cover/wash layer
+ * underneath it: while a new lyric payload is being resolved, that layer can
+ * briefly reveal the previous immersive mode and look like a flicker.
+ */
+.lyrics-overlay--talk {
+  background: #040907;
+}
+
+.lyrics-overlay--talk .lyrics-overlay-bg,
+.lyrics-overlay--talk .lyrics-overlay-wash {
+  opacity: 0 !important;
+  visibility: hidden;
+  transition: none !important;
+}
+
+/* The lyric canvas is a separate full-screen scene. Keep the audio node and
+   player state alive, but stop painting the 500-row home/queue underneath it
+   while PV is open. This removes a large, unrelated paint pass on every frame. */
+.lyrics-open .app-main,
+.lyrics-open .main-header,
+.lyrics-open .view-scroll-container,
+.lyrics-open .sidebar,
+.lyrics-open aside {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+/* Kashi-douga: the existing cover and lyric plane change composition together
+   at section boundaries. No second cover image is fetched or mounted. */
+.lyrics-overlay:has(.kashi-stage) {
+  --kashi-camera-x: -2%;
+  --kashi-camera-y: 1%;
+  --kashi-camera-scale: 1.16;
+  --kashi-text-x: -3vw;
+  --kashi-text-y: 16vh;
+  --kashi-text-scale: 1;
+}
+
+.lyrics-overlay:has(.kashi-stage) .lyrics-overlay-bg {
+  filter: blur(18px) brightness(0.42) saturate(0.94);
+  transform-origin: 50% 50%;
+  will-change: transform;
+  transform: translate3d(var(--kashi-camera-x), var(--kashi-camera-y), 0) scale(var(--kashi-camera-scale));
+  transition: transform 1.8s cubic-bezier(.2, .8, .2, 1), filter 1.2s ease;
+  animation: kashi-cover-pan 7.2s ease-in-out infinite alternate;
+}
+
+.lyrics-overlay:has(.kashi-stage) .kashi-stage-content {
+  transform: translate3d(var(--kashi-text-x), var(--kashi-text-y), 0) scale(var(--kashi-text-scale));
+  transform-origin: center;
+  transition: transform 1.8s cubic-bezier(.2, .8, .2, 1);
+}
+
+.lyrics-overlay:has(.kashi-stage) .kashi-line {
+  width: min(72vw, 980px);
+  animation: kashi-text-breathe 4.8s ease-in-out infinite alternate;
+}
+.lyrics-overlay:has(.kashi-section-neon) .kashi-line,
+.lyrics-overlay:has(.kashi-section-orbit) .kashi-line {
+  align-items: center;
+  text-align: center;
+}
+.lyrics-overlay:has(.kashi-section-split) .kashi-line,
+.lyrics-overlay:has(.kashi-section-diagonal) .kashi-line,
+.lyrics-overlay:has(.kashi-section-crop) .kashi-line {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.lyrics-overlay:has(.kashi-section-brush) {
+  --kashi-camera-x: -2%; --kashi-camera-y: 1%; --kashi-camera-scale: 1.16;
+  --kashi-text-x: -3vw; --kashi-text-y: 16vh; --kashi-text-scale: 1;
+}
+.lyrics-overlay:has(.kashi-section-neon) {
+  --kashi-camera-x: 3%; --kashi-camera-y: -2%; --kashi-camera-scale: 1.22;
+  --kashi-text-x: 15vw; --kashi-text-y: -11vh; --kashi-text-scale: 1.08;
+}
+.lyrics-overlay:has(.kashi-section-split) {
+  --kashi-camera-x: -3%; --kashi-camera-y: -1%; --kashi-camera-scale: 1.12;
+  --kashi-text-x: 23vw; --kashi-text-y: 13vh; --kashi-text-scale: .9;
+}
+.lyrics-overlay:has(.kashi-section-underline) {
+  --kashi-camera-x: 2%; --kashi-camera-y: 2%; --kashi-camera-scale: 1.18;
+  --kashi-text-x: -5vw; --kashi-text-y: -16vh; --kashi-text-scale: .94;
+}
+.lyrics-overlay:has(.kashi-section-diagonal) {
+  --kashi-camera-x: -1%; --kashi-camera-y: -3%; --kashi-camera-scale: 1.2;
+  --kashi-text-x: 16vw; --kashi-text-y: 4vh; --kashi-text-scale: 1.03;
+}
+.lyrics-overlay:has(.kashi-section-starlight) {
+  --kashi-camera-x: 4%; --kashi-camera-y: 1%; --kashi-camera-scale: 1.15;
+  --kashi-text-x: -4vw; --kashi-text-y: 10vh; --kashi-text-scale: .88;
+}
+.lyrics-overlay:has(.kashi-section-crop) {
+  --kashi-camera-x: -4%; --kashi-camera-y: 2%; --kashi-camera-scale: 1.24;
+  --kashi-text-x: 20vw; --kashi-text-y: -8vh; --kashi-text-scale: .96;
+}
+.lyrics-overlay:has(.kashi-section-room) {
+  --kashi-camera-x: 1%; --kashi-camera-y: -2%; --kashi-camera-scale: 1.17;
+  --kashi-text-x: 8vw; --kashi-text-y: 14vh; --kashi-text-scale: .92;
+}
+.lyrics-overlay:has(.kashi-section-orbit) {
+  --kashi-camera-x: -2%; --kashi-camera-y: -1%; --kashi-camera-scale: 1.23;
+  --kashi-text-x: 10vw; --kashi-text-y: -2vh; --kashi-text-scale: 1.08;
+}
+.lyrics-overlay:has(.kashi-section-particles) {
+  --kashi-camera-x: 3%; --kashi-camera-y: 2%; --kashi-camera-scale: 1.14;
+  --kashi-text-x: -2vw; --kashi-text-y: -10vh; --kashi-text-scale: .96;
+}
+
+.lyrics-overlay:has(.kashi-stage) .lyrics-overlay-wash {
+  background:
+    linear-gradient(90deg, rgba(3, 5, 12, 0.48), rgba(5, 6, 12, 0.17) 52%, rgba(4, 5, 11, 0.4)),
+    linear-gradient(180deg, rgba(5, 6, 12, 0.18), rgba(3, 4, 10, 0.38));
+}
+
+@keyframes kashi-cover-pan {
+  from { background-position: 47% 51%; }
+  to { background-position: 53% 48%; }
+}
+
+@keyframes kashi-text-breathe {
+  from { translate: 0 0; }
+  to { translate: 0 -5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lyrics-overlay:has(.kashi-stage) .lyrics-overlay-bg,
+  .lyrics-overlay:has(.kashi-stage) .kashi-line { animation: none; }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.lyrics-left-pane {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.lyrics-album-art {
+  width: 320px;
+  height: 320px;
+  border-radius: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 40px var(--primary-glow);
+  object-fit: cover;
+  transition: transform 0.5s ease;
+  z-index: 2;
+  border: 1px solid var(--glass-border);
+}
+
+.lyrics-song-meta {
+  margin-top: 24px;
+  text-align: center;
+  z-index: 2;
+}
+
+.lyrics-song-title {
+  font-family: var(--font-title);
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-active);
+}
+
+.lyrics-song-artist {
+  font-size: 15px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+.visualizer-canvas-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.lyrics-right-pane {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  padding-left: 20px;
+}
+
+.lyrics-list-container {
+  flex: 1;
+  overflow-y: auto;
+  /* Removed heavy mask-image and 3D transforms */
+  padding: 120px 0;
+  scroll-behavior: smooth;
+  transition: transform 2.8s cubic-bezier(0.15, 0.85, 0.35, 1);
+}
+
+.lyric-line {
+  padding: 16px 0;
+  font-size: var(--lyric-font-size);
+  font-family: var(--lyric-font-family);
+  color: var(--lyric-color);
+  font-weight: 500;
+  /* Transition is handled inline by React based on user curve */
+  transform-origin: center left;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lyric-line.active {
+  color: var(--lyric-active-color);
+  font-weight: 700;
+  text-shadow: var(--lyric-glow-shadow);
+}
+
+.lyric-line:not(.active) {
+  /* Removed heavy blur */
+}
+
+.lyric-line:hover {
+  color: var(--text-active);
+  opacity: 0.85;
+}
+
+/* Sweep effect for standard LRC line */
+.lyric-line.sweep-mode span.text-main-lrc {
+  background: linear-gradient(to right, var(--lyric-active-color) var(--sweep-progress, 0%), var(--lyric-color) var(--sweep-progress, 0%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-block;
+  transition: none;
+  background-size: 100% 100%;
+}
+
+/* Character-by-character Karaoke spans */
+.lyric-word {
+  display: inline-block;
+  position: relative;
+  margin-right: 0.25em;
+  background: linear-gradient(to right, var(--lyric-active-color) var(--word-progress, 0%), var(--lyric-color) var(--word-progress, 0%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: inherit;
+  transition: none;
+  background-size: 100% 100%;
+}
+
+.lyric-translation {
+  font-size: 0.78em;
+  opacity: 0.75;
+  font-weight: 400;
+  margin-top: 4px;
+}
+
+/* Lyric Overlay Controls */
+.lyrics-close-btn {
+  position: absolute;
+  top: 30px;
+  right: 40px;
+  background: var(--glass-bg-hover);
+  border: none;
+  color: #ffffff;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 20;
+}
+
+.lyrics-close-btn:hover {
+  background: var(--glass-bg-hover);
+  transform: scale(1.05);
+}
+
+.lyric-settings-toggle {
+  position: absolute;
+  top: 30px;
+  right: 100px;
+  background: var(--glass-bg-hover);
+  border: none;
+  color: #ffffff;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 20;
+}
+
+.lyric-settings-toggle:hover {
+  background: var(--glass-bg-hover);
+  transform: scale(1.05);
+}
+
+/* Lyric Config Dialog */
+.lyric-settings-dialog {
+  position: absolute;
+  top: 90px;
+  right: 100px;
+  background: var(--overlay-bg);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--card-border);
+  padding: 20px;
+  border-radius: var(--border-radius-lg);
+  width: 320px;
+  z-index: 30;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Settings Form elements */
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.setting-row label {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.setting-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.setting-btn {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--text-main);
+  padding: 6px 12px;
+  border-radius: var(--border-radius-md);
+  font-size: 13px;
+  cursor: pointer;
+  flex: 1;
+  text-align: center;
+  transition: all 0.2s;
+}
+
+.settings-field-control > .setting-btn {
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 96px;
+  max-width: max-content;
+  justify-self: flex-end;
+  white-space: nowrap;
+}
+
+.setting-btn.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-text);
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.setting-slider {
+  width: 100%;
+  accent-color: var(--primary);
+}
+

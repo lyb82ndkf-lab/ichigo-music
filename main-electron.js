@@ -32,7 +32,7 @@ const mainRuntimeLogs = [];
 let mainRuntimeSequence = 0;
 const cacheDownloadInFlight = new Map();
 const cachePruneLastRun = new Map();
-const coverResourcePaths = new Map();
+const cacheResourcePaths = new Map();
 const UPDATE_REPOSITORY = 'lyb82ndkf-lab/ichigo-music';
 
 const mainNativeConsole = {
@@ -84,26 +84,32 @@ const getPositionConfigPath = () => {
   return path.join(app.getPath('userData'), 'desktop-lyrics-position.json');
 };
 
-const getCoverResourceUrl = (filePath) => {
+const getCacheResourceUrl = (filePath, namespace) => {
   const resolvedPath = path.resolve(filePath);
   const token = createHash('sha256').update(resolvedPath).digest('hex');
-  coverResourcePaths.set(token, resolvedPath);
-  while (coverResourcePaths.size > 500) {
-    coverResourcePaths.delete(coverResourcePaths.keys().next().value);
+  cacheResourcePaths.set(token, resolvedPath);
+  while (cacheResourcePaths.size > 500) {
+    cacheResourcePaths.delete(cacheResourcePaths.keys().next().value);
   }
-  return `ichigo-cache://cover/${token}`;
+  return `ichigo-cache://${namespace}/${token}`;
 };
+
+const getCoverResourceUrl = (filePath) => getCacheResourceUrl(filePath, 'cover');
+const getAudioResourceUrl = (filePath) => getCacheResourceUrl(filePath, 'audio');
 
 const registerCacheProtocol = () => {
   protocol.handle('ichigo-cache', async (request) => {
     try {
       const url = new URL(request.url);
       const token = url.pathname.replace(/^\//, '');
-      const filePath = url.hostname === 'cover' ? coverResourcePaths.get(token) : null;
+      const namespace = url.hostname.toLowerCase();
+      const filePath = namespace === 'cover' || namespace === 'audio'
+        ? cacheResourcePaths.get(token)
+        : null;
       if (!filePath) return new Response('Not found', { status: 404 });
       return electronNet.fetch(pathToFileURL(filePath).toString());
     } catch (error) {
-      console.warn('Failed to serve cached cover:', error);
+      console.warn('Failed to serve cached media:', error);
       return new Response('Unable to read cached cover', { status: 500 });
     }
   });
@@ -604,12 +610,18 @@ async function startApiServer() {
     const ncmServer = require('./server/server.js');
     await ncmServer.serveNcmApi({
       port: apiPort,
+      // Bind the API to the same IPv4 loopback address used by the port
+      // probe. Without an explicit host, an existing IPv6 listener could win
+      // the race and the packaged app would open the API documentation page.
+      host: '127.0.0.1',
       checkVersion: false,
       staticPath: app.isPackaged ? path.join(__dirname, 'dist') : null
     });
     console.log(`Inline API server started on port ${apiPort}`);
+    return true;
   } catch (err) {
     console.error('Failed to start inline NCM API server:', err);
+    return false;
   }
 }
 
@@ -949,7 +961,7 @@ function createWindow() {
   ipcMain.removeHandler('get-cached-audio');
   ipcMain.handle('get-cached-audio', async (_event, { songId, quality, cacheDir }) => {
     const filePath = await findCachedAudioFile(cacheDir, songId, quality);
-    return filePath ? { url: pathToFileURL(filePath).toString(), path: filePath } : null;
+    return filePath ? { url: getAudioResourceUrl(filePath), path: filePath } : null;
   });
 
   ipcMain.removeHandler('cache-audio');
@@ -965,7 +977,7 @@ function createWindow() {
     await ensureDir(audioDir);
 
     const existing = await findCachedAudioFile(root, songId, quality);
-    if (existing) return { url: pathToFileURL(existing).toString(), path: existing, cached: true };
+    if (existing) return { url: getAudioResourceUrl(existing), path: existing, cached: true };
 
     const response = await fetch(url, {
       headers: {
@@ -988,7 +1000,7 @@ function createWindow() {
       throw error;
     }
     await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
-    return { url: pathToFileURL(filePath).toString(), path: filePath, cached: true };
+    return { url: getAudioResourceUrl(filePath), path: filePath, cached: true };
     })().finally(() => cacheDownloadInFlight.delete(requestKey));
     cacheDownloadInFlight.set(requestKey, request);
     return request;
@@ -1088,7 +1100,7 @@ function createWindow() {
 
   // Load local Vite dev server or production build
   if (app.isPackaged) {
-    mainWindow.loadURL(`http://localhost:${apiPort}`);
+    mainWindow.loadURL(`http://127.0.0.1:${apiPort}`);
   } else {
     mainWindow.loadURL('http://localhost:5173');
   }

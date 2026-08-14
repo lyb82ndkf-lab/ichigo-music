@@ -40,24 +40,17 @@ const ModernHome = lazy(() => import('./views/ModernHome'));
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';
 
 const KTV_TEMPLATE_GALLERY = [
-  ['blue-impact', '蓝色冲击', 'linear-gradient(135deg,#071a73,#1b5dff)'],
-  ['kinetic-split', '斩击构成', 'linear-gradient(135deg,#18121d,#ff5f80)'],
   ['blue-structure', '蓝色构成', 'linear-gradient(135deg,#f5f2eb,#1642c4)'],
-  ['cyber-grunge', '赛博废墟', 'linear-gradient(135deg,#090a0e,#d61931)'],
   ['geometric', '几何', 'linear-gradient(135deg,#0e1720,#f5bd45)'],
   ['matrix', '黑客帝国', 'linear-gradient(135deg,#00150a,#39e980)'],
-  ['night-city', '夜城监视', 'linear-gradient(135deg,#001d1d,#7cffc8)'],
-  ['emotion-cinema', '情绪电影', 'linear-gradient(135deg,#100b0e,#b77e55)'],
-  ['hysteric-night', '歇斯底里', 'linear-gradient(135deg,#160014,#ff35c6)'],
-  ['spider-web', '蛛网', 'linear-gradient(135deg,#130b11,#ff334d)'],
   ['staggered-text', '错落文字', 'linear-gradient(135deg,#11142c,#96baff)'],
   ['calm-villain', '冷静反派', 'linear-gradient(135deg,#060f25,#376eff)'],
   ['girly-clouds', '少女云朵', 'linear-gradient(135deg,#fff0f6,#ff9bcb)'],
   ['sweet-pink', '格子花边', 'linear-gradient(135deg,#ffcad9,#ff75b5)'],
   ['fly-me-to-the-moon', 'Fly Me to the Moon', 'linear-gradient(135deg,#03050c,#d9ba56)'],
   ['kawaii-pixel', 'Kawaii 像素', 'linear-gradient(135deg,#bcefff,#ffd0e4)'],
-  ['crime-scene', '案发现场', 'linear-gradient(135deg,#15130d,#d99b19)'],
   ['haruhikage', '春日影', 'linear-gradient(135deg,#dff4ff,#5d91cb)'],
+  ['paper-cut', '纸艺剪贴', 'linear-gradient(135deg,#fff0df,#ff784b)'],
   ['custom', 'Custom 自定义', 'linear-gradient(135deg,#111421,#8374ff)']
 ];
 
@@ -99,13 +92,17 @@ function AppContent() {
       installUpdate
   } = useApp();
 
-  const { engineRef, lyrics, activeLineIndex } = useLyricEngine(
+  const { engineRef, lyrics, activeLineIndex, lyricsSongId } = useLyricEngine(
     currentSong?.id,
     audioElement,
     currentSong,
     advancedLyricConfig?.lyricSources || 'amll,qq,kugou',
     cacheConfig
   );
+  // The lyric fetch clears its state in an effect. During that one commit,
+  // hide the previous song's stage instead of letting it flash over the new
+  // cover while the next lyric payload is loading.
+  const currentSongLyrics = currentSong?.id && String(lyricsSongId) === String(currentSong.id) ? lyrics : [];
   const listenState = useListenTogether();
   const playbackLocked = Boolean(listenState.roomId && !listenState.isHost);
   const guardedTogglePlay = useCallback(() => {
@@ -168,6 +165,7 @@ function AppContent() {
 
   const currentLyricsMode = normalizeImmersiveMode(advancedLyricConfig?.lyricsMode);
   const currentKtvSongTemplate = advancedLyricConfig?.ktvSongTemplates?.[String(currentSong?.id)] || '';
+  const ktvPresetPool = Array.isArray(advancedLyricConfig?.ktvPresetPool) ? advancedLyricConfig.ktvPresetPool : [];
   const legacyDedicatedBars = ['spotlight', 'starfield', 'filmstrip', 'inkflow'].includes(currentLyricsMode)
     && advancedLyricConfig?.visualizerStyleByMode?.[currentLyricsMode] === 'bars';
   const currentModeVisualizerStyle = (!legacyDedicatedBars && advancedLyricConfig?.visualizerStyleByMode?.[currentLyricsMode])
@@ -447,9 +445,10 @@ function AppContent() {
         {/* Background Audio Node */}
         <AudioPlayer canControlPlayback={!playbackLocked} />
         
+        {!isLyricsOpen && <>
         {/* Navigation Sidebar */}
         <Sidebar />
-        
+
         {/* Main Workspace */}
         <main className={`app-main ${currentView === 'listen-together' ? 'listen-route-main' : ''}`}>
           {/* Navigation Controls in Header */}
@@ -511,10 +510,14 @@ function AppContent() {
             </Suspense>
           </div>
         </main>
+        </>}
 
         {isLyricsOpen && <div className="lyrics-immersive-hover-sensor" aria-hidden="true" />}
 
-        {/* Bottom Playback Control Bar */}
+        {/* Bottom Playback Control Bar
+            Keep the bar mounted while immersive lyrics/PV is open. The PV
+            overlay temporarily moves it off-screen and the bottom hover
+            sensor brings it back; unmounting it here made the sensor a no-op. */}
         {layoutMode !== 'modern' && (
           <PlayerBar
             onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)}
@@ -525,7 +528,7 @@ function AppContent() {
         )}
         {layoutMode === 'modern' && <ModernPlayerBar onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)} lyrics={lyrics} playbackLocked={playbackLocked} />}
         
-        {layoutMode === 'modern' && (
+        {!isLyricsOpen && layoutMode === 'modern' && (
           <MiniQueuePopover isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
         )}
 
@@ -542,7 +545,7 @@ function AppContent() {
         {/* Full Screen Interactive Lyrics Overlay (Monet Mode) */}
         {isLyricsOpen && (
           <div 
-            className="lyrics-overlay" 
+            className={`lyrics-overlay lyrics-overlay--${currentLyricsMode}`}
             role="dialog" 
             aria-modal="true" 
             aria-label="沉浸式歌词"
@@ -552,13 +555,19 @@ function AppContent() {
               '--primary-subtle': `${immersiveColor || 'var(--primary)'}1a`
             }}
           >
-            <div
-              className="lyrics-overlay-bg"
-              style={immersiveBgStyle}
-            />
-            <div className="lyrics-overlay-wash" />
+            {currentLyricsMode !== 'talk' && (
+              <>
+                <div
+                  className="lyrics-overlay-bg"
+                  style={immersiveBgStyle}
+                />
+                <div className="lyrics-overlay-wash" />
+              </>
+            )}
 
-            {advancedLyricConfig.showDecor === true && <MonetFloatingDecor isPlaying={isPlaying} currentSong={currentSong} advancedLyricConfig={advancedLyricConfig} />}
+            {advancedLyricConfig.showDecor === true && currentLyricsMode !== 'talk' && (
+              <MonetFloatingDecor isPlaying={isPlaying} currentSong={currentSong} advancedLyricConfig={advancedLyricConfig} />
+            )}
 
             {/* Custom window control buttons for Modern Layout Immersive View */}
             {layoutMode === 'modern' && (
@@ -577,7 +586,7 @@ function AppContent() {
 
             <div className="lyrics-overlay-content">
               <ErrorBoundary>
-                <LyricsView engineRef={engineRef} lyrics={lyrics} activeLineIndex={activeLineIndex} />
+                <LyricsView engineRef={engineRef} lyrics={currentSongLyrics} activeLineIndex={activeLineIndex} coverUrl={immersiveCoverUrl} />
               </ErrorBoundary>
             </div>
 
@@ -972,24 +981,18 @@ function AppContent() {
                             <select className="setting-select" value={advancedLyricConfig.ktvPreset || 'auto'}
                               onChange={(e) => updateAdvancedLyricConfig({ ktvPreset: e.target.value })}>
                               <option value="auto">自动：按封面颜色固定选择</option>
-                              <option value="blue-impact">蓝色冲击</option>
-                              <option value="kinetic-split">斩击构成</option>
-                              <option value="blue-structure">蓝色构成</option>
-                              <option value="cyber-grunge">赛博废墟</option>
-                              <option value="geometric">几何</option>
-                              <option value="matrix">黑客帝国</option>
-                              <option value="night-city">夜城监视</option>
-                              <option value="emotion-cinema">情绪电影</option>
-                              <option value="hysteric-night">歇斯底里</option>
-                              <option value="spider-web">蛛网</option>
-                              <option value="staggered-text">错落文字</option>
+                              <option value="multi">多选：随机切换模板</option>
+                               <option value="blue-structure">蓝色构成</option>
+                               <option value="geometric">几何</option>
+                               <option value="matrix">黑客帝国</option>
+                               <option value="staggered-text">错落文字</option>
                               <option value="calm-villain">冷静的反派</option>
                               <option value="girly-clouds">少女云朵</option>
                               <option value="sweet-pink">格子花边</option>
                               <option value="fly-me-to-the-moon">Fly Me to the Moon</option>
                               <option value="kawaii-pixel">Kawaii 像素</option>
-                              <option value="crime-scene">案发现场</option>
-                              <option value="haruhikage">春日影</option>
+                               <option value="haruhikage">春日影</option>
+                              <option value="paper-cut">纸艺剪贴</option>
                               <option value="custom">Custom 自定义</option>
                             </select>
                           </label>
@@ -1023,6 +1026,25 @@ function AppContent() {
                               >{label}</button>;
                             })}
                           </div>
+                          {advancedLyricConfig.ktvPreset === 'multi' && <div style={{ margin: '-2px 0 10px', padding: '9px', border: '1px solid rgba(255,255,255,.14)', borderRadius: '8px', background: 'rgba(255,255,255,.045)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '7px', color: 'var(--text-muted)', fontSize: '10px' }}>
+                              <span>选择参与随机切换的模板（至少 2 个）</span>
+                              <b style={{ color: ktvPresetPool.length >= 2 ? 'var(--primary)' : '#ffbd69' }}>{ktvPresetPool.length} 个</b>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '4px 8px' }}>
+                              {KTV_TEMPLATE_GALLERY.map(([value, label]) => {
+                                const checked = ktvPresetPool.includes(value);
+                                return <label key={`multi-${value}`} style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, color: checked ? 'var(--primary)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer' }}>
+                                  <input type="checkbox" checked={checked} onChange={() => {
+                                    const next = checked ? ktvPresetPool.filter(item => item !== value) : [...ktvPresetPool, value];
+                                    updateAdvancedLyricConfig({ ktvPresetPool: next });
+                                  }} />
+                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                                </label>;
+                              })}
+                            </div>
+                            {ktvPresetPool.length < 2 && <div style={{ marginTop: '6px', color: '#ffbd69', fontSize: '10px' }}>选择两个或更多模板后才会随机切换。</div>}
+                          </div>}
                           {currentSong?.id && <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '-2px 0 10px', padding: '7px 8px', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', background: 'rgba(255,255,255,.035)' }}>
                             <span style={{ minWidth: 0, flex: 1, color: currentKtvSongTemplate ? 'var(--primary)' : 'var(--text-muted)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {currentKtvSongTemplate ? `本曲已锁定：${KTV_TEMPLATE_GALLERY.find(([value]) => value === currentKtvSongTemplate)?.[1] || currentKtvSongTemplate}` : '本曲跟随全局 / 封面自动模板'}
@@ -1045,11 +1067,15 @@ function AppContent() {
                               <option value="orbit">轨道构图</option>
                             </select>
                           </label>
-                          <label className="setting-row-inline">
-                            <span>逐字动画</span>
-                            <select className="setting-select" value={advancedLyricConfig.ktvTextEffect || 'auto'}
-                              onChange={(e) => updateAdvancedLyricConfig({ ktvTextEffect: e.target.value })}>
-                              <option value="auto">自动：跟随模板</option>
+                           <label className="setting-row-inline">
+                             <span>逐字动画</span>
+                             <select className="setting-select" value={advancedLyricConfig.ktvTextEffect || 'auto'}
+                               onChange={(e) => updateAdvancedLyricConfig({ ktvTextEffect: e.target.value })}>
+                               <option value="auto">自动：跟随模板随机</option>
+                               <option value="template-rich">跟随模板丰富</option>
+                               <option value="template-single">跟随模板单一</option>
+                               <option value="phrase">整句 / 短语同时出现</option>
+                              <option value="scan">整句横向扫描</option>
                               <option value="slice">切片扫入</option>
                               <option value="slash">斜切飞入</option>
                               <option value="stagger">错落弹入</option>
@@ -1057,15 +1083,30 @@ function AppContent() {
                               <option value="typewriter">逐字打字机</option>
                               <option value="terminal">终端输入</option>
                               <option value="scatter">散落归位</option>
+                              <option value="burst">爆发聚字</option>
                               <option value="orbit">环绕落位</option>
                               <option value="wave">波浪起伏</option>
+                              <option value="bounce">弹跳落字</option>
+                              <option value="flip">翻牌出现</option>
+                              <option value="ripple">涟漪扩散</option>
+                              <option value="blur">冷雾显影</option>
                               <option value="shatter">碎裂聚合</option>
                               <option value="cards">字符卡片</option>
                               <option value="float">漂浮显现</option>
                               <option value="pixel">像素跳入</option>
                               <option value="stamp">印章落字</option>
                               <option value="fade">虚焦显影</option>
-                              <option value="slide">横向滑入</option>
+                               <option value="slide">横向滑入</option>
+                             </select>
+                           </label>
+                          <label className="setting-row-inline">
+                            <span>PV 动态背景</span>
+                            <select className="setting-select" value={advancedLyricConfig.ktvBackdrop || 'rich'}
+                              onChange={(e) => updateAdvancedLyricConfig({ ktvBackdrop: e.target.value })}>
+                              <option value="rich">丰富：封面 + 歌词残影 + 模板符号</option>
+                              <option value="cover">专辑封面为主</option>
+                              <option value="lyrics">歌词残影为主</option>
+                              <option value="minimal">极简：仅保留模板场景</option>
                             </select>
                           </label>
                           <label className="setting-row-inline">
@@ -1117,6 +1158,7 @@ function AppContent() {
                           <label className="setting-row-inline compact-toggle"><span>随音乐驱动镜头</span><input type="checkbox" checked={advancedLyricConfig.ktvBeatReactive !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvBeatReactive: e.target.checked })} /></label>
                           <label className="setting-row-inline compact-toggle"><span>预览 PV 舞台（示例歌词）</span><input type="checkbox" checked={advancedLyricConfig.ktvPreviewEnabled === true} onChange={(e) => updateAdvancedLyricConfig({ ktvPreviewEnabled: e.target.checked })} /></label>
                           <label className="setting-row-inline compact-toggle"><span>显示歌曲开场标题卡</span><input type="checkbox" checked={advancedLyricConfig.ktvShowTitleCard !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvShowTitleCard: e.target.checked })} /></label>
+                          <label className="setting-row-inline compact-toggle"><span>显示歌词编号</span><input type="checkbox" checked={advancedLyricConfig.ktvShowLyricIndex === true} onChange={(e) => updateAdvancedLyricConfig({ ktvShowLyricIndex: e.target.checked })} /></label>
                           <label className="setting-row-inline compact-toggle"><span>显示翻译 / 罗马音</span><input type="checkbox" checked={advancedLyricConfig.ktvShowTranslation !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvShowTranslation: e.target.checked })} /></label>
                           <label className="setting-row-inline compact-toggle"><span>显示上一句歌词</span><input type="checkbox" checked={advancedLyricConfig.ktvShowPreviousLine === true} onChange={(e) => updateAdvancedLyricConfig({ ktvShowPreviousLine: e.target.checked })} /></label>
                         </>

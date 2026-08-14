@@ -27,7 +27,7 @@ export const IMMERSIVE_MODE_OPTIONS = [
 
 export const IMMERSIVE_MODE_PARAMETER_KEYS = {
   regular: ['ringStyle', 'ringBarCount', 'ringMaxAmplitude', 'ringInnerOffset', 'ringLineWidth', 'ringColorMode', 'ringRotationSpeed', 'ringRotationBeatSync', 'ringGlowIntensity', 'ringGlowPulse', 'ringSmoothing', 'ringTrailDecay', 'ringOpacity'],
-  talk: ['ktvPreset', 'ktvSongTemplates', 'ktvTextEffect', 'ktvComposition', 'ktvMotion', 'ktvCameraZoom', 'ktvCameraTilt', 'ktvCameraShake', 'ktvRenderQuality', 'ktvAccent', 'ktvCustomColor', 'ktvShowTranslation', 'ktvUseCoverTexture', 'ktvBeatReactive', 'ktvPreviewEnabled', 'ktvShowTitleCard'],
+  talk: ['ktvPreset', 'ktvPresetPool', 'ktvSongTemplates', 'ktvTextEffect', 'ktvBackdrop', 'ktvComposition', 'ktvMotion', 'ktvCameraZoom', 'ktvCameraTilt', 'ktvCameraShake', 'ktvRenderQuality', 'ktvAccent', 'ktvCustomColor', 'ktvShowTranslation', 'ktvUseCoverTexture', 'ktvBeatReactive', 'ktvPreviewEnabled', 'ktvShowTitleCard', 'ktvShowLyricIndex'],
   streamer: ['streamerBarHeight', 'streamerBarMaxHeight', 'streamerBarOpacity', 'streamerBarGlowSpread', 'streamerBarFlowSpeed', 'streamerBarColorMode', 'streamerBarCustomColor', 'streamerBarSmoothing', 'bubbleAlign'],
   cloudstep: ['cloudWaveBlur', 'cloudWaveHeight', 'cloudWaveOpacity', 'cloudWaveSmoothing', 'cloudWaveColorMode', 'cloudWaveCustomColor', 'cloudWaveVerticalSpread', 'cloudWaveSyncToLines', 'cloudStepSpacing'],
   spatial: ['spatialParticleCount', 'spatialParticleSize', 'spatialParticleOpacity', 'spatialSpreadX', 'spatialSpreadY', 'spatialSpreadZ', 'spatialConnectLines', 'spatialConnectOpacity', 'spatialColorMode', 'spatialCustomColor', 'spatialDepthBlur'],

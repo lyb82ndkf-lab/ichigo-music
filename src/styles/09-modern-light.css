@@ -1,0 +1,174 @@
+/* ========= Modern Layout – Light Mode General Overrides ========= */
+.mode-light.layout-modern {
+  color: var(--text-main);
+}
+
+/* 1. Glass Hero Banner */
+.mode-light.layout-modern .glass-hero {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.40)) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(35px) saturate(1.8) !important;
+  -webkit-backdrop-filter: blur(35px) saturate(1.8) !important;
+}
+
+.mode-light.layout-modern .home-title {
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .home-sub {
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .hero-lyric {
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .home-chip {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .home-chip:hover {
+  background: rgba(0, 0, 0, 0.09) !important;
+}
+
+.mode-light.layout-modern .home-accent-chip {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+.mode-light.layout-modern .home-accent-chip:hover {
+  background: var(--primary-hover) !important;
+}
+
+/* 2. Glass Navigation Cards */
+.mode-light.layout-modern .glass-nav-card {
+  background: linear-gradient(142deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.40)) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 15px 45px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(28px) saturate(1.6) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.6) !important;
+}
+
+.mode-light.layout-modern .glass-nav-card:hover {
+  background: linear-gradient(142deg, rgba(255, 255, 255, 0.80), rgba(255, 255, 255, 0.55)) !important;
+  border-color: color-mix(in srgb, var(--primary) 30%, rgba(0, 0, 0, 0.15)) !important;
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.mode-light.layout-modern .glass-nav-card .card-title {
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .glass-nav-card .card-sub {
+  color: var(--text-muted) !important;
+}
+
+/* 3. Section Titles */
+.mode-light.layout-modern .home-section-title {
+  color: var(--text-main) !important;
+}
+
+/* 4. Glass Tiles */
+.mode-light.layout-modern .home-glass-tile {
+  background: rgba(255, 255, 255, 0.50) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03) !important;
+}
+
+.mode-light.layout-modern .home-glass-tile:hover {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.06) !important;
+}
+
+.mode-light.layout-modern .tile-name {
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .tile-artist {
+  color: var(--text-muted) !important;
+}
+
+/* 5. Topbar Controls & Window Buttons */
+.mode-light.layout-modern #modern-unified-topbar {
+  background: linear-gradient(180deg, rgba(255,255,255,0.45) 0%, transparent 100%) !important;
+}
+
+.mode-light.layout-modern .desktop-app-title {
+  color: var(--text-main) !important;
+  opacity: 0.85;
+}
+
+.mode-light.layout-modern #unified-search-box {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern #unified-search-box:focus-within {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border-color: var(--primary) !important;
+}
+
+.mode-light.layout-modern .unified-search-input {
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .modern-glass-btn {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .modern-glass-btn:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .desktop-window-btn {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .desktop-window-btn:hover {
+  background: rgba(0, 0, 0, 0.09) !important;
+  color: var(--text-main) !important;
+}
+
+.mode-light.layout-modern .desktop-window-btn.close:hover {
+  background: #ff5664 !important;
+  color: #ffffff !important;
+}
+
+/* 6. Modern Player Bar tweaks (ensure high readability) */
+.mode-light.layout-modern #player-bar {
+  background: rgba(255, 255, 255, 0.90) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow:
+    0 15px 45px rgba(0, 0, 0, 0.09),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(35px) saturate(1.8) !important;
+  -webkit-backdrop-filter: blur(35px) saturate(1.8) !important;
+}
+
+.mode-light.layout-modern .ctrl-btn {
+  color: var(--text-muted) !important;
+}
+
+.mode-light.layout-modern .ctrl-btn:hover,
+.mode-light.layout-modern .ctrl-btn.active {
+  color: var(--text-main) !important;
+  background: rgba(0, 0, 0, 0.06) !important;
+  box-shadow: none !important;
+}
+

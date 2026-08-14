@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { getRemoteSongCoverUrl, isLocalCoverUrl } from '../utils/songCover';
 import ResilientCover from './ResilientCover';
@@ -13,6 +13,7 @@ function getRemoteCoverFallback(song) {
 export function useCachedCoverUrl(song, forceRefresh = false) {
   const { resolveSongCover } = useApp();
   const [resolved, setResolved] = useState({ songId: null, url: '' });
+  const lastUsableUrlRef = useRef('');
 
   const fallbackUrl = getRemoteCoverFallback(song);
 
@@ -20,8 +21,8 @@ export function useCachedCoverUrl(song, forceRefresh = false) {
   // Clearing the URL here caused the player bar to briefly render a broken
   // image after a track switch, then a late cache response could leave it blank.
   const coverUrl = resolved.songId === song?.id
-    ? (resolved.url || fallbackUrl)
-    : fallbackUrl;
+    ? (resolved.url || fallbackUrl || lastUsableUrlRef.current)
+    : (fallbackUrl || lastUsableUrlRef.current);
 
   useEffect(() => {
     let cancelled = false;
@@ -30,12 +31,16 @@ export function useCachedCoverUrl(song, forceRefresh = false) {
       return () => { cancelled = true; };
     }
 
-    // Switch immediately to this song's own metadata cover, never the
-    // previous song's resolved file URL.
-    setResolved({ songId: song.id, url: fallbackUrl });
+    // Prefer this song's metadata immediately. If it has no remote cover yet,
+    // retain the last usable image instead of flashing the global placeholder.
+    setResolved({ songId: song.id, url: fallbackUrl || lastUsableUrlRef.current });
+    if (fallbackUrl) lastUsableUrlRef.current = fallbackUrl;
 
     resolveSongCover(song, forceRefresh).then(result => {
-      if (!cancelled && result?.url) setResolved({ songId: song.id, url: result.url });
+      if (!cancelled && result?.url) {
+        lastUsableUrlRef.current = result.url;
+        setResolved({ songId: song.id, url: result.url });
+      }
     }).catch(() => {
       // The metadata fallback remains visible; cover caching must never blank
       // the player while audio continues to play.

@@ -26,8 +26,10 @@ for (const preset of IMMERSIVE_PRESETS) {
 
 if (normalizeImmersiveMode('__unknown__') !== 'regular') fail('unknown mode fallback must be regular');
 if (DEFAULT_PROFILE.immersiveLyrics?.ktvShowPreviousLine !== false) fail('KTV PV must hide the previous lyric line by default');
+if (DEFAULT_PROFILE.immersiveLyrics?.ktvShowLyricIndex !== false) fail('KTV lyric index must default to hidden');
 
 const kineticKtv = fs.readFileSync(new URL('../src/components/lyrics/KineticKtvLyrics.jsx', import.meta.url), 'utf8');
+const immersiveStageSource = fs.readFileSync(new URL('../src/components/lyrics/ImmersiveLyricsStage.jsx', import.meta.url), 'utf8');
 const appSource = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const spatialSource = fs.readFileSync(new URL('../src/components/lyrics/SpatialCanvasLyrics.jsx', import.meta.url), 'utf8');
 const vinylSource = fs.readFileSync(new URL('../src/components/lyrics/VinylRecordLyrics.jsx', import.meta.url), 'utf8');
@@ -113,15 +115,26 @@ for (const marker of [
   "--kpv-energy-scale",
   "stageRef.current.style.setProperty('--kpv-phrase-progress'"
   ,'resolveVisualActiveIndex'
+  ,'findNextVisualBoundaryIndex'
   ,'clockActiveIndex'
-  ,'subscribeLyricClock(syncVisualIndex)'
+  ,'boundaryTimerId'
   ,'showPreviousLine'
   ,'ktvShowPreviousLine'
+  ,'ktvShowLyricIndex'
 ]) {
   if (!kineticKtv.includes(marker)) fail(`KTV PV expression layer missing ${marker}`);
 }
 for (const marker of ['lastLyricPaintAt', 'lyricPaintInterval']) {
   if (!kineticKtv.includes(marker)) fail(`KTV PV performance guard missing ${marker}`);
+}
+if (!immersiveStageSource.includes("React.lazy(() => import('./KineticKtvLyrics'))")) fail('KTV PV must be loaded on demand');
+if (!immersiveStageSource.includes('<React.Suspense fallback=')) fail('KTV PV on-demand loading must preserve an immersive fallback surface');
+if (!immersiveStageSource.includes('export function preloadKineticKtvLyrics()')) fail('KTV PV must expose a preload hook for a seamless entry');
+if (!immersiveStageSource.includes("return import('./KineticKtvLyrics');")) fail('KTV PV preload hook must warm the same split module');
+if (!fs.readFileSync(new URL('../src/components/lyrics/MonetPosterLayout.jsx', import.meta.url), 'utf8').includes("if (animMode === 'talk') preloadKineticKtvLyrics();")) fail('KTV PV must preload when its mode is selected');
+for (const [id, label] of [['paper-cut', '纸艺剪贴']]) {
+  if (!appSource.includes(`<option value="${id}">${label}</option>`)) fail(`KTV ${id} preset must be selectable in settings`);
+  if (!appSource.includes(`['${id}', '${label}'`)) fail(`KTV ${id} preset must be present in the quick gallery`);
 }
 for (const marker of ['lastSampleAt', 'idleTimer', 'wakeRef', 'idleCleared', 'playingRef', 'spatialState', 'new Uint8Array(analyser.frequencyBinCount)']) {
   if (!spatialSource.includes(marker)) fail(`spatial performance guard missing ${marker}`);
@@ -184,6 +197,7 @@ if (DEFAULT_PROFILE.immersiveLyrics.ktvPreviewEnabled !== false) fail('KTV PV pr
 if (DEFAULT_PROFILE.immersiveLyrics.ktvRenderQuality !== 'auto') fail('KTV PV quality must default to automatic');
 if (DEFAULT_PROFILE.immersiveLyrics.ktvAccent !== 'auto') fail('KTV PV accent must default to automatic');
 if (DEFAULT_PROFILE.immersiveLyrics.ktvShowTitleCard !== true) fail('KTV title card must default to enabled');
+if (DEFAULT_PROFILE.immersiveLyrics.ktvShowLyricIndex !== false) fail('KTV lyric index must default to hidden');
 for (const key of ['ktvCameraZoom', 'ktvCameraTilt', 'ktvCameraShake']) {
   if (DEFAULT_PROFILE.immersiveLyrics[key] !== 0) fail(`KTV camera ${key} must default to zero`);
 }

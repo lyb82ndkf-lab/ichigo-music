@@ -1,7 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
 import { Play, Heart, LogIn } from 'lucide-react';
+
+const mergeSongs = (prev, next) => {
+  const seen = new Set(prev.map((song) => String(song?.id ?? '')));
+  const merged = [...prev];
+  for (const song of next) {
+    const id = String(song?.id ?? '');
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push(song);
+  }
+  return merged;
+};
 
 export default function MyLiked() {
   const { 
@@ -16,6 +28,24 @@ export default function MyLiked() {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(100);
+  const pendingPlayAllRef = useRef(false);
+
+  useEffect(() => {
+    setVisibleCount(100);
+  }, [likedPlaylistId]);
+
+  useEffect(() => {
+    const handleScroll = (event) => {
+      const target = event.target;
+      if (!target || !target.scrollHeight) return;
+      if (target.scrollHeight - target.scrollTop - target.clientHeight < 480) {
+        setVisibleCount((prev) => Math.min(songs.length, prev + 100));
+      }
+    };
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
+  }, [songs.length]);
 
   useEffect(() => {
     if (!user || !likedPlaylistId) {
@@ -29,18 +59,8 @@ export default function MyLiked() {
       setLoading(true);
       setLoadingMore(false);
       try {
+        // First paint uses a bounded page; the rest is filled in the background.
         const pageSize = 500;
-        const expectedTotal = Math.max(Number(likedSongIds?.size || 0), pageSize);
-        const mergeSongs = (prev, next) => {
-          const seen = new Set(prev.map(song => song.id));
-          const merged = [...prev];
-          for (const song of next) {
-            if (!song?.id || seen.has(song.id)) continue;
-            seen.add(song.id);
-            merged.push(song);
-          }
-          return merged;
-        };
 
         const firstPage = await api.getPlaylistTracks(likedPlaylistId, pageSize, 0);
         if (cancelled) return;
@@ -48,6 +68,7 @@ export default function MyLiked() {
         setSongs(firstSongs);
         setLoading(false);
 
+        const expectedTotal = Math.max(Number(likedSongIds?.size || 0), firstSongs.length);
         let offset = firstSongs.length;
         if (offset < expectedTotal) setLoadingMore(true);
         while (!cancelled && offset < expectedTotal) {
@@ -73,13 +94,24 @@ export default function MyLiked() {
     return () => {
       cancelled = true;
     };
-  }, [user, likedPlaylistId, likedSongIds]);
+  }, [user?.userId, likedPlaylistId]);
 
   const playAll = () => {
+    if (loadingMore) {
+      pendingPlayAllRef.current = true;
+      return;
+    }
     if (songs.length > 0) {
       playSong(songs[0], songs);
     }
   };
+
+  useEffect(() => {
+    if (!loadingMore && pendingPlayAllRef.current && songs.length > 0) {
+      pendingPlayAllRef.current = false;
+      playSong(songs[0], songs);
+    }
+  }, [loadingMore, playSong, songs]);
 
   const formatDuration = (ms) => {
     const s = Math.floor(ms / 1000);
@@ -172,7 +204,7 @@ export default function MyLiked() {
               </tr>
             </thead>
             <tbody>
-              {songs.map((song, index) => {
+              {songs.slice(0, visibleCount).map((song, index) => {
                 const isLiked = likedSongIds.has(song.id);
                 return (
                   <tr 

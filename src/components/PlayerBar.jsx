@@ -49,6 +49,20 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
   const [prevVolume, setPrevVolume] = useState(0.8);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [progressPreview, setProgressPreview] = useState(null);
+  const [queueVisibleCount, setQueueVisibleCount] = useState(100);
+
+  React.useEffect(() => {
+    if (!showQueue) return undefined;
+    setQueueVisibleCount(100);
+    const onScroll = (event) => {
+      const target = event.target;
+      if (target?.classList?.contains('play-queue-popover') && target.scrollHeight - target.scrollTop - target.clientHeight < 240) {
+        setQueueVisibleCount((prev) => Math.min(playlist.length, prev + 100));
+      }
+    };
+    window.addEventListener('scroll', onScroll, true);
+    return () => window.removeEventListener('scroll', onScroll, true);
+  }, [showQueue, playlist.length]);
 
   const formatTime = (s) => {
     if (isNaN(s) || s === Infinity) return '00:00';
@@ -475,7 +489,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
             )}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
-            {playlist.map((song, index) => {
+            {playlist.slice(0, queueVisibleCount).map((song, index) => {
               const isActive = index === playlistIndex;
               return (
                 <div 

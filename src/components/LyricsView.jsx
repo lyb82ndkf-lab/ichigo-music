@@ -15,6 +15,9 @@ export default function LyricsView({ engineRef, lyrics = [], activeLineIndex = -
   // 建立最高优先级、无状态锁的 requestAnimationFrame 全局循环
   // 该循环唯一的任务就是查当前播放时间，并通知所有活着的 MonetWordSweep 自主推进
   useEffect(() => {
+    // KTV/PV owns its token timing and paints directly through KineticKtvLyrics.
+    // Do not keep the legacy MonetWordSweep subscriber alive underneath it.
+    if (advancedLyricConfig?.lyricsMode === 'talk') return undefined;
     let lastFrame = 0;
     const maxFps = advancedLyricConfig?.wordSweepFps || 60;
     const minFrameMs = maxFps > 0 ? 1000 / maxFps : 0;
@@ -33,7 +36,7 @@ export default function LyricsView({ engineRef, lyrics = [], activeLineIndex = -
       tick();
     }
 
-  }, [isPlaying, engineRef, advancedLyricConfig?.globalOffset, advancedLyricConfig?.wordSweepFps]);
+  }, [isPlaying, engineRef, advancedLyricConfig?.lyricsMode, advancedLyricConfig?.globalOffset, advancedLyricConfig?.wordSweepFps]);
 
   // ? MonetPosterLayout ??????????????????
   // ???? Layout ??? React render?
