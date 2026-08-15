@@ -1,4 +1,4 @@
-﻿const PROFILE_KEY = 'ichigomusic_profile_v2';
+const PROFILE_KEY = 'ichigomusic_profile_v2';
 const PROFILE_VERSION = 2;
 
 const LEGACY_KEYS = [
@@ -59,9 +59,9 @@ export const DEFAULT_PROFILE = {
 
   isFirstTimeSetupComplete: false,
 
-  theme: 'strawberry',
+  theme: 'ocean',
   colorMode: 'dark',
-  layoutMode: 'classic',
+  layoutMode: 'modern',
 
   customTheme: {
     primary: '#ff4081',
@@ -75,6 +75,7 @@ export const DEFAULT_PROFILE = {
     { key: 'leaderboards', name: '排行榜', show: true },
     { key: 'liked', name: '我喜欢的音乐', show: true },
     { key: 'recent', name: '最近播放', show: true },
+    { key: 'listen-together', name: '一起听', show: true },
     { key: 'settings', name: '设置', show: true }
   ],
 
@@ -99,13 +100,13 @@ export const DEFAULT_PROFILE = {
   },
 
   desktopLyrics: {
-    show: false,
+    show: true,
     locked: true,
-    fontSize: 36,
+    fontSize: 24,
     fontFamily: 'Inter',
-    fontWeight: 700,
-    bold: true,
-    alignment: 'center',
+    fontWeight: 600,
+    bold: false,
+    alignment: 'right',
     lineCount: 3,
     showTranslation: true,
     translationSize: 22,
@@ -114,18 +115,27 @@ export const DEFAULT_PROFILE = {
     playedColorMode: 'preset',
     unplayedColorMode: 'preset',
     color: 'theme',
-    textStroke: { enabled: false, width: 0.5, color: '#000000' },
-    textShadow: { enabled: true, color: '#ff336680', blur: 12, offsetX: 0, offsetY: 0 },
-    glow: { enabled: false, intensity: 0.6 },
-    windowX: null,
-    windowY: null,
+    textStroke: { enabled: false, width: 0, color: '#000000' },
+    textShadow: { enabled: true, color: '#ff336680', blur: 1, offsetX: 0, offsetY: 0 },
+    glow: { enabled: true, intensity: 0.6 },
+    windowX: 954,
+    windowY: 86,
     alwaysOnTop: true,
-    opacity: 1
+    opacity: 1,
+    boldFirstLine: false,
+    desktopColor: '#ff3366',
+    colorPreset: 'strawberry',
+    theme: 'ocean',
+    customThemeColors: {
+      primary: '#ff4081',
+      bgStart: '#120c1f',
+      bgEnd: '#05020a'
+    }
   },
 
   immersiveLyrics: {
     alignment: 'center',
-    fontSize: 25,
+    fontSize: 24,
     translationSize: 18,
     visibleLines: 5,
     position: 'center',
@@ -134,27 +144,32 @@ export const DEFAULT_PROFILE = {
     scale: true,
     blur: false,
     rotation: false,
-    showGlow: false,
+    showGlow: true,
     longNoteGlow: false,
     showCover: true,
     backgroundMode: 'cover',
-    backgroundBlur: 32,
+    backgroundBlur: 6,
     backgroundDarken: 50,
-    visualizerStyle: 'bars',
-    visualizerStyleByMode: {},
+    visualizerStyle: 'mode',
+    visualizerStyleByMode: {
+      regular: 'mode',
+      cloudstep: 'wave',
+      streamer: 'mode',
+      inkflow: 'mode'
+    },
     globalOffset: 0,
-    inactiveLyricBlur: 0.4,
-    showDecor: true,
+    inactiveLyricBlur: 0,
+    showDecor: false,
     wordSweepFps: 60,
     lyricSources: 'amll,qq,kugou',
-    lyricGlowIntensity: 1,
+    lyricGlowIntensity: 0.2,
     boldFirstLine: true,
     rubySize: 14,
     wordAnimation: 'float',
     staggeredScroll: true,
     fontFamily: 'Inter',
     titleFontFamily: 'Outfit',
-    lyricsPositionY: 40,
+    lyricsPositionY: 61,
     showTranslation: true,
     lyricsMode: 'regular',
     motionPreset: 'balanced',
@@ -171,7 +186,7 @@ export const DEFAULT_PROFILE = {
     starSpeed: 1,
     starDepth: 1,
     starShowTranslation: true,
-    filmFrameGap: 18,
+    filmFrameGap: 8,
     filmOpacity: 0.22,
     filmActiveScale: 1.08,
     filmShowTranslation: true,
@@ -186,8 +201,8 @@ export const DEFAULT_PROFILE = {
     colorPreference: 'warm',
     
     // Regular Mode Circular Visualizer
-    ringStyle: 'radial',
-    ringBarCount: 180,
+    ringStyle: 'wave',
+    ringBarCount: 140,
     ringMaxAmplitude: 80,
     ringInnerOffset: 5,
     ringLineWidth: 2.5,
@@ -196,14 +211,14 @@ export const DEFAULT_PROFILE = {
     ringCustomColor2: '#00d4ff',
     ringRotationSpeed: 15,
     ringRotationBeatSync: false,
-    ringGlowIntensity: 0.6,
+    ringGlowIntensity: 0.1,
     ringGlowPulse: true,
     ringSmoothing: 0.25,
     ringTrailDecay: 0.85,
     ringOpacity: 0.85,
 
     // Streamer Mode Visualizer
-    streamerBarHeight: 16,
+    streamerBarHeight: 12,
     streamerBarMaxHeight: 80,
     streamerBarOpacity: 0.75,
     streamerBarGlowSpread: 20,
@@ -213,12 +228,18 @@ export const DEFAULT_PROFILE = {
     streamerBarSmoothing: 0.35,
 
     // KTV Text PV mode
-    ktvPreset: 'auto',
-    ktvPresetPool: [],
-     ktvSongTemplates: {},
-     ktvTextEffect: 'auto',
-     // Rich blends animated album art, lyric echo typography, and scene motifs.
-    ktvBackdrop: 'rich',
+    ktvPreset: 'matrix',
+    ktvPresetPool: [
+      'matrix',
+      'girly-clouds',
+      'kawaii-pixel',
+      'sweet-pink',
+      'haruhikage',
+      'paper-cut'
+    ],
+    ktvSongTemplates: {},
+    ktvTextEffect: 'auto',
+    ktvBackdrop: 'lyrics',
     ktvComposition: 'auto',
     ktvMotion: 1,
     ktvCameraZoom: 0,
@@ -233,12 +254,10 @@ export const DEFAULT_PROFILE = {
     ktvShowLyricIndex: false,
     ktvCustomColor: '#ff6b79',
     ktvShowTranslation: true,
-    // Keep the PV stage focused on the current line by default. The previous
-    // line can be enabled explicitly from the immersive PV settings.
     ktvShowPreviousLine: false,
 
-    // Legacy Talk Mode Visualizer values (retained so saved profiles remain compatible)
-    talkParticleCount: 80,
+    // Legacy Talk Mode Visualizer values
+    talkParticleCount: 40,
     talkParticleSize: 1.0,
     talkParticleOpacity: 0.7,
     talkParticleShape: 'triangle',
@@ -260,7 +279,7 @@ export const DEFAULT_PROFILE = {
     cloudWaveSyncToLines: true,
 
     // Spatial Mode Visualizer
-    spatialParticleCount: 200,
+    spatialParticleCount: 100,
     spatialParticleSize: 1.0,
     spatialParticleOpacity: 0.7,
     spatialSpreadX: 1.0,
@@ -273,7 +292,7 @@ export const DEFAULT_PROFILE = {
     spatialDepthBlur: 0.5,
 
     // Vinyl Mode Visualizer
-    vinylGrooveCount: 12,
+    vinylGrooveCount: 5,
     vinylGrooveWidth: 1.0,
     vinylGrooveMaxWidth: 4.0,
     vinylGrooveOpacity: 0.6,
@@ -284,14 +303,20 @@ export const DEFAULT_PROFILE = {
     vinylEdgeReflectionIntensity: 0.5,
     vinylSmoothing: 0.25,
     vinylTiltAngle: 0,
-    vinylLineSpacing: 0.7,
+    vinylLineSpacing: 0.5,
 
     // Floating Decor Particles Customizable Parameters
-    decorParticleAmount: 40,
+    decorParticleAmount: 25,
     decorSpeed: 1.0,
     decorSize: 1.0,
     decorOpacity: 0.6,
-    decorTwinkle: false
+    decorTwinkle: false,
+
+    ktvWordVariant: 'auto',
+    ktvWordRandomness: 'max',
+    ktvAvoidWordRepeats: true,
+    visualizerScale: 1.3,
+    visualizerOffsetY: 20
   },
 
   cover: {
@@ -319,8 +344,8 @@ export const DEFAULT_PROFILE = {
   },
 
   audio: {
-    quality: 'exhigh',
-    volume: 0.8,
+    quality: 'hires',
+    volume: 0.15,
     muted: false,
     cache: {
       enabled: true,
@@ -332,7 +357,18 @@ export const DEFAULT_PROFILE = {
     equalizer: {
       enabled: false,
       preset: 'none',
-      bands: DEFAULT_BANDS
+      bands: {
+        '32': 0,
+        '64': 0,
+        '125': 0,
+        '250': 0,
+        '500': 0,
+        '1k': 0,
+        '2k': 0,
+        '4k': 0,
+        '8k': 0,
+        '16k': 0
+      }
     },
     reverb: {
       enabled: false,
@@ -356,7 +392,7 @@ export const DEFAULT_PROFILE = {
   },
 
   playback: {
-    playMode: 'sequence',
+    playMode: 'random',
     gaplessPlayback: true,
     autoPlayOnStart: true,
     resumeOnStart: true,
@@ -372,7 +408,7 @@ export const DEFAULT_PROFILE = {
     sampleRate: 0,
     bufferSize: 0,
     latencyHint: 'interactive',
-    visualizerFps: 30,
+    visualizerFps: 120,
     hardwareAcceleration: true,
     reducedMotion: false
   },
@@ -391,8 +427,11 @@ export const DEFAULT_PROFILE = {
     seekBack: 'ArrowLeft',
     likeTrack: 'ControlH',
     cyclePlayMode: 'KeyR',
-    goHome: 'ControlD'
+    goHome: 'ControlD',
+    enabled: false
   },
+
+  enableGlobalShortcuts: false,
 
   account: {
     provider: null,
@@ -528,20 +567,6 @@ function cleanupLegacyKeys() {
 }
 
 function normalizeProfile(profile) {
-  // Migrate old defaults to new user-specified defaults
-  if (profile && profile.immersiveLyrics) {
-    const im = profile.immersiveLyrics;
-    if (im.fontSize === 28 || im.fontSize === 36) im.fontSize = 25;
-    if (im.lyricsPositionY === 50 || im.lyricsPositionY === 60 || im.lyricsPositionY === 42) im.lyricsPositionY = 40;
-    if (im.inactiveLyricBlur === 0.8) im.inactiveLyricBlur = 0.4;
-    if (im.cloudWaveBlur === 20) im.cloudWaveBlur = 23;
-    if (im.cloudWaveOpacity === 0.07 || im.cloudWaveOpacity === 0.15) im.cloudWaveOpacity = 0.39;
-    if (im.vinylLineSpacing === 1 || im.vinylLineSpacing === 1.0) im.vinylLineSpacing = 0.7;
-    if (im.showTranslation === undefined) im.showTranslation = true;
-    if (im.showGlow === undefined) im.showGlow = false;
-    if (im.decorTwinkle === undefined) im.decorTwinkle = false;
-  }
-
   const normalized = deepMerge(clone(DEFAULT_PROFILE), profile || {});
   normalized.version = PROFILE_VERSION;
 
@@ -589,7 +614,6 @@ function migrateProfile(stored, fromVersion = 1) {
 
   return normalizeProfile(migrated);
 }
-
 
 function writeValue(key, value) {
   if (key === PROFILE_KEY) {
@@ -696,7 +720,3 @@ export function getProfileKey() {
 export function getProfileVersion() {
   return PROFILE_VERSION;
 }
-
-
-
-

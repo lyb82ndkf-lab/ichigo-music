@@ -31,6 +31,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
   
   const requestedFps = Number(visualizerFps);
   const fps = requestedFps === 0 ? 0 : Math.min(120, Math.max(24, Number.isFinite(requestedFps) ? requestedFps : 30));
+  const isStreamerMode = animationMode === 'streamer';
 
   const scaleRef = useRef(1.0);
   const offsetYRef = useRef(0);
@@ -75,10 +76,9 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
     const configuredVisualizerStyle = getVisualizerStyleForMode(advancedLyricConfig, animationMode);
     // Keep the legacy configuredVisualizerStyle === 'off' value visible for
     // diagnostics; streamer mode intentionally ignores stale per-mode styles.
-    const effectiveVisualizerStyle = animationMode === 'streamer'
-      && advancedLyricConfig?.visualizerEnabled !== false
-      ? 'bars'
-      : configuredVisualizerStyle;
+    // The streamer strip is the mode's own renderer. Do not let a stale
+    // global visualizer switch disable it after the mode has been selected.
+    const effectiveVisualizerStyle = isStreamerMode ? 'bars' : configuredVisualizerStyle;
     const visualizerIntensity = Math.max(0.2, Number(advancedLyricConfig?.visualizerIntensity ?? 1));
 
     const resizeCanvas = () => {
@@ -116,6 +116,19 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
+    // The poster mounts inside an entrance animation and flex layout that can
+    // settle a frame or two after this effect runs. Re-measure once the layout
+    // is stable and keep tracking any subsequent size changes, so the bars stay
+    // anchored to the full bottom edge instead of a stale corner-sized canvas.
+    const settleFrames = [
+      requestAnimationFrame(() => resizeCanvas()),
+      requestAnimationFrame(() => requestAnimationFrame(() => resizeCanvas()))
+    ];
+    let resizeObserver = null;
+    if (typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
+      resizeObserver = new ResizeObserver(() => resizeCanvas());
+      resizeObserver.observe(canvas.parentElement);
+    }
 
     const prepareData = () => {
       const analyser = window.ichigoAnalyser;
@@ -325,10 +338,12 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
     const drawStreamerBar = () => {
       const heightVal = advancedLyricConfig?.streamerBarHeight ?? 16;
       const maxHeightVal = advancedLyricConfig?.streamerBarMaxHeight ?? 80;
-      const opacity = advancedLyricConfig?.streamerBarOpacity ?? 0.75;
+      const opacity = Math.max(0.2, Math.min(1.0, Number(advancedLyricConfig?.streamerBarOpacity ?? 0.75)));
       const glowSpread = advancedLyricConfig?.streamerBarGlowSpread ?? 20;
       const flowSpeed = advancedLyricConfig?.streamerBarFlowSpeed ?? 1.0;
       const colorMode = advancedLyricConfig?.streamerBarColorMode || 'theme';
+      const visualizerScale = Number(advancedLyricConfig?.visualizerScale ?? 1.0);
+      const userOffsetY = Number(advancedLyricConfig?.streamerBarOffsetY ?? advancedLyricConfig?.visualizerOffsetY ?? 0);
       
       const bars = 64;
       const sampleSpan = currentBufferLength * 0.5;
@@ -349,14 +364,16 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       const barSpacing = width / bars;
       const barWidth = barSpacing * 0.7;
       const gap = barSpacing * 0.3;
-      // The player bar is above this canvas in the stacking order. Keep the
-      // rhythm strip just above it instead of drawing underneath an opaque
-      // transport bar at the bottom edge.
-      const baseline = Math.max(0, height - 88);
+      // Anchor the strip safely inside the bottom window margin so it remains fully visible
+      // even in windowed mode, with taskbars, or when custom vertical offsets are applied.
+      const bottomMargin = Math.max(12, Math.min(height * 0.4, 28 - userOffsetY));
+      const baseline = Math.max(0, height - bottomMargin);
+      const scaledHeightVal = Math.max(4, heightVal * visualizerScale);
+      const scaledMaxHeightVal = Math.max(scaledHeightVal + 10, maxHeightVal * visualizerScale);
       
       for (let i = 0; i < bars; i++) {
         const value = smoothedData[sampleOffset + Math.floor((i / bars) * sampleSpan)] || 0;
-        const currentHeight = heightVal + (value / 255) * (maxHeightVal - heightVal);
+        const currentHeight = scaledHeightVal + (value / 255) * (scaledMaxHeightVal - scaledHeightVal);
         const x = i * barSpacing + gap / 2;
         const y = baseline - currentHeight;
         
@@ -636,12 +653,33 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       cancelAnimationFrame(animationId);
       window.clearTimeout(idleTimer);
       window.removeEventListener('resize', resizeCanvas);
+      settleFrames.forEach((id) => cancelAnimationFrame(id));
+      if (resizeObserver) resizeObserver.disconnect();
     };
   }, [isPlaying, primaryColor, animationMode, fps, advancedLyricConfig, isBehindCover, coverRef]);
 
   return (
-    <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '100%', padding: 0, pointerEvents: 'none', zIndex: 10, transform: `translateY(${Number(advancedLyricConfig?.visualizerOffsetY || 0)}px) scale(${Number(advancedLyricConfig?.visualizerScale || 1)})`, transformOrigin: 'center center' }}>
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', maxWidth: animationMode === 'streamer' ? 'none' : '1200px', opacity: Number(advancedLyricConfig?.visualizerOpacity ?? 0.9), margin: '0 auto', filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))' }} />
+    <div style={{
+      position: 'absolute',
+      inset: 0,
+      padding: 0,
+      pointerEvents: 'none',
+      zIndex: isStreamerMode ? 30 : 10,
+      transform: isStreamerMode ? undefined : `translateY(${Number(advancedLyricConfig?.visualizerOffsetY || 0)}px) scale(${Number(advancedLyricConfig?.visualizerScale || 1)})`,
+      transformOrigin: 'center center'
+    }}>
+      <canvas
+        ref={canvasRef}
+        style={{
+          display: 'block',
+          width: '100%',
+          height: '100%',
+          maxWidth: animationMode === 'streamer' ? 'none' : '1200px',
+          opacity: isStreamerMode ? Math.max(0.7, Number(advancedLyricConfig?.streamerBarOpacity ?? 0.9)) : Number(advancedLyricConfig?.visualizerOpacity ?? 0.9),
+          margin: '0 auto',
+          filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))'
+        }}
+      />
     </div>
   );
 }

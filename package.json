@@ -1,6 +1,6 @@
 {
     "name": "ichigomusic",
-    "version": "1.8.4",
+    "version": "1.8.6",
     "description": "A beautiful music player with desktop lyrics and particle visualizers.",
     "author": "Antigravity",
     "private": true,

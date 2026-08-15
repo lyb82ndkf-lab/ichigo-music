@@ -414,7 +414,7 @@ function MonetPosterLayout({
 
       {/* BACKGROUND/BOTTOM layer for modes with dedicated audio backdrops. */}
       {['streamer', 'cloudstep'].includes(animMode) && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: animMode === 'streamer' ? 3 : 1, pointerEvents: 'none' }}>
           <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode={animMode} isBehindCover={false} advancedLyricConfig={advancedLyricConfig} visualizerFps={visualizerFps} showCover={showCoverPreference} />
         </div>
       )}
