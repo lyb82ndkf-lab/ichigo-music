@@ -7,7 +7,7 @@ import { getPersistentSongCoverUrl, getSongCoverUrl, isLocalCoverUrl, isRemoteCo
 
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.8.3';
+export const APP_VERSION = 'v1.8.4';
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
@@ -415,7 +415,7 @@ export function AppProvider({ children }) {
         return { hasUpdate: true, latestVersion: latestTag, ...browserAsset };
       } else {
         if (isManual) {
-          alert('褰撳墠宸叉槸鏈€鏂扮増鏈紒');
+          alert('当前已是最新版本！');;
         }
         return { hasUpdate: false, latestVersion: latestTag || APP_VERSION };
       }
@@ -431,7 +431,7 @@ export function AppProvider({ children }) {
   const downloadUpdate = useCallback(async () => {
     setUpdateInfo(prev => ({ ...prev, downloading: true, progress: 0, error: '' }));
     try {
-      if (!window.electronAPI?.downloadUpdate) throw new Error('褰撳墠鐜涓嶆敮鎸佸簲鐢ㄥ唴鏇存柊');
+      if (!window.electronAPI?.downloadUpdate) throw new Error('当前环境不支持应用内更新');
       const result = await window.electronAPI.downloadUpdate({ assetName: updateInfo.assetName });
       setUpdateInfo(prev => ({ ...prev, downloading: false, downloaded: true, progress: 100, error: '' }));
       return result;
@@ -445,7 +445,7 @@ export function AppProvider({ children }) {
     try {
       await window.electronAPI?.installUpdate?.();
     } catch (error) {
-      setUpdateInfo(prev => ({ ...prev, error: error.message || '鍚姩瀹夎澶辫触' }));
+      setUpdateInfo(prev => ({ ...prev, error: error.message || '启动安装失败' }));
     }
   }, []);
 
@@ -584,7 +584,7 @@ export function AppProvider({ children }) {
   const toggleLike = useCallback(async (songId) => {
     const { user, likedSongIds } = stateRef.current;
     if (!user) {
-      alert('璇峰厛鐧诲綍鎮ㄧ殑缃戞槗浜戣处鍙凤紒');
+      alert('请先登录您的网易云账号！');
       navigateTo('settings');
       return;
     }
@@ -600,7 +600,7 @@ export function AppProvider({ children }) {
       setLikedSongIds(newLikedIds);
     } catch (err) {
       console.error('Failed to toggle like:', err);
-      alert('鎿嶄綔澶辫触锛岃閲嶈瘯');
+      alert('操作失败，请重试');
     }
   }, [navigateTo]);
 
@@ -940,7 +940,7 @@ export function AppProvider({ children }) {
       const optimisticSong = {
         ...song,
         title: song.name || song.title,
-        artist: song.ar?.map(a => a.name).join(' / ') || song.artists?.map(a => a.name).join(' / ') || song.artist || '鏈煡姝屾墜',
+        artist: song.ar?.map(a => a.name).join(' / ') || song.artists?.map(a => a.name).join(' / ') || song.artist || '未知歌手',
         durationMs: song.dt || song.duration || song.durationMs || 0
       };
 

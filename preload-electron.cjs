@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onMainRuntimeLog: (callback) => subscribe('main-runtime-log', callback),
   getDefaultCacheDirectory: () => ipcRenderer.invoke('get-default-cache-directory'),
   selectCacheDirectory: () => ipcRenderer.invoke('select-cache-directory'),
+  getAudioStreamUrl: (url) => ipcRenderer.invoke('get-audio-stream-url', url),
   getCachedAudio: (data) => ipcRenderer.invoke('get-cached-audio', data),
   cacheAudio: (data) => ipcRenderer.invoke('cache-audio', data),
   getCachedCover: (data) => ipcRenderer.invoke('get-cached-cover', data),

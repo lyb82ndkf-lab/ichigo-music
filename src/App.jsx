@@ -166,7 +166,7 @@ function AppContent() {
   const currentLyricsMode = normalizeImmersiveMode(advancedLyricConfig?.lyricsMode);
   const currentKtvSongTemplate = advancedLyricConfig?.ktvSongTemplates?.[String(currentSong?.id)] || '';
   const ktvPresetPool = Array.isArray(advancedLyricConfig?.ktvPresetPool) ? advancedLyricConfig.ktvPresetPool : [];
-  const legacyDedicatedBars = ['spotlight', 'starfield', 'filmstrip', 'inkflow'].includes(currentLyricsMode)
+  const legacyDedicatedBars = ['filmstrip'].includes(currentLyricsMode)
     && advancedLyricConfig?.visualizerStyleByMode?.[currentLyricsMode] === 'bars';
   const currentModeVisualizerStyle = (!legacyDedicatedBars && advancedLyricConfig?.visualizerStyleByMode?.[currentLyricsMode])
     || (advancedLyricConfig?.visualizerStyle && advancedLyricConfig.visualizerStyle !== 'bars'
@@ -1241,21 +1241,6 @@ function AppContent() {
                       )}
 
                       {/* ================= 新增沉浸模式可视化参数 ================= */}
-                      {advancedLyricConfig.lyricsMode === 'spotlight' && (
-                        <>
-                          <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '16px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>歌词视频参数</div>
-                          <label className="setting-row-inline"><span>歌词缩放：{Math.round((advancedLyricConfig.spotlightScale ?? 1.04) * 100)}%</span><input type="range" min="0.9" max="1.3" step="0.01" value={advancedLyricConfig.spotlightScale ?? 1.04} onChange={(e) => updateAdvancedLyricConfig({ spotlightScale: Number(e.target.value) })} /></label>
-                          <div className="setting-hint">歌词视频会按歌词段落自动编排镜头和字幕。</div>
-                        </>
-                      )}
-                      {advancedLyricConfig.lyricsMode === 'starfield' && (
-                        <>
-                          <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '16px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>星轨空间参数</div>
-                          <label className="setting-row-inline"><span>星尘密度：{advancedLyricConfig.starDensity ?? 42}</span><input type="range" min="12" max="120" step="6" value={advancedLyricConfig.starDensity ?? 42} onChange={(e) => updateAdvancedLyricConfig({ starDensity: Number(e.target.value) })} /></label>
-                          <label className="setting-row-inline"><span>星轨速度：{Number(advancedLyricConfig.starSpeed ?? 1).toFixed(1)}x</span><input type="range" min="0.2" max="3" step="0.1" value={advancedLyricConfig.starSpeed ?? 1} onChange={(e) => updateAdvancedLyricConfig({ starSpeed: Number(e.target.value) })} /></label>
-                          <label className="setting-row-inline"><span>景深强度：{Number(advancedLyricConfig.starDepth ?? 1).toFixed(1)}x</span><input type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.starDepth ?? 1} onChange={(e) => updateAdvancedLyricConfig({ starDepth: Number(e.target.value) })} /></label>
-                        </>
-                      )}
                       {advancedLyricConfig.lyricsMode === 'filmstrip' && (
                         <>
                           <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '16px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>胶片帧参数</div>
@@ -1264,15 +1249,6 @@ function AppContent() {
                           <label className="setting-row-inline"><span>当前帧放大：{Math.round((advancedLyricConfig.filmActiveScale ?? 1.08) * 100)}%</span><input type="range" min="1" max="1.2" step="0.01" value={advancedLyricConfig.filmActiveScale ?? 1.08} onChange={(e) => updateAdvancedLyricConfig({ filmActiveScale: Number(e.target.value) })} /></label>
                         </>
                       )}
-                      {advancedLyricConfig.lyricsMode === 'inkflow' && (
-                        <>
-                          <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '16px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>水墨流动参数</div>
-                          <label className="setting-row-inline"><span>墨迹扩散：{Number(advancedLyricConfig.inkSpread ?? 1).toFixed(1)}x</span><input type="range" min="0.4" max="2" step="0.1" value={advancedLyricConfig.inkSpread ?? 1} onChange={(e) => updateAdvancedLyricConfig({ inkSpread: Number(e.target.value) })} /></label>
-                          <label className="setting-row-inline"><span>墨迹透明度：{Math.round((advancedLyricConfig.inkOpacity ?? 0.45) * 100)}%</span><input type="range" min="0.1" max="0.8" step="0.05" value={advancedLyricConfig.inkOpacity ?? 0.45} onChange={(e) => updateAdvancedLyricConfig({ inkOpacity: Number(e.target.value) })} /></label>
-                          <label className="setting-row-inline"><span>墨流速度：{Number(advancedLyricConfig.inkSpeed ?? 1).toFixed(1)}x</span><input type="range" min="0.2" max="2.5" step="0.1" value={advancedLyricConfig.inkSpeed ?? 1} onChange={(e) => updateAdvancedLyricConfig({ inkSpeed: Number(e.target.value) })} /></label>
-                        </>
-                      )}
-
                       {/* ================= FLOATING DECOR SECTION ================= */}
                       <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '16px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>背景悬浮粒子 (Floating Decor)</div>
                       <label className="setting-row-inline compact-toggle">

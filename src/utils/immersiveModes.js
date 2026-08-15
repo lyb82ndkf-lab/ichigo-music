@@ -6,10 +6,10 @@ const MODE_DESCRIPTIONS = {
   cloudstep: '歌词以阶梯式布局展开，适合观察上下句的关系。',
   spatial: '将歌词放入全屏空间画布，强调景深和空间移动。',
   vinyl: '以唱片旋转为视觉核心，适合复古或器乐类歌曲。',
-  spotlight: '当前歌词像舞台聚光灯一样突出，上下句柔和退场。',
-  starfield: '星点和歌词形成缓慢星轨，适合夜晚或氛围音乐。',
-  filmstrip: '歌词以电影胶片帧呈现，当前句像镜头一样被聚焦。',
-  inkflow: '背景墨迹随歌词呼吸扩散，适合中文和抒情歌曲。'
+  filmstrip: '歌词以电影胶片帧呈现，当前句像镜头一样被聚焦。'
+  // spotlight: '当前歌词像舞台聚光灯一样突出，上下句柔和退场。',
+  // starfield: '星点和歌词形成缓慢星轨，适合夜晚或氛围音乐。',
+  // inkflow: '背景墨迹随歌词呼吸扩散，适合中文和抒情歌曲。'
 };
 
 export const IMMERSIVE_MODE_OPTIONS = [
@@ -19,10 +19,10 @@ export const IMMERSIVE_MODE_OPTIONS = [
   { value: 'cloudstep', label: '云阶模式' },
   { value: 'spatial', label: '空间画布' },
   { value: 'vinyl', label: '黑胶光碟' },
-  { value: 'spotlight', label: '聚光灯舞台' },
-  { value: 'starfield', label: '星轨模式' },
-  { value: 'filmstrip', label: '胶片模式' },
-  { value: 'inkflow', label: '水墨流动' }
+  { value: 'filmstrip', label: '胶片模式' }
+  // { value: 'spotlight', label: '聚光灯舞台' },
+  // { value: 'starfield', label: '星轨模式' },
+  // { value: 'inkflow', label: '水墨流动' }
 ].map(item => ({ ...item, description: MODE_DESCRIPTIONS[item.value] }));
 
 export const IMMERSIVE_MODE_PARAMETER_KEYS = {
@@ -32,10 +32,10 @@ export const IMMERSIVE_MODE_PARAMETER_KEYS = {
   cloudstep: ['cloudWaveBlur', 'cloudWaveHeight', 'cloudWaveOpacity', 'cloudWaveSmoothing', 'cloudWaveColorMode', 'cloudWaveCustomColor', 'cloudWaveVerticalSpread', 'cloudWaveSyncToLines', 'cloudStepSpacing'],
   spatial: ['spatialParticleCount', 'spatialParticleSize', 'spatialParticleOpacity', 'spatialSpreadX', 'spatialSpreadY', 'spatialSpreadZ', 'spatialConnectLines', 'spatialConnectOpacity', 'spatialColorMode', 'spatialCustomColor', 'spatialDepthBlur'],
   vinyl: ['vinylGrooveCount', 'vinylGrooveWidth', 'vinylGrooveMaxWidth', 'vinylGrooveOpacity', 'vinylGrooveColorMode', 'vinylStylusGlowStrength', 'vinylStylusGlowSize', 'vinylEdgeReflection', 'vinylEdgeReflectionIntensity', 'vinylSmoothing', 'vinylTiltAngle', 'vinylLineSpacing'],
-  spotlight: ['spotlightLineGap', 'spotlightDimOpacity', 'spotlightScale', 'spotlightShowTranslation', 'spotlightShowGlow', 'spotlightEffect', 'spotlightMotion'],
-  starfield: ['starDensity', 'starSpeed', 'starDepth', 'starShowTranslation'],
   filmstrip: ['filmFrameGap', 'filmOpacity', 'filmActiveScale', 'filmShowTranslation'],
-  inkflow: ['inkSpread', 'inkOpacity', 'inkSpeed', 'inkShowTranslation'],
+  // spotlight: ['spotlightLineGap', 'spotlightDimOpacity', 'spotlightScale', 'spotlightShowTranslation', 'spotlightShowGlow', 'spotlightEffect', 'spotlightMotion'],
+  // starfield: ['starDensity', 'starSpeed', 'starDepth', 'starShowTranslation'],
+  // inkflow: ['inkSpread', 'inkOpacity', 'inkSpeed', 'inkShowTranslation'],
   universalVisualizer: ['visualizerEnabled', 'visualizerStyle', 'visualizerStyleByMode', 'visualizerIntensity', 'visualizerOpacity', 'visualizerSmoothing', 'visualizerOffsetY', 'visualizerScale']
 };
 
@@ -51,17 +51,17 @@ export const DEFAULT_VISUALIZER_BY_MODE = {
   cloudstep: 'wave',
   spatial: 'mode',
   vinyl: 'circle',
-  spotlight: 'spotlight',
-  starfield: 'starfield',
-  filmstrip: 'filmstrip',
-  inkflow: 'inkflow'
+  filmstrip: 'filmstrip'
+  // spotlight: 'spotlight',
+  // starfield: 'starfield',
+  // inkflow: 'inkflow'
 };
 
 export function getVisualizerStyleForMode(config = {}, mode = 'regular') {
   const normalized = normalizeImmersiveMode(mode);
   if (config?.visualizerEnabled === false) return 'off';
   const explicit = config?.visualizerStyleByMode?.[normalized];
-  const hasDedicatedRenderer = ['spotlight', 'starfield', 'filmstrip', 'inkflow'].includes(normalized);
+  const hasDedicatedRenderer = ['filmstrip'].includes(normalized);
   // 1.8.0 之前这些模式经常把 bars 写入逐模式配置，导致升级后四个
   // 模式看起来完全一样。把这个旧默认值升级为专属渲染；wave/circle/off
   // 仍然保留为真正的手动覆盖。

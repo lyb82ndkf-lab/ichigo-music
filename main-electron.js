@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import net from 'net';
 import fs from 'fs';
+import http from 'http';
 import { createHash } from 'crypto';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
@@ -97,20 +98,146 @@ const getCacheResourceUrl = (filePath, namespace) => {
 const getCoverResourceUrl = (filePath) => getCacheResourceUrl(filePath, 'cover');
 const getAudioResourceUrl = (filePath) => getCacheResourceUrl(filePath, 'audio');
 
+// Same-origin HTTP audio proxy for the Web Audio visualizer. createMediaElementSource
+// feeds the analyser reliably over standard HTTP + CORS (custom protocols do not).
+// Both remote CDN tracks and cached audio files are re-served here so the analyser
+// always receives real spectrum data without muting or failing the media element.
+let audioProxyServer = null;
+let audioProxyPort = 0;
+let audioProxyReady = null;
+
+const startAudioProxy = () => {
+  if (audioProxyReady) return audioProxyReady;
+  audioProxyReady = new Promise((resolve, reject) => {
+    audioProxyServer = http.createServer(async (req, res) => {
+      try {
+        const parsed = new URL(req.url, 'http://127.0.0.1');
+        if (parsed.pathname !== '/audio') {
+          res.writeHead(404);
+          res.end();
+          return;
+        }
+        const remoteUrl = parsed.searchParams.get('url');
+        const token = parsed.searchParams.get('token');
+        const corsHeaders = {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
+          'Accept-Ranges': 'bytes'
+        };
+
+        if (remoteUrl && /^https?:\/\//i.test(remoteUrl)) {
+          const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
+          if (req.headers.range) headers.Range = req.headers.range;
+          const remote = await electronNet.fetch(remoteUrl, { headers });
+          const contentType = remote.headers.get('content-type') || 'application/octet-stream';
+          const contentLength = remote.headers.get('content-length');
+          const contentRange = remote.headers.get('content-range');
+          res.writeHead(remote.status, {
+            ...corsHeaders,
+            'Content-Type': contentType,
+            ...(contentLength ? { 'Content-Length': contentLength } : {}),
+            ...(contentRange ? { 'Content-Range': contentRange } : {})
+          });
+          const reader = remote.body?.getReader?.();
+          if (!reader) { res.end(); return; }
+          try {
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              res.write(Buffer.from(value));
+            }
+          } catch {}
+          res.end();
+          return;
+        }
+
+        if (token) {
+          const filePath = cacheResourcePaths.get(token);
+          if (!filePath || !fs.existsSync(filePath)) {
+            res.writeHead(404);
+            res.end();
+            return;
+          }
+          const stat = fs.statSync(filePath);
+          const range = req.headers.range;
+          let start = 0;
+          let end = stat.size - 1;
+          let status = 200;
+          if (range) {
+            const m = /bytes=(\d*)-(\d*)/.exec(range);
+            if (m && (m[1] || m[2])) {
+              if (m[1]) start = parseInt(m[1], 10);
+              if (m[2]) end = Math.min(parseInt(m[2], 10), stat.size - 1);
+              if (start >= stat.size) {
+                res.writeHead(416, { ...corsHeaders, 'Content-Range': `bytes */${stat.size}` });
+                res.end();
+                return;
+              }
+              status = 206;
+            }
+          }
+          res.writeHead(status, {
+            ...corsHeaders,
+            'Content-Type': 'audio/mpeg',
+            'Content-Length': String(end - start + 1),
+            ...(status === 206 ? { 'Content-Range': `bytes ${start}-${end}/${stat.size}` } : {})
+          });
+          const stream = fs.createReadStream(filePath, { start, end });
+          stream.on('error', () => res.end());
+          stream.pipe(res);
+          return;
+        }
+
+        res.writeHead(400);
+        res.end();
+      } catch (error) {
+        console.warn('Audio proxy request failed:', error);
+        res.writeHead(502);
+        res.end();
+      }
+    });
+    audioProxyServer.on('error', (error) => {
+      audioProxyReady = null;
+      reject(error);
+    });
+    audioProxyServer.listen(0, '127.0.0.1', () => {
+      audioProxyPort = audioProxyServer.address().port;
+      console.log(`Audio visualizer proxy listening on 127.0.0.1:${audioProxyPort}`);
+      resolve(audioProxyPort);
+    });
+  });
+  return audioProxyReady;
+};
+
+const getAudioHttpUrl = (src) => {
+  if (!src) return null;
+  if (/^https?:\/\//i.test(src)) {
+    return `http://127.0.0.1:${audioProxyPort}/audio?url=${encodeURIComponent(src)}`;
+  }
+  const m = /^ichigo-cache:\/\/audio\/([0-9a-f]+)/i.exec(src);
+  if (m) {
+    return `http://127.0.0.1:${audioProxyPort}/audio?token=${m[1]}`;
+  }
+  return null;
+};
+
 const registerCacheProtocol = () => {
   protocol.handle('ichigo-cache', async (request) => {
     try {
       const url = new URL(request.url);
       const token = url.pathname.replace(/^\//, '');
       const namespace = url.hostname.toLowerCase();
+
       const filePath = namespace === 'cover' || namespace === 'audio'
         ? cacheResourcePaths.get(token)
         : null;
       if (!filePath) return new Response('Not found', { status: 404 });
+      // Cached files keep the exact v1.8.3 serving path (no re-wrap) so
+      // playback of cached media is never affected by the CORS decoration.
       return electronNet.fetch(pathToFileURL(filePath).toString());
     } catch (error) {
       console.warn('Failed to serve cached media:', error);
-      return new Response('Unable to read cached cover', { status: 500 });
+      return new Response('Unable to read cached media', { status: 500 });
     }
   });
 };
@@ -958,6 +1085,13 @@ function createWindow() {
     return result.filePaths[0];
   });
 
+  ipcMain.removeHandler('get-audio-stream-url');
+  ipcMain.handle('get-audio-stream-url', async (_event, url) => {
+    if (typeof url !== 'string' || !url) return null;
+    await startAudioProxy();
+    return getAudioHttpUrl(url);
+  });
+
   ipcMain.removeHandler('get-cached-audio');
   ipcMain.handle('get-cached-audio', async (_event, { songId, quality, cacheDir }) => {
     const filePath = await findCachedAudioFile(cacheDir, songId, quality);
@@ -1148,6 +1282,7 @@ app.name = "ICHIGOMusic";
 
 app.whenReady().then(async () => {
   registerCacheProtocol();
+  startAudioProxy().catch(error => console.warn('Failed to start audio proxy:', error));
   migrateLegacyCache().catch(error => console.warn('Failed to migrate legacy cache:', error));
   await startApiServer();
   createWindow();

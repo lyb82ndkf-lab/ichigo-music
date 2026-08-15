@@ -305,7 +305,7 @@ export default function VinylRecordLyrics({
           
           .vinyl-wrapper {
             position: relative;
-            width: clamp(200px, 30vw, 450px);
+            width: clamp(160px, min(24vw, 40vh), 360px);
             aspect-ratio: 1;
             display: flex;
             align-items: center;
@@ -435,7 +435,7 @@ export default function VinylRecordLyrics({
             
             if (Math.abs(dist) > 12) return null;
             
-            const anglePerLine = 12 * lineSpacing; 
+            const anglePerLine = 6 * lineSpacing; 
             const rotation = dist * anglePerLine;
             
             return (
@@ -444,20 +444,22 @@ export default function VinylRecordLyrics({
                 style={{
                   position: 'absolute',
                   top: '50%',
-                  left: '10%', 
-                  width: '100%',
+                  left: '50%',
+                  width: 'min(92%, 720px)',
+                  textAlign: 'center',
                   fontFamily: '"Georgia", "Times New Roman", serif, "Noto Sans SC"',
-                  fontSize: `${fontPx * (isActive ? 1.1 : 0.85)}px`,
+                  fontSize: `${fontPx * (isActive ? 1.08 : 0.82)}px`,
                   fontWeight: isActive ? 700 : 400,
                   color: isActive ? themeColor : 'var(--text-main)',
                   opacity: isActive ? 1 : (isPassed ? 0.3 : 0.5),
                   transformOrigin: `-${rotationRadius}vw center`,
-                  transform: `translateY(-50%) rotate(${rotation}deg) scale(${isActive ? 1 : 0.95})`,
+                  transform: `translate(-50%, -50%) rotate(${rotation}deg) scale(${isActive ? 1 : 0.95})`,
                   transition: 'transform 0.7s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.7s ease, color 0.7s ease, font-size 0.7s ease',
-                  filter: isActive ? `drop-shadow(0 0 15px ${themeColor})` : 'none',
+                  filter: isActive ? `drop-shadow(0 0 12px ${themeColor})` : 'none',
                   zIndex: isActive ? 10 : 1,
                   display: 'flex',
                   flexDirection: 'column',
+                  alignItems: 'center',
                   gap: '4px',
                   letterSpacing: '1px'
                 }}

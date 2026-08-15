@@ -26,7 +26,7 @@ function hexToRgba(hex, alpha = 1) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMode = 'regular', isBehindCover = false, advancedLyricConfig = {}, visualizerFps = 30, showCover = true }) {
+export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMode = 'regular', isBehindCover = false, advancedLyricConfig = {}, visualizerFps = 30, showCover = true, coverRef = null }) {
   const canvasRef = useRef(null);
   
   const requestedFps = Number(visualizerFps);
@@ -35,6 +35,9 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
   const scaleRef = useRef(1.0);
   const offsetYRef = useRef(0);
   const showCoverRef = useRef(true);
+  // Anchor for the album cover artwork so the regular-mode ring stays centered
+  // on the cover regardless of wrapper/canvas geometry quirks.
+  const coverAnchorRef = useRef({ cx: 0, cy: 0, radius: 0, has: false });
 
   // Particle systems & visualizer state references
   const particlesRef = useRef([]);
@@ -70,6 +73,12 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
     const resolvedPrimary = resolveCanvasColor(primaryColor || 'var(--primary)');
     const sampleOffset = 4;
     const configuredVisualizerStyle = getVisualizerStyleForMode(advancedLyricConfig, animationMode);
+    // Keep the legacy configuredVisualizerStyle === 'off' value visible for
+    // diagnostics; streamer mode intentionally ignores stale per-mode styles.
+    const effectiveVisualizerStyle = animationMode === 'streamer'
+      && advancedLyricConfig?.visualizerEnabled !== false
+      ? 'bars'
+      : configuredVisualizerStyle;
     const visualizerIntensity = Math.max(0.2, Number(advancedLyricConfig?.visualizerIntensity ?? 1));
 
     const resizeCanvas = () => {
@@ -82,6 +91,27 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      // Anchor the ring to the actual cover artwork box. The cover img is a
+      // sibling of this canvas (inside the same wrapper), so its screen rect is
+      // measured directly; the transform scale is inverted back to canvas units.
+      if (coverRef?.current) {
+        try {
+          const canvasRect = canvas.getBoundingClientRect();
+          const coverRect = coverRef.current.getBoundingClientRect();
+          const scale = scaleRef.current || 1;
+          const sx = coverRect.left + coverRect.width / 2 - canvasRect.left;
+          const sy = coverRect.top + coverRect.height / 2 - canvasRect.top;
+          coverAnchorRef.current = {
+            cx: width / 2 + (sx - canvasRect.width / 2) / scale,
+            cy: height / 2 + (sy - canvasRect.height / 2) / scale,
+            radius: coverRect.width / (2 * scale),
+            has: true
+          };
+        } catch {
+          coverAnchorRef.current = { cx: 0, cy: 0, radius: 0, has: false };
+        }
+      }
     };
 
     resizeCanvas();
@@ -184,12 +214,15 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
 
     // --- Visualizer Mode 1: Regular Circular Visualizer ---
     const drawEnhancedCircle = (deltaSec) => {
-      const cx = width / 2;
+      const coverAnchor = coverAnchorRef.current;
+      const cx = coverAnchor.has ? coverAnchor.cx : width / 2;
       const scale = scaleRef.current;
       const offsetY = offsetYRef.current;
       
-      const cy = height / 2 + offsetY;
-      const coverSize = Math.max(100, Math.min(width, height) - 200);
+      const cy = coverAnchor.has ? coverAnchor.cy : height / 2 + offsetY;
+      const coverSize = coverAnchor.has
+        ? Math.max(100, coverAnchor.radius * 2)
+        : Math.max(100, Math.min(width, height) - 200);
       
       // Apply offset config
       const innerOffset = advancedLyricConfig?.ringInnerOffset ?? 5;
@@ -316,14 +349,18 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       const barSpacing = width / bars;
       const barWidth = barSpacing * 0.7;
       const gap = barSpacing * 0.3;
+      // The player bar is above this canvas in the stacking order. Keep the
+      // rhythm strip just above it instead of drawing underneath an opaque
+      // transport bar at the bottom edge.
+      const baseline = Math.max(0, height - 88);
       
       for (let i = 0; i < bars; i++) {
         const value = smoothedData[sampleOffset + Math.floor((i / bars) * sampleSpan)] || 0;
         const currentHeight = heightVal + (value / 255) * (maxHeightVal - heightVal);
         const x = i * barSpacing + gap / 2;
-        const y = height - currentHeight;
+        const y = baseline - currentHeight;
         
-        let fillGrad = ctx.createLinearGradient(x, y, x, height);
+        let fillGrad = ctx.createLinearGradient(x, y, x, baseline);
         if (colorMode === 'custom') {
           const c = advancedLyricConfig?.streamerBarCustomColor || '#ff4081';
           fillGrad.addColorStop(0, c);
@@ -337,7 +374,11 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
         
         ctx.fillStyle = fillGrad;
         ctx.beginPath();
-        ctx.roundRect(x, y, barWidth, currentHeight, [barWidth / 2, barWidth / 2, 0, 0]);
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(x, y, barWidth, currentHeight, [barWidth / 2, barWidth / 2, 0, 0]);
+        } else {
+          ctx.rect(x, y, barWidth, currentHeight);
+        }
         ctx.fill();
       }
       
@@ -516,7 +557,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
         if (!idleTimer) {
           idleTimer = window.setTimeout(() => {
             idleTimer = 0;
-            if (isPlaying && !document.hidden && configuredVisualizerStyle !== 'off') {
+            if (isPlaying && !document.hidden && effectiveVisualizerStyle !== 'off') {
               animationId = requestAnimationFrame(draw);
             }
           }, 300);
@@ -544,7 +585,7 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
         schedule(true);
         return;
       }
-      if (configuredVisualizerStyle === 'off') {
+      if (effectiveVisualizerStyle === 'off') {
         if (!idleCleared) {
           ctx.clearRect(0, 0, width, height);
           particlesRef.current = [];
@@ -571,12 +612,12 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       // Draw particle system first (background layer)
       drawParticles();
 
-      if (configuredVisualizerStyle === 'bars') {
+      if (effectiveVisualizerStyle === 'bars') {
         drawStreamerBar();
-      } else if (configuredVisualizerStyle === 'wave') {
+      } else if (effectiveVisualizerStyle === 'wave') {
         if (animationMode === 'regular') drawEnhancedCircle(deltaSec);
         else drawCloudWaves();
-      } else if (configuredVisualizerStyle === 'circle') {
+      } else if (effectiveVisualizerStyle === 'circle') {
         drawEnhancedCircle(deltaSec);
       } else if (animationMode === 'regular') {
         drawEnhancedCircle(deltaSec);
@@ -596,11 +637,11 @@ export default function MonetAudioOverlay({ isPlaying, primaryColor, animationMo
       window.clearTimeout(idleTimer);
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [isPlaying, primaryColor, animationMode, fps, advancedLyricConfig, isBehindCover]);
+  }, [isPlaying, primaryColor, animationMode, fps, advancedLyricConfig, isBehindCover, coverRef]);
 
   return (
     <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '100%', padding: 0, pointerEvents: 'none', zIndex: 10, transform: `translateY(${Number(advancedLyricConfig?.visualizerOffsetY || 0)}px) scale(${Number(advancedLyricConfig?.visualizerScale || 1)})`, transformOrigin: 'center center' }}>
-      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', maxWidth: '1200px', opacity: Number(advancedLyricConfig?.visualizerOpacity ?? 0.9), margin: '0 auto', filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))' }} />
+      <canvas ref={canvasRef} style={{ display: 'block', width: '100%', height: '100%', maxWidth: animationMode === 'streamer' ? 'none' : '1200px', opacity: Number(advancedLyricConfig?.visualizerOpacity ?? 0.9), margin: '0 auto', filter: 'drop-shadow(0 0 10px rgba(0,0,0,0.5))' }} />
     </div>
   );
 }

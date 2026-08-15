@@ -38,7 +38,7 @@ function MonetPosterLayout({
     if (animMode === 'talk') preloadKineticKtvLyrics();
   }, [animMode]);
   // KTV 文字 PV 和舞台模式使用全幅画面；封面/列表布局会削弱逐字构图。
-  const isKashiMode = ['talk', 'spotlight'].includes(animMode);
+  const isKashiMode = ['talk'].includes(animMode);
   const showCover = advancedLyricConfig?.showCover !== false && isRegularMode;
   const showSongInfo = advancedLyricConfig?.showSongInfo !== false;
   // Dedicated KTV/PV stages own the full canvas. The generic floating decor
@@ -63,12 +63,12 @@ function MonetPosterLayout({
   const handleWheel = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // 榧犳爣婊氳疆缈婚〉棰勮姝岃瘝锛屾瘡娆℃粴鍔ㄧ害 1.5 绉掔殑鏃堕棿璺ㄥ害
+    // 鼠标滚轮翻页预览歌词，每次滚动约 1.5 秒的时间跨度
     const delta = e.deltaY > 0 ? 1.5 : -1.5;
     setManualScrollOffset(prev => prev + delta);
     
     if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-    // 鍋滄婊氬姩 3 绉掑悗鑷姩鎭㈠璺熼殢鎾斁杩涘害
+    // 停止滚动 3 秒后自动恢复跟随播放进度
     scrollTimeoutRef.current = setTimeout(() => {
       setManualScrollOffset(0);
     }, 2200);
@@ -98,6 +98,7 @@ function MonetPosterLayout({
 
   const railContainerRef = useRef(null);
   const coverPaneRef = useRef(null);
+  const coverImgRef = useRef(null);
   // Dynamic anchor: track where the album cover center sits relative to the lyrics rail
   const [coverAlignedRatio, setCoverAlignedRatio] = useState(0.42);
 
@@ -396,13 +397,14 @@ function MonetPosterLayout({
           {/* Render circular visualizer behind the cover image in regular mode */}
           {animMode === 'regular' && (
             <div style={{ position: 'absolute', inset: '-100px', zIndex: 1, pointerEvents: 'none' }}>
-          <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode="regular" isBehindCover={true} advancedLyricConfig={advancedLyricConfig} visualizerFps={visualizerFps} showCover={showCoverPreference} />
+          <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode="regular" isBehindCover={true} coverRef={coverImgRef} advancedLyricConfig={advancedLyricConfig} visualizerFps={visualizerFps} showCover={showCoverPreference} />
             </div>
           )}
           <img 
             src={coverUrlResized} 
             alt="Album Cover" 
             className="monet-cover-img"
+            ref={coverImgRef}
             style={{ position: 'relative', zIndex: 2 }}
             draggable="false"
           />

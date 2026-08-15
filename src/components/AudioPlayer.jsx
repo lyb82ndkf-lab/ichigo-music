@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { isLegacyFileMediaSource, isLocalMediaSource } from '../utils/audioSource';
+import { isLegacyFileMediaSource, isLocalMediaSource, isStreamMediaSource } from '../utils/audioSource';
 import { api } from '../utils/api';
 import { appendRuntimeLog } from '../utils/runtimeLog';
 
 function isWebAudioEligibleSource(source) {
   if (!source) return false;
-  if (isLocalMediaSource(source)) return true;
+  if (isLocalMediaSource(source) || isStreamMediaSource(source)) return true;
   try {
     return new URL(source, window.location.href).origin === window.location.origin;
   } catch {
@@ -49,6 +49,11 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   const currentSongRef = useRef(currentSong);
   const sourceTransitionRef = useRef(false);
   const errorSkipTimerRef = useRef(null);
+  const sourceSongIdRef = useRef(null);
+  // The raw (non-proxied) source for the current track. When the local stream
+  // proxy fails we fall back to this URL so playback is never blocked by the
+  // visualizer layer.
+  const rawSourceRef = useRef('');
   // One report is emitted at the end of a listening session.  The old code
   // reported at 50%/30 seconds and then permanently marked the song as sent;
   // consequently a four-minute song was recorded as only 30 seconds.
@@ -133,7 +138,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         } catch (fallbackError) {
           // Keep the item eligible for a later retry instead of marking a
           // failed request as reported (the previous finally() did that).
-          appendRuntimeLog('warn', '浜戠鎾斁璁板綍鍚屾澶辫触锛屽皢鍦ㄤ笅娆″垏姝屾椂閲嶈瘯', {
+          appendRuntimeLog('warn', '云端播放记录同步失败，将在下次切歌时重试', {
             songId: song.id,
             playedSeconds: payload.time,
             legacyError: legacyError?.message || String(legacyError || ''),
@@ -186,7 +191,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     // pause/play sequence during source stalls.
     if (!audio.paused && !audio.ended) return;
 
-    appendRuntimeLog('debug', '璇锋眰鎾斁闊抽', {
+    appendRuntimeLog('debug', '请求播放音频', {
       songId: currentSong?.id || null,
       source: isLocalMediaSource(audioSource) ? 'local-cache' : 'remote',
       readyState: audio.readyState,
@@ -250,7 +255,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (audioRef.current) {
       audioRef.current.volume = volume;
     }
-  }, [volume]);
+  }, [volume, audioSource]);
 
   // Sync source loading and play/pause from one place, after React has
   // committed the <audio src/crossOrigin> attributes.
@@ -283,38 +288,78 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (urlRefreshAttemptRef.current.songId !== currentSong?.id) {
       urlRefreshAttemptRef.current = { songId: currentSong?.id || null, count: 0 };
     }
-    // 鍏堜娇鐢ㄥ凡鎸佷箙鍖栫殑鍦板潃鍚姩濯掍綋鍏冪礌锛屼笉瑕佸洜涓虹紦瀛樻椂闂磋繃鏈熻€屾妸
-    // src 娓呯┖銆傚湴鍧€鍒锋柊鐢?AppContext 鍦ㄥ悗鍙板畬鎴愶紱娓呯┖ src 浼氳棣栨洸
-    // 蹇呴』绛夊緟缃戠粶璇锋眰缁撴潫锛岃〃鐜颁负灏侀潰/姝岃瘝宸插嚭鐜颁絾杩涘害鏉￠暱鏃堕棿涓?0銆?
+    // 先使用已持久化的地址启动媒体元素，不要因为缓存时间过期而把
+    // src 清空。地址刷新由 AppContext 在后台完成；清空 src 会让首曲
+    // 必须等待网络请求结束，表现为封面/歌词已出现但进度条长时间为 0。
     if (currentSong?.url) {
       sourceTransitionRef.current = true;
+      const isNewSong = sourceSongIdRef.current !== currentSong.id;
+      sourceSongIdRef.current = currentSong.id;
+      // Stop the previous media immediately. URL/proxy resolution is async;
+      // leaving this element alive during that gap lets the old song leak
+      // through before the next source is committed.
+      if (isNewSong && audioRef.current) {
+        try {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        } catch {}
+      }
       setProgress(0);
       setDuration(0);
       const persistedSource = isLegacyFileMediaSource(currentSong.url) ? '' : currentSong.url;
+      if (!persistedSource) {
+        // A legacy file:// URL is not loadable from the http renderer origin.
+        // Let AppContext resolve it to ichigo-cache://audio or a fresh CDN URL
+        // instead of committing a guaranteed MEDIA_ERR_SRC_NOT_SUPPORTED frame.
+        lastLoadedKeyRef.current = '';
+        playRequestIdRef.current += 1;
+        setAudioSource('');
+        setCrossOriginMode('anonymous');
+        appendRuntimeLog('info', '音频源已提交', {
+          songId: currentSong.id || null,
+          source: 'legacy-file',
+          hasResumeTime: resumeTime !== null
+        }, 'audio');
+        return;
+      }
       zeroTimeRecoveryRef.current = { key: persistedSource, attempts: 0, startedAt: Date.now() };
-      // A legacy file:// URL is not loadable from the http renderer origin.
-      // Let AppContext resolve it to ichigo-cache://audio or a fresh CDN URL
-      // instead of committing a guaranteed MEDIA_ERR_SRC_NOT_SUPPORTED frame.
-      setAudioSource(persistedSource);
-      // Direct music CDN URLs commonly omit Access-Control-Allow-Origin. If
-      // such an element is attached to MediaElementAudioSourceNode, Chromium
-      // reports zeroes and the audible output becomes silent. Keep those
-      // sources on the native media path; same-origin proxy/cache URLs can
-      // still use Web Audio for the visualizer.
-      const webAudioEligible = isWebAudioEligibleSource(persistedSource);
-      setCrossOriginMode(webAudioEligible ? 'anonymous' : null);
-      if (!webAudioEligible) window.ichigoAnalyser = null;
-      appendRuntimeLog('info', '闊抽婧愬凡鎻愪氦', {
+      rawSourceRef.current = persistedSource;
+      // Remote CDN tracks AND cached ichigo-cache:// audio are re-served through
+      // the local HTTP proxy so the media element is CORS-approved for Web Audio
+      // analysis (createMediaElementSource does not feed custom protocols).
+      const canProxy = !isLegacyFileMediaSource(persistedSource) && !!window.electronAPI?.getAudioStreamUrl;
+      setCrossOriginMode(canProxy ? 'anonymous' : null);
+      if (!canProxy) window.ichigoAnalyser = null;
+      let cancelled = false;
+      const commitSource = (src) => {
+        if (!cancelled) setAudioSource(src);
+      };
+      if (!canProxy) {
+        commitSource(persistedSource);
+      } else {
+        window.electronAPI.getAudioStreamUrl(persistedSource)
+          .then(proxied => commitSource(proxied || persistedSource))
+          .catch(() => commitSource(persistedSource));
+      }
+      appendRuntimeLog('info', '音频源已提交', {
         songId: currentSong.id || null,
         source: isLocalMediaSource(currentSong.url) ? 'local-cache' : 'remote',
         hasResumeTime: resumeTime !== null
       }, 'audio');
+      return () => { cancelled = true; };
     } else {
       // Do not leave an empty src attribute on the persistent element. Chromium
       // reports it as MEDIA_ERR_SRC_NOT_SUPPORTED, even though it is merely the
       // short interval before AppContext resolves a restored session URL.
       lastLoadedKeyRef.current = '';
       playRequestIdRef.current += 1;
+      sourceSongIdRef.current = null;
+      if (audioRef.current) {
+        try {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        } catch {}
+      }
       setAudioSource('');
       setCrossOriginMode('anonymous');
     }
@@ -566,7 +611,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (audioRef.current) {
       if (!playbackIntentRef.current) sourceTransitionRef.current = false;
       const mediaDuration = Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : 0;
-      appendRuntimeLog('info', '闊抽鍏冩暟鎹凡鍔犺浇', {
+      appendRuntimeLog('info', '音频元素数据已加载', {
         songId: currentSong?.id || null,
         duration: mediaDuration,
         readyState: audioRef.current.readyState
@@ -599,14 +644,14 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     // track. Treating it as a real code-4 failure previously muted the first
     // song until a manual next-track action replaced the element source.
     if (!attributeSource || !audioSource) {
-      appendRuntimeLog('debug', '蹇界暐闊抽婧愬噯澶囬樁娈电殑绌哄湴鍧€浜嬩欢', {
+      appendRuntimeLog('debug', '忽略音频源准备阶段的空地址事件', {
         songId: currentSong?.id || null,
         readyState: audio?.readyState ?? -1,
         networkState: audio?.networkState ?? -1
       }, 'audio');
       return;
     }
-    appendRuntimeLog('error', '闊抽鍏冪礌鍔犺浇澶辫触', {
+    appendRuntimeLog('error', '音频元素加载失败', {
       songId: currentSong?.id || null,
       code: audio?.error?.code || 0,
       message: audio?.error?.message || '',
@@ -617,7 +662,23 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     console.error("Audio playback error event:", e);
     const code = audio?.error?.code;
     sourceTransitionRef.current = false;
-    
+
+    // The local stream proxy is only a visualizer transport. If the proxied
+    // URL fails to load, fall back to the raw CDN/cache URL and play it
+    // natively so a broken proxy can never cascade into endless song skipping.
+    if (code && isStreamMediaSource(audioSource) && rawSourceRef.current && rawSourceRef.current !== audioSource) {
+      console.warn(`Stream proxy failed (code ${code}); falling back to direct source`);
+      appendRuntimeLog('warn', '音频流代理加载失败，已回退到直连地址', {
+        songId: currentSong?.id || null,
+        code
+      }, 'audio');
+      window.ichigoAnalyser = null;
+      sourceTransitionRef.current = true;
+      setCrossOriginMode(null);
+      setAudioSource(rawSourceRef.current);
+      return;
+    }
+
     const urlRetry = urlRefreshAttemptRef.current;
     if (isPlaying && code === 4 && currentSong && urlRetry.count < 1) {
       console.log("Attempting to refresh song URL before CORS fallback...");
@@ -692,8 +753,8 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         sourceTransitionRef.current = false;
         appendRuntimeLog('info', 'Audio entered stable playback', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0 }, 'audio');
       }}
-      onWaiting={() => appendRuntimeLog('warn', '闊抽绛夊緟鏁版嵁', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0, readyState: audioRef.current?.readyState ?? -1 }, 'audio')}
-      onStalled={() => appendRuntimeLog('warn', '闊抽缃戠粶璇诲彇鍋滄粸', { songId: currentSong?.id || null, networkState: audioRef.current?.networkState ?? -1 }, 'audio')}
+      onWaiting={() => appendRuntimeLog('warn', '音频等待数据', { songId: currentSong?.id || null, currentTime: audioRef.current?.currentTime || 0, readyState: audioRef.current?.readyState ?? -1 }, 'audio')}
+      onStalled={() => appendRuntimeLog('warn', '音频网络读取停滞', { songId: currentSong?.id || null, networkState: audioRef.current?.networkState ?? -1 }, 'audio')}
       onError={handleAudioError}
       onEnded={handleEnded}
       preload="auto"

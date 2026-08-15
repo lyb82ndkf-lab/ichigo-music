@@ -124,7 +124,7 @@ export default function ImmersiveAudioVisual({
         context.stroke();
       }
       context.restore();
-      // 闁艰鲸鑹鹃崢婊堟倶椤栨瑧鐟╅悘鐐靛剳缁辨壆绮ｉ崟顕呮健閹艰揪绠掗崹鍫曞矗閺夊灝甯ㄩ柡澶屽枎閹风増绋夐鐐靛闂傗偓濠婂啨浠堥柛蹇擃槸濠€鈧柨娑樼焸娴尖晠宕楀澶嗗亾閳ь剟宕犻弽銊ョ亣闁哄拋鍣ｉ埀顒佹皑楠炲棜銇愰姀銈庢殽閻犲绌堕埀?
+      // 渲染大范围光束背景：能量越高，光束越宽。
       context.save();
       context.translate(cx, cy);
       context.rotate(-now * 0.00018);
@@ -154,7 +154,7 @@ export default function ImmersiveAudioVisual({
       for (const particle of particles) {
         const depth = particle.z;
         const travel = ((now * speed * particle.speed + particle.x) % 1 + 1) % 1;
-        // 闁汇垹褰夐懙鎴ｇ疀閸愩劍鍊诲鑸电墱濞堟垿鏌呰箛姘兼綊闁哄嫮鍠曞娲晬濮橆厾绠掗幖杈剧畱閹捇寮懜闈涗粯闁告帗婀圭紞鍛磾椤旇　鍋撴担宄扮槰閹艰揪绠戦幏浼村箯閺嵮呭暡闂傗偓閸喖顔婇柕?
+        // 星轨粒子沿纵深方向流动：能量越高，移动速度越快。
         const perspective = 0.12 + travel * (0.88 + depth * 0.35);
         const x = (particle.x - 0.5) * width * perspective + centerX;
         const y = (particle.y - 0.5) * height * perspective + centerY;
@@ -181,7 +181,7 @@ export default function ImmersiveAudioVisual({
       const centerY = height * 0.5;
       const barCount = Math.min(64, data.length || 64);
       const step = width / barCount;
-      // 闁煎啿澧庢晶鏍熼垾宕囩濞戞挻鎸搁惈姗€鏁嶅顐ュ幀閺夌偛顕ˉ鍡欐暜閿旇　鍋撴担鐟邦棁闁硅绻愰妵鏃堝椽鐏炶偐鐟愬☉鎾愁儔婵炲洨鈧稒妫戠槐婵囩▔瀹ュ嫬鈻忛柣顫妽濞呮﹢鏌呭顒€寮块悘鐐茬箲閻撴挳鎮╃捄鐑樼闁?
+        // 胶片齿孔与中部电平条：低频能量越高，齿孔间距呼吸感越强。
       context.fillStyle = rgba(rgb, 0.05 + levels.energy * 0.06);
       context.fillRect(0, centerY - 2, width, 4);
       for (let hole = 0; hole < Math.ceil(width / 34); hole += 1) {
@@ -205,8 +205,8 @@ export default function ImmersiveAudioVisual({
       context.fillRect(scanX - 80, 0, 160, height);
     };
 
+    /* // 水墨模式已停用：保留实现以备将来恢复
     const drawInkflow = (rgb, levels, now) => {
-      // 婵ɑ娼欓埅宄拔熼垾宕囩濞戞挻鎸搁惈姗€鏁嶅顐⑩枏闁活潿鍔岄悽顐︽焻韫囨梹顫栭幖杈惧濞堟垿姊婚鐐村€ゅ褋鍔岄悽顐﹀椽鐏炵瓔妯嬪☉鎿冧簻閳嘲顭ㄦ潏鍓х闁兼澘鐭傚顏堝及閻旇缂?闁绘粠鍨伴懜鎵棯閹稿孩钂嬮柕?
       const ribbons = 5;
       for (let ribbon = 0; ribbon < ribbons; ribbon += 1) {
         const baseY = height * (0.18 + ribbon / (ribbons - 1) * 0.64);
@@ -239,6 +239,7 @@ export default function ImmersiveAudioVisual({
         context.fill();
       }
     };
+    */
 
     const schedule = (idle = false) => {
       if (idle) {
@@ -322,7 +323,7 @@ export default function ImmersiveAudioVisual({
       context.clearRect(0, 0, width, height);
       context.globalCompositeOperation = 'screen';
       context.save();
-      // 婵炲苯顦伴煫鍫ユ嚄鐏炵偓鐝柛娆樹簻娴犳稒鎷呮惔顭戞殽闁告稓鍘ч幆娑㈡晬鐏炶偐鐟濋柣顫妼閸欏繒浠﹁箛娑氬蒋閻庝絻顫夐惁顕€姊婚鍡楀墾闁?
+        // 统一应用透明度、纵向偏移与缩放，随后绘制当前视觉变体。
       context.globalAlpha = clamp(Number(opacity) || 0.82, 0, 1) * 0.64;
       context.translate(0, Number(offsetY) || 0);
       context.translate(width / 2, height / 2);
@@ -364,7 +365,7 @@ export default function ImmersiveAudioVisual({
         else if (visualizerStyle === 'wave') drawWave();
         else if (variant === 'starfield') drawStarfield(rgb, levels, now);
         else if (variant === 'filmstrip') drawFilmstrip(rgb, levels, data || []);
-        else if (variant === 'inkflow') drawInkflow(rgb, levels, now);
+        // else if (variant === 'inkflow') drawInkflow(rgb, levels, now);
         else drawSpotlight(rgb, levels, now);
       }
       context.restore();

@@ -1,3 +1,9 @@
+/*
+ * 水墨模式（inkflow）已整体停用。
+ * 从模式目录、沉浸舞台渲染器和设置面板中全部移除。
+ * 如需恢复，取消以下整段注释，并在 immersiveModes.js /
+ * ImmersiveLyricsStage.jsx / App.jsx / Settings.jsx 中恢复对应引用即可。
+ *
 import React, { useMemo } from 'react';
 import MonetWordSweep from './MonetWordSweep';
 import { parseDisplayTokens } from './MonetLyricsEngine';
@@ -39,5 +45,4 @@ export default function InkFlowLyrics({ lyrics = [], activeLineIndex = -1, fontP
     `}</style>
   </div>;
 }
-
-
+*/

@@ -195,24 +195,13 @@ export default function Settings() {
           <SettingRow label={T.scale}><Toggle checked={advancedLyricConfig.scale !== false} onChange={(v)=>updateImmersive({scale:v})}/></SettingRow>
           <SettingRow label={T.lyricGlow}><Toggle checked={advancedLyricConfig.showGlow === true} onChange={(v)=>updateImmersive({showGlow:v})}/></SettingRow>
           <SettingRow label={`${T.offset}：${Number(advancedLyricConfig.globalOffset || 0).toFixed(2)}s`}><input className="setting-slider" type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0} onChange={(e)=>updateImmersive({globalOffset:Number(e.target.value)})}/></SettingRow>
-          {advancedLyricConfig.lyricsMode === 'starfield' && <>
-            <SettingRow label={`星轨密度：${advancedLyricConfig.starDensity ?? 42}`} hint="背景星点数量"><input className="setting-slider" type="range" min="12" max="120" step="6" value={advancedLyricConfig.starDensity ?? 42} onChange={(e)=>updateImmersive({starDensity:Number(e.target.value)})}/></SettingRow>
-            <SettingRow label={`星点速度：${Number(advancedLyricConfig.starSpeed ?? 1).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.2" max="3" step="0.1" value={advancedLyricConfig.starSpeed ?? 1} onChange={(e)=>updateImmersive({starSpeed:Number(e.target.value)})}/></SettingRow>
-            <SettingRow label={`景深强度：${Number(advancedLyricConfig.starDepth ?? 1).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.starDepth ?? 1} onChange={(e)=>updateImmersive({starDepth:Number(e.target.value)})}/></SettingRow>
-            <SettingRow label="星轨显示翻译"><Toggle checked={advancedLyricConfig.starShowTranslation !== false} onChange={(v)=>updateImmersive({starShowTranslation:v})}/></SettingRow>
-          </>}
           {advancedLyricConfig.lyricsMode === 'filmstrip' && <>
             <SettingRow label={`胶片帧间距：${advancedLyricConfig.filmFrameGap ?? 18}px`} hint="控制上下歌词胶片帧的距离"><input className="setting-slider" type="range" min="8" max="48" step="2" value={advancedLyricConfig.filmFrameGap ?? 18} onChange={(e)=>updateImmersive({filmFrameGap:Number(e.target.value)})}/></SettingRow>
             <SettingRow label={`非当前帧透明度：${Math.round((advancedLyricConfig.filmOpacity ?? 0.22) * 100)}%`}><input className="setting-slider" type="range" min="0.05" max="0.5" step="0.05" value={advancedLyricConfig.filmOpacity ?? 0.22} onChange={(e)=>updateImmersive({filmOpacity:Number(e.target.value)})}/></SettingRow>
             <SettingRow label={`当前帧放大：${Math.round((advancedLyricConfig.filmActiveScale ?? 1.08) * 100)}%`}><input className="setting-slider" type="range" min="1" max="1.2" step="0.01" value={advancedLyricConfig.filmActiveScale ?? 1.08} onChange={(e)=>updateImmersive({filmActiveScale:Number(e.target.value)})}/></SettingRow>
             <SettingRow label="胶片模式显示翻译"><Toggle checked={advancedLyricConfig.filmShowTranslation !== false} onChange={(v)=>updateImmersive({filmShowTranslation:v})}/></SettingRow>
           </>}
-          {advancedLyricConfig.lyricsMode === 'inkflow' && <>
-            <SettingRow label={`水墨扩散强度：${Number(advancedLyricConfig.inkSpread ?? 1).toFixed(1)}x`} hint="控制背景墨迹的柔化与扩散范围"><input className="setting-slider" type="range" min="0.4" max="2" step="0.1" value={advancedLyricConfig.inkSpread ?? 1} onChange={(e)=>updateImmersive({inkSpread:Number(e.target.value)})}/></SettingRow>
-            <SettingRow label={`水墨透明度：${Math.round((advancedLyricConfig.inkOpacity ?? 0.45) * 100)}%`}><input className="setting-slider" type="range" min="0.1" max="0.8" step="0.05" value={advancedLyricConfig.inkOpacity ?? 0.45} onChange={(e)=>updateImmersive({inkOpacity:Number(e.target.value)})}/></SettingRow>
-            <SettingRow label={`水墨流动速度：${Number(advancedLyricConfig.inkSpeed ?? 1).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.2" max="2.5" step="0.1" value={advancedLyricConfig.inkSpeed ?? 1} onChange={(e)=>updateImmersive({inkSpeed:Number(e.target.value)})}/></SettingRow>
-            <SettingRow label="水墨模式显示翻译"><Toggle checked={advancedLyricConfig.inkShowTranslation !== false} onChange={(v)=>updateImmersive({inkShowTranslation:v})}/></SettingRow>
-          </>}
+          {/* 聚光灯舞台 / 星轨模式已停用。
           {advancedLyricConfig.lyricsMode === 'spotlight' && <>
             <SettingRow label={`聚光灯行间距：${advancedLyricConfig.spotlightLineGap ?? 26}px`} hint="控制当前句上下的呼吸空间"><input className="setting-slider" type="range" min="8" max="64" step="2" value={advancedLyricConfig.spotlightLineGap ?? 26} onChange={(e)=>updateImmersive({spotlightLineGap:Number(e.target.value)})}/></SettingRow>
             <SettingRow label={`非当前句透明度：${Math.round((advancedLyricConfig.spotlightDimOpacity ?? 0.18) * 100)}%`}><input className="setting-slider" type="range" min="0.05" max="0.5" step="0.05" value={advancedLyricConfig.spotlightDimOpacity ?? 0.18} onChange={(e)=>updateImmersive({spotlightDimOpacity:Number(e.target.value)})}/></SettingRow>
@@ -220,6 +209,7 @@ export default function Settings() {
             <SettingRow label="聚光灯逐字高亮"><Toggle checked={advancedLyricConfig.spotlightShowGlow !== false} onChange={(v)=>updateImmersive({spotlightShowGlow:v})}/></SettingRow>
             <SettingRow label="聚光灯显示翻译"><Toggle checked={advancedLyricConfig.spotlightShowTranslation !== false} onChange={(v)=>updateImmersive({spotlightShowTranslation:v})}/></SettingRow>
           </>}
+          */}
         </div>
       </div>
       <div className="settings-section">

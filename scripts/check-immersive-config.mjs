@@ -40,10 +40,10 @@ const lyricClockSource = fs.readFileSync(new URL('../src/utils/lyricClock.js', i
 const wordSweepSource = fs.readFileSync(new URL('../src/components/lyrics/MonetWordSweep.jsx', import.meta.url), 'utf8');
 const audioOverlaySource = fs.readFileSync(new URL('../src/components/lyrics/MonetAudioOverlay.jsx', import.meta.url), 'utf8');
 const posterSource = fs.readFileSync(new URL('../src/components/lyrics/MonetPosterLayout.jsx', import.meta.url), 'utf8');
-const starfieldSource = fs.readFileSync(new URL('../src/components/lyrics/StarfieldLyrics.jsx', import.meta.url), 'utf8');
+// const starfieldSource = fs.readFileSync(new URL('../src/components/lyrics/StarfieldLyrics.jsx', import.meta.url), 'utf8');
 const filmstripSource = fs.readFileSync(new URL('../src/components/lyrics/FilmStripLyrics.jsx', import.meta.url), 'utf8');
-const inkflowSource = fs.readFileSync(new URL('../src/components/lyrics/InkFlowLyrics.jsx', import.meta.url), 'utf8');
-const spotlightSource = fs.readFileSync(new URL('../src/components/lyrics/SpotlightLyrics.jsx', import.meta.url), 'utf8');
+// const inkflowSource = fs.readFileSync(new URL('../src/components/lyrics/InkFlowLyrics.jsx', import.meta.url), 'utf8');
+// const spotlightSource = fs.readFileSync(new URL('../src/components/lyrics/SpotlightLyrics.jsx', import.meta.url), 'utf8');
 const railSource = fs.readFileSync(new URL('../src/components/lyrics/MonetLyricsRail.jsx', import.meta.url), 'utf8');
 const appContextSource = fs.readFileSync(new URL('../src/context/AppContext.jsx', import.meta.url), 'utf8');
 const spatialSourceUsesContext = fs.readFileSync(new URL('../src/components/lyrics/SpatialCanvasLyrics.jsx', import.meta.url), 'utf8');
@@ -172,10 +172,7 @@ for (const marker of ['idleTimer', 'idleCleared', 'configuredVisualizerStyle ===
 }
 if (!posterSource.includes('React.memo(MonetPosterLayout)')) fail('poster layout must be memoized against progress-only renders');
 for (const [name, source, marker] of [
-  ['starfield line', starfieldSource, 'const StarLine = React.memo'],
-  ['filmstrip line', filmstripSource, 'const FilmLine = React.memo'],
-  ['inkflow line', inkflowSource, 'const InkLine = React.memo'],
-  ['spotlight line', spotlightSource, 'const StageLine = React.memo']
+  ['filmstrip line', filmstripSource, 'const FilmLine = React.memo']
 ]) {
   if (!source.includes(marker)) fail(`${name} should be memoized`);
 }
