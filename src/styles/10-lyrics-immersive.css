@@ -83,3 +83,25 @@
 .lyrics-open:has(.kpv-stage) #player-bar #progress-fill {
   background: linear-gradient(90deg, #fff, var(--primary, #ff6b9a)) !important;
 }
+
+/* 3. Queue sidebar and overlay rules during immersive lyrics */
+.lyrics-open .modern-queue-overlay {
+  z-index: 1999 !important;
+}
+
+.lyrics-open .modern-queue-sidebar {
+  display: flex !important;
+  pointer-events: auto !important;
+  transform: translateX(0) !important;
+  opacity: 1 !important;
+  top: 24px !important;
+  bottom: 24px !important;
+  height: calc(100vh - 48px) !important;
+  z-index: 2000 !important;
+  background: rgba(18, 19, 26, 0.94) !important;
+  backdrop-filter: blur(28px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.14) !important;
+  box-shadow: -14px 0 44px rgba(0, 0, 0, 0.65) !important;
+}
+

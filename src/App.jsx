@@ -527,10 +527,7 @@ function AppContent() {
           />
         )}
         {layoutMode === 'modern' && <ModernPlayerBar onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)} lyrics={lyrics} playbackLocked={playbackLocked} />}
-        
-        {layoutMode === 'modern' && (
-          <MiniQueuePopover isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
-        )}
+
 
         <ListenInvitePrompt
           invite={listenInvite}
@@ -1290,6 +1287,9 @@ function AppContent() {
                 </div>
               </div>
             )}
+        {layoutMode === 'modern' && (
+          <MiniQueuePopover isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
+        )}
         <ClosePromptModal />
         <AnimatePresence>
           {updateInfo?.show && (

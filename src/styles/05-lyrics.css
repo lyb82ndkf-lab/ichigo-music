@@ -83,7 +83,8 @@
 .lyrics-open .main-header,
 .lyrics-open .view-scroll-container,
 .lyrics-open .sidebar,
-.lyrics-open aside {
+.lyrics-open .app-sidebar,
+.lyrics-open aside:not(.modern-queue-sidebar) {
   display: none !important;
   pointer-events: none !important;
 }

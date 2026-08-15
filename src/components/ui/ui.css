@@ -805,20 +805,9 @@ body.reduced-motion .ui-skeleton {
 .app-update-progress i { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .2s ease; }
 
 .layout-modern .modern-queue-overlay { border: 0; }
-.layout-modern .modern-queue-sidebar { display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); color: var(--text-main); background: var(--overlay-bg); border-left: 1px solid var(--card-border); }
-.layout-modern .modern-queue-header { display: flex; align-items: center; justify-content: space-between; padding-bottom: var(--space-3); border-bottom: 1px solid var(--divider-color); }
-.layout-modern .modern-queue-header > div { display: grid; gap: 2px; }
-.layout-modern .modern-queue-header span { font-size: var(--text-lg); font-weight: 700; }
-.layout-modern .modern-queue-header small { color: var(--text-muted); font-size: var(--text-xs); }
 .layout-modern .modern-queue-scroll { flex: 1; min-height: 0; }
 .layout-modern .queue-list-container { display: grid; gap: var(--space-2); padding-right: var(--space-1); }
-.layout-modern .modern-queue-item { width: 100%; border: 1px solid transparent; text-align: left; color: var(--text-main); }
-.layout-modern .modern-queue-item.now { color: var(--primary); border-color: var(--primary-glow); background: var(--primary-subtle); }
 .layout-modern .queue-cover { flex: 0 0 40px; width: 40px; height: 40px; border-radius: var(--radius-sm); background: var(--surface-bg) center / cover no-repeat; }
-.layout-modern .queue-info { display: grid; min-width: 0; gap: 3px; }
-.layout-modern .queue-name, .layout-modern .queue-artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.layout-modern .queue-name { color: var(--text-main); font-size: var(--text-sm); }
-.layout-modern .queue-artist { color: var(--text-muted); font-size: var(--text-xs); }
 
 /* Appearance profile: low-cost glass / flat surface switch. */
 body.surface-flat .modern-glass-panel,
