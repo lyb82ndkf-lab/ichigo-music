@@ -138,16 +138,18 @@ const startAudioProxy = () => {
             ...(contentLength ? { 'Content-Length': contentLength } : {}),
             ...(contentRange ? { 'Content-Range': contentRange } : {})
           });
-          const reader = remote.body?.getReader?.();
-          if (!reader) { res.end(); return; }
-          try {
-            for (;;) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              res.write(Buffer.from(value));
-            }
-          } catch {}
-          res.end();
+          if (remote.body) {
+            const nodeStream = Readable.fromWeb(remote.body);
+            req.on('close', () => {
+              try { nodeStream.destroy(); } catch {}
+            });
+            nodeStream.on('error', () => {
+              try { res.end(); } catch {}
+            });
+            nodeStream.pipe(res);
+          } else {
+            res.end();
+          }
           return;
         }
 
@@ -551,6 +553,9 @@ if (perfConfig && perfConfig.hardwareAcceleration === false) {
   app.commandLine.appendSwitch('enable-oop-rasterization');
   app.commandLine.appendSwitch('force-gpu-rasterization');
   app.commandLine.appendSwitch('ignore-gpu-blocklist');
+  app.commandLine.appendSwitch('disable-renderer-backgrounding');
+  app.commandLine.appendSwitch('disable-background-timer-throttling');
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 }
 
 // Load position

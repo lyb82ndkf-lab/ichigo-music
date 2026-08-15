@@ -39,7 +39,8 @@
 .lyrics-open .lyrics-immersive-hover-sensor:hover ~ #player-bar,
 .lyrics-open #player-bar:hover,
 .lyrics-open #player-bar:focus-within,
-.lyrics-open #player-bar[data-volume-open="true"] {
+.lyrics-open #player-bar[data-volume-open="true"],
+.lyrics-open #player-bar[data-queue-open="true"] {
   transform: translateX(-50%) translateY(0) scale(1) !important;
   opacity: 0.95 !important;
   pointer-events: auto !important;

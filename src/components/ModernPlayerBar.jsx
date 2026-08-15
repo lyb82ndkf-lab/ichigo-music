@@ -1,4 +1,4 @@
-﻿import React, { useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import CachedCover from './CachedCover';
 import {
@@ -41,6 +41,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
   const volumePointerInsideRef = useRef(false);
   const volumeFocusInsideRef = useRef(false);
   const volumePointerActiveRef = useRef(false);
+  const previewRafRef = useRef(null);
   const effectiveDuration = duration > 0 ? duration : Number(currentSong?.durationMs || currentSong?.dt || 0) / 1000;
   const progressPercent = effectiveDuration ? Math.max(0, Math.min(100, (progress / effectiveDuration) * 100)) : 0;
   const isLiked = currentSong ? likedSongIds.has(currentSong.id) : false;
@@ -77,6 +78,22 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
       text: line.text || '', translation: line.translation || '', start, end,
       lineProgress: Math.max(0, Math.min(1, (targetTime - start) / Math.max(0.2, end - start)))
     };
+  };
+
+  const handleProgressPointerMove = (clientX) => {
+    if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
+    previewRafRef.current = requestAnimationFrame(() => {
+      setProgressPreview(getLyricPreview(clientX));
+      if (isSeeking) seekFromClientX(clientX);
+    });
+  };
+
+  const handleProgressPointerLeave = () => {
+    if (previewRafRef.current) {
+      cancelAnimationFrame(previewRafRef.current);
+      previewRafRef.current = null;
+    }
+    if (!isSeeking) setProgressPreview(null);
   };
 
   const clearVolumeCloseTimer = () => {
@@ -125,7 +142,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
 
   return (
     <TooltipProvider>
-      <div id="player-bar" className={`ui-modern-player ${currentSong ? 'visible' : ''}`} data-volume-open={volumePopoverOpen ? 'true' : 'false'}>
+      <div id="player-bar" className={`ui-modern-player ${currentSong ? 'visible' : ''}`} data-volume-open={volumePopoverOpen ? 'true' : 'false'} data-queue-open={isQueueOpen ? 'true' : 'false'}>
         <div id="player-controls">
           <div className="modern-player-track">
             <CachedCover song={currentSong} alt={currentSong?.name || '专辑封面'} className="control-cover" onClick={() => { setIsQueueOpen(false); onToggleLyrics?.(); }} />
@@ -193,9 +210,9 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
 
         <div id="progress-bar" className={isSeeking ? 'seeking' : ''} ref={progressRef}
           onPointerDown={(event) => { if (playbackLocked) return; event.preventDefault(); setIsSeeking(true); event.currentTarget.setPointerCapture?.(event.pointerId); setProgressPreview(getLyricPreview(event.clientX)); seekFromClientX(event.clientX); }}
-          onPointerMove={(event) => { setProgressPreview(getLyricPreview(event.clientX)); if (isSeeking) seekFromClientX(event.clientX); }}
+          onPointerMove={(event) => handleProgressPointerMove(event.clientX)}
           onPointerUp={(event) => { setIsSeeking(false); event.currentTarget.releasePointerCapture?.(event.pointerId); }}
-          onPointerCancel={() => setIsSeeking(false)} onPointerLeave={() => !isSeeking && setProgressPreview(null)}>
+          onPointerCancel={() => setIsSeeking(false)} onPointerLeave={handleProgressPointerLeave}>
           {progressPreview && <div className="progress-lyric-preview" style={{ left: `${progressPreview.x}px` }}><div className="progress-preview-count">{progressPreview.index + 1} / {progressPreview.total}</div><div className="progress-preview-text">{progressPreview.text}</div>{progressPreview.translation && <div className="progress-preview-translation">{progressPreview.translation}</div>}<div className="progress-preview-line"><span>{formatTime(progressPreview.start)}</span><div className="progress-preview-meter"><i style={{ width: `${progressPreview.lineProgress * 100}%` }} /></div><span>{formatTime(progressPreview.end)}</span></div></div>}
           <div id="progress-fill" style={{ transform: `scaleX(${progressPercent / 100})` }} /><div id="progress-thumb" style={{ left: `${progressPercent}%` }} />
         </div>

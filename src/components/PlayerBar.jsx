@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import CachedCover from './CachedCover';
 import {
@@ -50,6 +50,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
   const [showQualityMenu, setShowQualityMenu] = useState(false);
   const [progressPreview, setProgressPreview] = useState(null);
   const [queueVisibleCount, setQueueVisibleCount] = useState(100);
+  const previewRafRef = useRef(null);
 
   React.useEffect(() => {
     if (!showQueue) return undefined;
@@ -86,30 +87,42 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
       return;
     }
     const rect = e.currentTarget.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    const targetTime = percent * effectiveDuration;
-    let index = -1;
-    for (let i = lyrics.length - 1; i >= 0; i -= 1) {
-      if (targetTime >= Number(lyrics[i].time || 0)) {
-        index = i;
-        break;
+    const clientX = e.clientX;
+    if (previewRafRef.current) cancelAnimationFrame(previewRafRef.current);
+    previewRafRef.current = requestAnimationFrame(() => {
+      const percent = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const targetTime = percent * effectiveDuration;
+      let index = -1;
+      for (let i = lyrics.length - 1; i >= 0; i -= 1) {
+        if (targetTime >= Number(lyrics[i].time || 0)) {
+          index = i;
+          break;
+        }
       }
-    }
-    if (index < 0) index = 0;
-    const line = lyrics[index];
-    const start = Number(line?.time || 0);
-    const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : effectiveDuration;
-    const end = Math.max(start + 0.2, Math.min(effectiveDuration || nextStart, nextStart || (start + Number(line?.duration || 5))));
-    setProgressPreview({
-      x: Math.max(120, Math.min(rect.width - 120, e.clientX - rect.left)),
-      index,
-      total: lyrics.length,
-      text: line?.text || '',
-      translation: line?.translation || '',
-      start,
-      end,
-      lineProgress: Math.max(0, Math.min(1, (targetTime - start) / Math.max(0.2, end - start)))
+      if (index < 0) index = 0;
+      const line = lyrics[index];
+      const start = Number(line?.time || 0);
+      const nextStart = lyrics[index + 1] ? Number(lyrics[index + 1].time || 0) : effectiveDuration;
+      const end = Math.max(start + 0.2, Math.min(effectiveDuration || nextStart, nextStart || (start + Number(line?.duration || 5))));
+      setProgressPreview({
+        x: Math.max(120, Math.min(rect.width - 120, clientX - rect.left)),
+        index,
+        total: lyrics.length,
+        text: line?.text || '',
+        translation: line?.translation || '',
+        start,
+        end,
+        lineProgress: Math.max(0, Math.min(1, (targetTime - start) / Math.max(0.2, end - start)))
+      });
     });
+  };
+
+  const handleProgressLeave = () => {
+    if (previewRafRef.current) {
+      cancelAnimationFrame(previewRafRef.current);
+      previewRafRef.current = null;
+    }
+    setProgressPreview(null);
   };
 
   const handleVolumeToggle = () => {
@@ -250,7 +263,7 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
           <div
             className="progress-slider"
             onMouseMove={updateProgressPreview}
-            onMouseLeave={() => setProgressPreview(null)}
+            onMouseLeave={handleProgressLeave}
           >
             {progressPreview && (
               <div className="progress-lyric-preview" style={{ left: `${progressPreview.x}px` }}>

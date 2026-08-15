@@ -1,4 +1,4 @@
-﻿import React, { Suspense, lazy, useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { Suspense, lazy, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { AppProvider, useApp, APP_VERSION } from './context/AppContext';
 import { AnimatePresence } from 'framer-motion';
 import ClosePromptModal from './components/ClosePromptModal';
@@ -528,7 +528,7 @@ function AppContent() {
         )}
         {layoutMode === 'modern' && <ModernPlayerBar onToggleLyrics={() => setIsLyricsOpen(!isLyricsOpen)} lyrics={lyrics} playbackLocked={playbackLocked} />}
         
-        {!isLyricsOpen && layoutMode === 'modern' && (
+        {layoutMode === 'modern' && (
           <MiniQueuePopover isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
         )}
 

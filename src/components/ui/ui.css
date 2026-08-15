@@ -553,13 +553,254 @@ body.reduced-motion .ui-skeleton {
 }
 
 /* App prompt and queue implementations now share the primitive surface. */
-.app-prompt-modal { width: min(440px, calc(100vw - 32px)); }
-.app-prompt-actions { padding-top: var(--space-2); }
-.app-prompt-preference { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding-top: var(--space-2); color: var(--text-muted); font-size: var(--text-sm); }
-.app-prompt-status-icon { display: inline-grid; place-items: center; color: var(--primary); }
-.app-update-notes { max-height: 132px; margin: 0; padding: var(--space-3); overflow: auto; border-radius: var(--radius-sm); background: var(--surface-bg); color: var(--text-muted); font: 500 var(--text-xs)/1.6 var(--font-body); white-space: pre-wrap; }
-.app-update-error { margin: 0; color: #f87171; font-size: var(--text-sm); }
-.app-update-progress { display: grid; gap: var(--space-2); color: var(--text-muted); font-size: var(--text-xs); text-align: center; }
+.app-prompt-modal {
+  width: min(460px, calc(100vw - 32px)) !important;
+  border-radius: 20px !important;
+  padding: 24px 28px !important;
+  background: var(--overlay-bg, rgba(24, 25, 32, 0.92)) !important;
+  backdrop-filter: blur(28px) saturate(1.4) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(1.4) !important;
+  border: 1px solid var(--card-border, rgba(255, 255, 255, 0.12)) !important;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
+}
+
+.mode-light .app-prompt-modal {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.app-prompt-header-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 6px;
+  width: 100%;
+}
+
+.app-prompt-icon-badge {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.app-prompt-icon-badge.close-badge {
+  background: linear-gradient(135deg, rgba(var(--primary-rgb, 255, 64, 129), 0.22), rgba(var(--primary-rgb, 255, 64, 129), 0.08));
+  border: 1px solid rgba(var(--primary-rgb, 255, 64, 129), 0.32);
+  color: var(--primary);
+  box-shadow: 0 0 16px var(--primary-glow);
+}
+
+.app-prompt-icon-badge.update-badge {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(147, 51, 234, 0.15));
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #60a5fa;
+  box-shadow: 0 0 16px rgba(59, 130, 246, 0.25);
+}
+
+.app-prompt-icon-badge.update-badge.downloaded {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.15));
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #34d399;
+  box-shadow: 0 0 16px rgba(16, 185, 129, 0.25);
+}
+
+.app-prompt-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.app-prompt-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.app-version-pill {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: var(--primary-subtle);
+  color: var(--primary);
+  border: 1px solid var(--primary-glow);
+}
+
+.app-prompt-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  margin-bottom: 4px;
+}
+
+.app-prompt-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--text-main);
+  outline: none;
+}
+
+.mode-light .app-prompt-card {
+  background: rgba(0, 0, 0, 0.025);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.app-prompt-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.mode-light .app-prompt-card:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.app-prompt-card.danger:hover {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.08);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.15);
+}
+
+.app-prompt-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.app-prompt-card-icon.tray-icon {
+  background: rgba(var(--primary-rgb, 255, 64, 129), 0.15);
+  color: var(--primary);
+}
+
+.app-prompt-card-icon.power-icon {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.app-prompt-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.app-prompt-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin-bottom: 2px;
+}
+
+.app-prompt-card-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.app-prompt-preference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 4px 2px;
+  color: var(--text-muted);
+  font-size: 12px;
+  user-select: none;
+}
+
+.app-prompt-preference label {
+  cursor: pointer;
+}
+
+.app-prompt-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--divider-color, rgba(255, 255, 255, 0.08));
+}
+
+.app-prompt-cancel-btn {
+  padding: 6px 16px !important;
+  border-radius: 10px !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+  transition: all 0.18s ease !important;
+}
+
+.app-prompt-cancel-btn:hover {
+  color: var(--text-main) !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.mode-light .app-prompt-cancel-btn:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+.app-prompt-confirm-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  padding: 8px 18px !important;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+}
+
+.app-update-notes-container {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.app-update-notes-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.app-update-notes {
+  max-height: 130px;
+  margin: 0;
+  padding: 10px 12px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+  font: 500 12px/1.6 var(--font-body);
+  white-space: pre-wrap;
+}
+
+.mode-light .app-update-notes {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.app-update-error { margin: 6px 0 0; color: #f87171; font-size: var(--text-sm); }
+.app-update-progress { display: grid; gap: var(--space-2); margin-top: 10px; color: var(--text-muted); font-size: var(--text-xs); text-align: center; }
 .app-update-progress > div { height: 6px; overflow: hidden; border-radius: var(--radius-pill); background: var(--glass-bg-strong); }
 .app-update-progress i { display: block; height: 100%; border-radius: inherit; background: var(--primary); transition: width .2s ease; }
 
@@ -571,12 +812,12 @@ body.reduced-motion .ui-skeleton {
 .layout-modern .modern-queue-header small { color: var(--text-muted); font-size: var(--text-xs); }
 .layout-modern .modern-queue-scroll { flex: 1; min-height: 0; }
 .layout-modern .queue-list-container { display: grid; gap: var(--space-2); padding-right: var(--space-1); }
-.layout-modern .modern-queue-item { width: 100%; border: 1px solid transparent; text-align: left; }
+.layout-modern .modern-queue-item { width: 100%; border: 1px solid transparent; text-align: left; color: var(--text-main); }
 .layout-modern .modern-queue-item.now { color: var(--primary); border-color: var(--primary-glow); background: var(--primary-subtle); }
 .layout-modern .queue-cover { flex: 0 0 40px; width: 40px; height: 40px; border-radius: var(--radius-sm); background: var(--surface-bg) center / cover no-repeat; }
 .layout-modern .queue-info { display: grid; min-width: 0; gap: 3px; }
 .layout-modern .queue-name, .layout-modern .queue-artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.layout-modern .queue-name { color: inherit; font-size: var(--text-sm); }
+.layout-modern .queue-name { color: var(--text-main); font-size: var(--text-sm); }
 .layout-modern .queue-artist { color: var(--text-muted); font-size: var(--text-xs); }
 
 /* Appearance profile: low-cost glass / flat surface switch. */

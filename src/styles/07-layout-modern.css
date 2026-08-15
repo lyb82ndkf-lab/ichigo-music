@@ -822,9 +822,7 @@
   width: 58px; height: 58px;
   border-radius: 50%;
   border: 0;
-  background: rgba(0, 0, 0, 0.10);
-  backdrop-filter: blur(12px) saturate(1.8) brightness(1.16);
-  -webkit-backdrop-filter: blur(12px) saturate(1.8) brightness(1.16);
+  background: rgba(0, 0, 0, 0.18);
   box-shadow:
     inset 0 0 2px 1px rgba(255, 255, 255, 0.34),
     inset 0 0 10px 4px rgba(255, 255, 255, 0.13),
@@ -832,12 +830,13 @@
   color: rgba(255, 255, 255, 0.96);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
+  transform: translateZ(0);
   transition: transform 0.20s cubic-bezier(0.16, 1, 0.3, 1), background 0.20s, box-shadow 0.20s;
 }
 
 .layout-modern .play-btn:hover {
-  background: rgba(255, 255, 255, 0.055);
-  transform: translateY(-1px) scale(1.012);
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px) scale(1.012) translateZ(0);
   box-shadow:
     inset 0 0 2px 1px rgba(255, 255, 255, 0.42),
     inset 0 0 12px 5px rgba(255, 255, 255, 0.17),
@@ -846,7 +845,7 @@
 }
 
 .layout-modern .play-btn:active {
-  transform: translateY(0) scale(0.965);
+  transform: translateY(0) scale(0.965) translateZ(0);
   box-shadow:
     inset 0 0 2px 1px rgba(255, 255, 255, 0.28),
     inset 0 0 10px 4px rgba(255, 255, 255, 0.10),
@@ -1128,12 +1127,15 @@
 .layout-modern .modern-queue-sidebar {
   position: fixed; right: 0; top: 56px; bottom: 84px; width: 340px;
   box-sizing: border-box;
-  background: rgba(20, 20, 25, 0.75); backdrop-filter: blur(24px);
+  background: var(--overlay-bg, rgba(20, 20, 25, 0.88));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border-radius: 20px 0 0 20px;
-  border-left: 1px solid rgba(255,255,255,0.1);
+  border-left: 1px solid var(--card-border, rgba(255,255,255,0.1));
   box-shadow: -10px 0 30px rgba(0,0,0,0.5);
   z-index: 2000;
   display: flex; flex-direction: column; padding: 20px;
+  color: var(--text-main, #fff);
   transform: translateX(110%);
   opacity: 0;
   pointer-events: none;
@@ -1145,13 +1147,60 @@
   pointer-events: auto;
 }
 
+.layout-modern .modern-queue-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 12px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--divider-color, rgba(255,255,255,0.1));
+  color: var(--text-main, #fff);
+}
+.layout-modern .modern-queue-header span {
+  font-size: 16px; font-weight: 700;
+  color: var(--text-main, #fff);
+}
+.layout-modern .modern-queue-header small {
+  font-size: 12px;
+  color: var(--text-muted, rgba(255,255,255,0.6));
+  margin-left: 8px;
+}
+
 .layout-modern .modern-queue-item {
-  display: flex; align-items: center; gap: 12px; padding: 8px;
+  display: flex; align-items: center; gap: 12px; padding: 8px 10px;
   border-radius: 12px; cursor: pointer; transition: all 0.2s;
   background: rgba(255,255,255,0.02);
+  border: 1px solid transparent;
+  color: var(--text-main, #fff);
+  text-align: left;
+  width: 100%;
 }
-.layout-modern .modern-queue-item:hover { background: rgba(255,255,255,0.08); }
-.layout-modern .modern-queue-item.now { background: rgba(var(--primary-rgb, 255, 64, 129), 0.2); border: 1px solid rgba(255,255,255,0.1); }
+.layout-modern .modern-queue-item:hover {
+  background: rgba(255,255,255,0.08);
+}
+.layout-modern .modern-queue-item.now {
+  background: var(--primary-subtle, rgba(var(--primary-rgb, 255, 64, 129), 0.2));
+  border: 1px solid var(--primary-glow, rgba(255,255,255,0.1));
+  color: var(--primary);
+}
+.layout-modern .modern-queue-item .queue-info {
+  display: grid; min-width: 0; gap: 3px; flex: 1;
+}
+.layout-modern .modern-queue-item .queue-name {
+  color: var(--text-main, #fff);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.layout-modern .modern-queue-item.now .queue-name {
+  color: var(--primary);
+}
+.layout-modern .modern-queue-item .queue-artist {
+  color: var(--text-muted, rgba(255,255,255,0.6));
+  font-size: 11px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.layout-modern .modern-queue-item.now .queue-artist {
+  color: var(--primary);
+  opacity: 0.85;
+}
 
 /* Remove old popover CSS just in case */
 .layout-modern .modern-mini-queue-popover { display: none; }

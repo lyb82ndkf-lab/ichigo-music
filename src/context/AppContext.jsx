@@ -1,13 +1,15 @@
-﻿import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
 import { api } from '../utils/api';
 import { DEFAULT_PROFILE, deepMerge, loadProfile, saveProfile } from '../utils/settingsProfile';
 import { extractWarmColdColors } from '../utils/colorExtractor';
 import { isLegacyFileMediaSource, isLocalMediaSource } from '../utils/audioSource';
 import { getPersistentSongCoverUrl, getSongCoverUrl, isLocalCoverUrl, isRemoteCoverUrl } from '../utils/songCover';
 
+import pkg from '../../package.json';
+
 const AppContext = createContext();
 
-export const APP_VERSION = 'v1.8.4';
+export const APP_VERSION = `v${pkg.version || '1.8.6'}`;
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 

@@ -172,3 +172,26 @@
   box-shadow: none !important;
 }
 
+
+/* 7. Modern Queue Sidebar in light mode */
+.mode-light.layout-modern .modern-queue-sidebar {
+  background: rgba(255, 255, 255, 0.94) !important;
+  border-left: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.12) !important;
+  color: var(--text-main) !important;
+}
+.mode-light.layout-modern .modern-queue-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: var(--text-main) !important;
+}
+.mode-light.layout-modern .modern-queue-item {
+  background: rgba(0, 0, 0, 0.02) !important;
+  color: var(--text-main) !important;
+}
+.mode-light.layout-modern .modern-queue-item:hover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+.mode-light.layout-modern .modern-queue-item.now {
+  background: var(--primary-subtle) !important;
+  color: var(--primary) !important;
+}
