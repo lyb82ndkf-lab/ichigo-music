@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import CachedCover from './CachedCover';
 import {
   Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1,
-  ListMusic, Volume2, VolumeX, MonitorSpeaker
+  HeartPulse, ListMusic, Volume2, VolumeX, MonitorSpeaker
 } from 'lucide-react';
 import {
   Button, IconButton, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -137,8 +137,12 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
       clearVolumeCloseTimer();
     };
   }, []);
-  const handlePlayMode = () => setPlayMode(playMode === 'sequence' ? 'random' : playMode === 'random' ? 'single' : 'sequence');
-  const modeIcon = playMode === 'random' ? <Shuffle size={18} /> : playMode === 'single' ? <Repeat1 size={18} /> : <Repeat size={18} />;
+  const handlePlayMode = () => {
+    const nextMode = playMode === 'sequence' ? 'random' : playMode === 'random' ? 'single' : playMode === 'single' ? 'heart' : 'sequence';
+    setPlayMode(nextMode);
+  };
+  const modeIcon = playMode === 'random' ? <Shuffle size={18} /> : playMode === 'single' ? <Repeat1 size={18} /> : playMode === 'heart' ? <HeartPulse size={18} className="heart-mode-icon" /> : <Repeat size={18} />;
+  const modeLabel = playMode === 'random' ? '随机播放' : playMode === 'single' ? '单曲循环' : playMode === 'heart' ? '心动模式 (根据喜好智能推荐)' : '列表循环';
 
   return (
     <TooltipProvider>
@@ -160,7 +164,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
 
           <div className="modern-player-actions">
             <span className="modern-player-time">{formatTime(progress)} / {formatTime(effectiveDuration)}</span>
-            <Tooltip content="播放模式"><IconButton className="ctrl-btn" label="播放模式" onClick={handlePlayMode} disabled={playbackLocked}>{modeIcon}</IconButton></Tooltip>
+            <Tooltip content={modeLabel}><IconButton className={`ctrl-btn ${playMode === 'heart' ? 'is-heart-mode active' : ''}`} label={modeLabel} onClick={handlePlayMode} disabled={playbackLocked}>{modeIcon}</IconButton></Tooltip>
             <Tooltip content={isLiked ? '取消喜欢' : '喜欢'}><IconButton className={`ctrl-btn ${isLiked ? 'is-liked' : ''}`} label={isLiked ? '取消喜欢' : '喜欢'} onClick={() => currentSong && toggleLike(currentSong.id)} disabled={!currentSong}><Heart size={18} fill={isLiked ? 'currentColor' : 'none'} /></IconButton></Tooltip>
             <DropdownMenu open={playbackLocked ? false : undefined}>
               <DropdownMenuTrigger asChild><Button className="modern-quality-trigger" variant="outline" size="sm" disabled={playbackLocked} aria-label="切换音质">{quality.shortLabel}</Button></DropdownMenuTrigger>

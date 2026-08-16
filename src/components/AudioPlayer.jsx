@@ -54,13 +54,9 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   // proxy fails we fall back to this URL so playback is never blocked by the
   // visualizer layer.
   const rawSourceRef = useRef('');
-  // One report is emitted at the end of a listening session.  The old code
-  // reported at 50%/30 seconds and then permanently marked the song as sent;
-  // consequently a four-minute song was recorded as only 30 seconds.
+  // One report is emitted at the end of a listening session.
   const scrobbleRef = useRef({ songId: null, lastTime: 0, reported: false, inFlight: false });
 
-  // Media events may arrive after React has committed a new track. Keep the
-  // latest intent and song metadata available to those event handlers.
   playbackIntentRef.current = isPlaying;
   currentSongRef.current = currentSong;
 
@@ -78,8 +74,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     scrobbleRef.current.lastTime = played;
     const minimum = total > 0 ? Math.min(30, Math.max(3, total * 0.1)) : 3;
     if (played < minimum || scrobbleRef.current.reported || scrobbleRef.current.inFlight) return;
-    // Do not send a partial checkpoint while playback is still running.  A
-    // pause, track switch, ended event, or app shutdown passes force=true.
     if (!force && total > 0 && played < total * 0.95) return;
 
     const sourceid = song.sourceid || song.sourceId || song.playlistId
@@ -107,13 +101,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       }
       return result;
     };
-    // The legacy endpoint is the one that emits startplay/play feedback and
-    // updates the account's recent-play list.  Fall back to the NCBL endpoint
-    // for servers where that route is unavailable.
     const markSynced = (endpoint, extra = {}) => {
-      // A queue skip can replace the shared tracker while this request is in
-      // flight.  Never let the previous song's response mark the new song as
-      // reported or overwrite its retry state.
       if (scrobbleRef.current.songId !== song.id) return;
       scrobbleRef.current.reported = true;
       appendRuntimeLog('info', 'Cloud playback record synced', {
@@ -136,8 +124,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
           assertScrobbleResponse(result);
           markSynced('/scrobble/v1', { fallback: true });
         } catch (fallbackError) {
-          // Keep the item eligible for a later retry instead of marking a
-          // failed request as reported (the previous finally() did that).
           appendRuntimeLog('warn', '云端播放记录同步失败，将在下次切歌时重试', {
             songId: song.id,
             playedSeconds: payload.time,
@@ -153,9 +139,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       });
   };
 
-  // Flush the previous track when React replaces the current song or when the
-  // audio component is torn down.  This covers window close, route changes and
-  // queue skips where Chromium may reset currentTime before dispatching pause.
   useEffect(() => {
     const songId = currentSong?.id;
     return () => {
@@ -165,7 +148,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     };
   }, [currentSong?.id]);
 
-  // Clean up global window references on unmount
   useEffect(() => {
     return () => {
       if (sourceNodeRef.current) {
@@ -185,10 +167,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (!audio || !audioSource || !playbackIntentRef.current) return;
     const requestKey = `${currentSong?.id || ''}|${audioSource}|${crossOriginMode ?? 'no-cors'}`;
     if (playPendingRef.current?.key === requestKey) return;
-    // onCanPlay, the source-sync effect and the startup watchdog can all
-    // converge on the same media element. Never issue a second play() while
-    // the first promise is still deciding; Chromium otherwise emits a noisy
-    // pause/play sequence during source stalls.
     if (!audio.paused && !audio.ended) return;
 
     appendRuntimeLog('debug', '请求播放音频', {
@@ -223,16 +201,8 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         if (playPendingRef.current?.requestId === requestId) playPendingRef.current = null;
       }).catch(error => {
         if (playPendingRef.current?.requestId === requestId) playPendingRef.current = null;
-        // load()/src changes legitimately abort older play() calls during song
-        // switches. Treat only the latest non-abort failure as a real playback
-        // failure. This prevents the app from flipping to a stuck paused/0.00
-        // state during normal source replacement.
         if (requestId !== playRequestIdRef.current) return;
         if (error?.name === 'AbortError') return;
-        // Chromium can surface a generic DOMException after a source swap or
-        // after the user has already pressed pause. The media event that
-        // follows owns the state in those cases; do not turn a stale promise
-        // rejection into a new pause/retry cycle.
         if (!playbackIntentRef.current || sourceTransitionRef.current) return;
         console.warn('Playback prevented or error occurred:', error);
         const mediaCode = audio.error?.code;
@@ -257,8 +227,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     }
   }, [volume, audioSource]);
 
-  // Sync source loading and play/pause from one place, after React has
-  // committed the <audio src/crossOrigin> attributes.
+  // Sync source loading and play/pause from one place
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !audioSource) return;
@@ -267,7 +236,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (lastLoadedKeyRef.current !== loadKey) {
       lastLoadedKeyRef.current = loadKey;
       playPendingRef.current = null;
-      playRequestIdRef.current += 1; // invalidate play() promises aborted by load()
+      playRequestIdRef.current += 1;
       sourceTransitionRef.current = true;
       audio.load();
     }
@@ -288,16 +257,10 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (urlRefreshAttemptRef.current.songId !== currentSong?.id) {
       urlRefreshAttemptRef.current = { songId: currentSong?.id || null, count: 0 };
     }
-    // 先使用已持久化的地址启动媒体元素，不要因为缓存时间过期而把
-    // src 清空。地址刷新由 AppContext 在后台完成；清空 src 会让首曲
-    // 必须等待网络请求结束，表现为封面/歌词已出现但进度条长时间为 0。
     if (currentSong?.url) {
       sourceTransitionRef.current = true;
       const isNewSong = sourceSongIdRef.current !== currentSong.id;
       sourceSongIdRef.current = currentSong.id;
-      // Stop the previous media immediately. URL/proxy resolution is async;
-      // leaving this element alive during that gap lets the old song leak
-      // through before the next source is committed.
       if (isNewSong && audioRef.current) {
         try {
           audioRef.current.pause();
@@ -308,9 +271,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       setDuration(0);
       const persistedSource = isLegacyFileMediaSource(currentSong.url) ? '' : currentSong.url;
       if (!persistedSource) {
-        // A legacy file:// URL is not loadable from the http renderer origin.
-        // Let AppContext resolve it to ichigo-cache://audio or a fresh CDN URL
-        // instead of committing a guaranteed MEDIA_ERR_SRC_NOT_SUPPORTED frame.
         lastLoadedKeyRef.current = '';
         playRequestIdRef.current += 1;
         setAudioSource('');
@@ -324,9 +284,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       }
       zeroTimeRecoveryRef.current = { key: persistedSource, attempts: 0, startedAt: Date.now() };
       rawSourceRef.current = persistedSource;
-      // Remote CDN tracks AND cached ichigo-cache:// audio are re-served through
-      // the local HTTP proxy so the media element is CORS-approved for Web Audio
-      // analysis (createMediaElementSource does not feed custom protocols).
       const canProxy = !isLegacyFileMediaSource(persistedSource) && !!window.electronAPI?.getAudioStreamUrl;
       setCrossOriginMode(canProxy ? 'anonymous' : null);
       if (!canProxy) window.ichigoAnalyser = null;
@@ -348,9 +305,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       }, 'audio');
       return () => { cancelled = true; };
     } else {
-      // Do not leave an empty src attribute on the persistent element. Chromium
-      // reports it as MEDIA_ERR_SRC_NOT_SUPPORTED, even though it is merely the
-      // short interval before AppContext resolves a restored session URL.
       lastLoadedKeyRef.current = '';
       playRequestIdRef.current += 1;
       sourceSongIdRef.current = null;
@@ -378,9 +332,9 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     };
   }, [currentSong?.id]);
 
-  // Recovery for the intermittent 0.00s startup stall: if a source is
-  // requested to play but the media clock never starts, retry once without CORS
-  // analysis and then once with a reload.
+  // Recovery for startup stalls: if requested to play but media clock never starts,
+  // first bypass the local stream proxy and fall back to raw CDN source, then reload,
+  // and finally force-refresh/unblock the song URL.
   useEffect(() => {
     if (!isPlaying || !audioSource) return undefined;
 
@@ -391,7 +345,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       const stillLoading = audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA;
       if (!stuckAtStart) return;
       const elapsed = Date.now() - (zeroTimeRecoveryRef.current.startedAt || Date.now());
-      if (stillLoading && !audio.error && elapsed < 4500) return;
+      if (stillLoading && !audio.error && elapsed < 3500) return;
 
       const key = `${audioSource}|${crossOriginMode ?? 'no-cors'}`;
       const recovery = zeroTimeRecoveryRef.current;
@@ -402,42 +356,52 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       }
 
       if (audio.paused) {
-        // Once the bounded recovery budget is exhausted, leave the media
-        // element alone. Repeated safePlay() calls here caused the visible
-        // play/pause loop reported by users when a CDN never delivered bytes.
         if (recovery.attempts >= 2) return;
         safePlay();
         return;
       }
 
-      if (recovery.attempts === 0 && crossOriginMode === 'anonymous') {
+      // Step 1: Fallback from stream proxy to direct CDN URL
+      if (recovery.attempts === 0 && (crossOriginMode === 'anonymous' || isStreamMediaSource(audioSource))) {
         recovery.attempts += 1;
         window.ichigoAnalyser = null;
         setCrossOriginMode(null);
+        if (rawSourceRef.current && audioSource !== rawSourceRef.current) {
+          appendRuntimeLog('warn', '音频流代理无响应，已自动切换为直连直出', {
+            songId: currentSong?.id || null,
+            rawSource: rawSourceRef.current.slice(0, 80)
+          }, 'audio');
+          setAudioSource(rawSourceRef.current);
+        }
         return;
       }
 
+      // Step 2: Reload and retry playback directly
       if (recovery.attempts < 2) {
         recovery.attempts += 1;
-        // audio.load() emits a native pause event even when the user's play
-        // intent is still active. Mark this as an internal source transition
-        // first, otherwise handlePause() turns the bounded recovery attempt
-        // into a user-visible play/pause loop and PV loses its clock.
         sourceTransitionRef.current = true;
         playRequestIdRef.current += 1;
         audio.load();
         safePlay();
+        return;
+      }
+
+      // Step 3: Force refresh and unblock audio source
+      if (recovery.attempts === 2 && currentSong?.id && urlRefreshAttemptRef.current.count < 1) {
+        recovery.attempts += 1;
+        urlRefreshAttemptRef.current = { songId: currentSong.id, count: urlRefreshAttemptRef.current.count + 1 };
+        appendRuntimeLog('warn', '音频长时间停滞，正在强制刷新音频地址与智能解灰', {
+          songId: currentSong.id
+        }, 'audio');
+        playSong(currentSong, null, 0, { forceRefreshUrl: true });
+        return;
       }
     }, 1200);
 
     return () => window.clearInterval(timerId);
-  }, [isPlaying, audioSource, crossOriginMode]);
+  }, [isPlaying, audioSource, crossOriginMode, playSong, currentSong]);
 
   const audioRoutingMode = isWebAudioEligibleSource(audioSource) ? 'web-audio' : 'direct';
-  // Keep direct CDN media native from the very first React commit.  Using the
-  // previous render's `anonymous` value for one frame is enough for Chromium
-  // to attach a CORS media pipeline; the timeline can still advance while the
-  // audible output is silent.  Same-origin/local media may opt into Web Audio.
   const effectiveCrossOriginMode = audioRoutingMode === 'direct'
     ? null
     : crossOriginMode;
@@ -449,10 +413,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     }
   }, [audioRoutingMode, setAudioElement]);
 
-  // A MediaElementAudioSourceNode permanently takes ownership of the media
-  // element's output. When a direct CDN track follows an analysed local or
-  // same-origin track, disconnect the old node before the direct element is
-  // allowed to play natively.
   useEffect(() => {
     if (audioRoutingMode !== 'direct') return;
     window.ichigoAnalyser = null;
@@ -479,7 +439,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         window.ichigoAudioContext = audioCtx;
       }
 
-      // Resume context if suspended
       if (audioCtx.state === 'suspended') {
         audioCtx.resume().catch(() => {});
       }
@@ -488,41 +447,37 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       if (!analyser) {
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.8;
         analyserNodeRef.current = analyser;
-      }
-      window.ichigoAnalyser = analyser;
-      window.ichigoAudioContext = audioCtx;
-
-      // If source node is already created for this audio element, reuse it, but
-      // still restore the global analyser refs. Last-session playback can reuse
-      // the media element before immersive mode mounts.
-      if (sourceNodeRef.current && sourceElementRef.current === audioRef.current) {
-        return;
+        window.ichigoAnalyser = analyser;
       }
 
+      const audio = audioRef.current;
+      if (!sourceNodeRef.current || sourceElementRef.current !== audio) {
+        if (sourceNodeRef.current) {
+          try {
+            sourceNodeRef.current.disconnect();
+          } catch (err) {}
+        }
+        const sourceNode = audioCtx.createMediaElementSource(audio);
+        sourceNode.connect(analyser);
+        analyser.connect(audioCtx.destination);
+        sourceNodeRef.current = sourceNode;
+        sourceElementRef.current = audio;
+      }
+    } catch (err) {
+      console.warn("Web Audio API not supported or CORS restricted:", err);
+      window.ichigoAnalyser = null;
       if (sourceNodeRef.current) {
         try {
           sourceNodeRef.current.disconnect();
-        } catch (err) {}
-        sourceNodeRef.current = null;
+        } catch (e) {}
       }
-
-      // Create Media Element Source node only once
-      const source = audioCtx.createMediaElementSource(audioRef.current);
-      source.connect(analyser);
-      analyser.connect(audioCtx.destination);
-
-      sourceNodeRef.current = source;
-      sourceElementRef.current = audioRef.current;
-    } catch (e) {
-      console.warn("Web Audio API analyser setup failed:", e);
+      sourceNodeRef.current = null;
+      sourceElementRef.current = null;
     }
   };
 
-  // A gesture may resume an analyser that already exists, but it must not
-  // create MediaElementSource before the audio source has proved playable.
-  // Redirecting a failed/non-CORS first source through Web Audio produces a
-  // silent media element until the whole app is restarted.
   useEffect(() => {
     const handleGesture = () => {
       const audioContext = audioContextRef.current;
@@ -540,7 +495,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     };
   }, []);
 
-  // When play starts, setup audio analyser
   const handlePlay = () => {
     playPendingRef.current = null;
     if (!playbackIntentRef.current) {
@@ -548,9 +502,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       return;
     }
     sourceTransitionRef.current = false;
-    // A pause/resume starts a new report window for the same track.  This
-    // allows a short pause checkpoint to be replaced by the later, longer
-    // duration instead of freezing the account at the first pause position.
     if (currentSong?.id) {
       if (scrobbleRef.current.songId !== currentSong.id) {
         scrobbleRef.current = {
@@ -578,8 +529,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     const songSource = currentSong?.url || '';
     const sourceChanging = sourceTransitionRef.current
       || (songSource && audioSource && songSource !== audioSource);
-    // load()/src replacement also emits pause. Do not let that stale event
-    // turn a still-playing intent off during a track transition.
     if (sourceChanging && playbackIntentRef.current) return;
     reportScrobble(audioRef.current?.currentTime || 0, true);
     appendRuntimeLog('debug', 'audio paused', {
@@ -635,14 +584,9 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (Number.isFinite(mediaDuration) && mediaDuration > 0) setDuration(mediaDuration);
   };
 
-  // If the audio source fails to load, handle CORS or skip to next song
   const handleAudioError = (e) => {
     const audio = audioRef.current;
     const attributeSource = audio?.getAttribute('src') || '';
-    // Ignore the browser's synthetic empty-source error. It is emitted while a
-    // restored session is resolving its first playable URL, not a failure of a
-    // track. Treating it as a real code-4 failure previously muted the first
-    // song until a manual next-track action replaced the element source.
     if (!attributeSource || !audioSource) {
       appendRuntimeLog('debug', '忽略音频源准备阶段的空地址事件', {
         songId: currentSong?.id || null,
@@ -663,9 +607,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     const code = audio?.error?.code;
     sourceTransitionRef.current = false;
 
-    // The local stream proxy is only a visualizer transport. If the proxied
-    // URL fails to load, fall back to the raw CDN/cache URL and play it
-    // natively so a broken proxy can never cascade into endless song skipping.
     if (code && isStreamMediaSource(audioSource) && rawSourceRef.current && rawSourceRef.current !== audioSource) {
       console.warn(`Stream proxy failed (code ${code}); falling back to direct source`);
       appendRuntimeLog('warn', '音频流代理加载失败，已回退到直连地址', {
@@ -690,8 +631,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
     if (crossOriginMode === 'anonymous' && (code === 2 || code === 3)) {
       console.warn("CORS issue detected. Retrying playback without Web Audio API analysis...");
-      // Disable CORS analysis; the unified source effect will reload and
-      // continue playback after React removes the crossOrigin attribute.
       window.ichigoAnalyser = null;
       setCrossOriginMode(null);
     } else if (code) {
@@ -701,8 +640,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
           setIsPlaying(false);
           return;
         }
-        // If it's a source not supported error, it might be an expired URL from cache.
-        // Try to refresh the URL once before skipping to the next song.
         console.log("Skipping to next song in 1.5 seconds...");
         setIsPlaying(false);
         if (!errorSkipTimerRef.current) {
@@ -762,5 +699,3 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     />
   );
 }
-
-

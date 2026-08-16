@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
-import { Play, Heart, LogIn } from 'lucide-react';
+import { Play, Heart, LogIn, HeartPulse } from 'lucide-react';
 
 const mergeSongs = (prev, next) => {
   const seen = new Set(prev.map((song) => String(song?.id ?? '')));
@@ -20,6 +20,8 @@ export default function MyLiked() {
     user, 
     likedPlaylistId, 
     playSong, 
+    startHeartMode,
+    playMode,
     likedSongIds, 
     toggleLike, 
     navigateTo 
@@ -170,13 +172,35 @@ export default function MyLiked() {
             <span>共 {likedSongIds.size} 首歌曲</span>
           </div>
           {songs.length > 0 && (
-            <button 
-              className="play-pause-btn"
-              style={{ borderRadius: '99px', width: 'auto', height: 'auto', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginTop: '16px' }}
-              onClick={playAll}
-            >
-              <Play size={14} fill="currentColor" /> 播放全部
-            </button>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '16px' }}>
+              <button 
+                className="play-pause-btn"
+                style={{ borderRadius: '99px', width: 'auto', height: 'auto', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px' }}
+                onClick={playAll}
+              >
+                <Play size={14} fill="currentColor" /> 播放全部
+              </button>
+              <button 
+                className={`secondary-btn ${playMode === 'heart' ? 'heart-mode-btn-active' : ''}`}
+                style={{
+                  borderRadius: '99px',
+                  padding: '8px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  border: '1px solid var(--primary-glow, rgba(255,64,129,0.3))',
+                  background: playMode === 'heart' ? 'var(--primary)' : 'var(--glass-bg)',
+                  color: playMode === 'heart' ? '#fff' : 'var(--text-main)',
+                  transition: 'all 0.2s ease'
+                }}
+                onClick={() => songs.length > 0 && startHeartMode(null, likedPlaylistId, songs)}
+                title="开启心动模式：在红心歌曲中随机播放并穿插推荐相似好歌"
+              >
+                <HeartPulse size={15} color={playMode === 'heart' ? '#fff' : 'var(--primary)'} className="heart-mode-icon" /> 心动模式
+              </button>
+            </div>
           )}
           {loadingMore && (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '10px' }}>

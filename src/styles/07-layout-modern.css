@@ -1216,5 +1216,51 @@
   width: 360px; /* Widens on focus */
 }
 
+/* ==========================================================================
+   HEART MODE (心动模式) STYLING
+   ========================================================================== */
+.heart-mode-icon {
+  animation: heartBeatPulse 1.8s ease-in-out infinite;
+  color: var(--primary) !important;
+}
+
+@keyframes heartBeatPulse {
+  0% { transform: scale(1); }
+  14% { transform: scale(1.18); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.18); }
+  70% { transform: scale(1); }
+}
+
+.ctrl-btn.is-heart-mode,
+.control-btn.heart-mode-active {
+  color: var(--primary) !important;
+  background: var(--primary-subtle, rgba(255, 64, 129, 0.15)) !important;
+  box-shadow: 0 0 12px var(--primary-glow, rgba(255, 64, 129, 0.35));
+}
+
+.queue-heart-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 500;
+  color: #fff !important;
+  background: linear-gradient(135deg, var(--primary, #ff4081), #ff6090);
+  box-shadow: 0 2px 6px rgba(255, 64, 129, 0.35);
+  letter-spacing: 0.02em;
+  vertical-align: middle;
+  line-height: 1.4;
+}
+
+.heart-mode-btn-active {
+  background: linear-gradient(135deg, var(--primary), #ff6090) !important;
+  color: #fff !important;
+  box-shadow: 0 4px 14px var(--primary-glow) !important;
+}
+
+
 
 

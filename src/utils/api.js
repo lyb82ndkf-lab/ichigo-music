@@ -95,7 +95,8 @@ export const api = {
   logout: () => request(`/logout?timestamp=${Date.now()}`),
 
   // Song details & URLs
-  getSongUrls: (ids, level = 'exhigh') => request(`/song/url/v1?id=${ids}&level=${level}&timestamp=${Date.now()}`),
+  getSongUrls: (ids, level = 'exhigh', unblock = false) => request(`/song/url/v1?id=${ids}&level=${level}${unblock ? '&unblock=true' : ''}&timestamp=${Date.now()}`),
+  getSongUrlMatch: (id) => request(`/song/url/match?id=${id}&timestamp=${Date.now()}`),
   // Legacy feedback endpoint: this is the endpoint used by the official
   // desktop/web clients to update recent-play and listening statistics.
   scrobble: ({ id, time, sourceid }) => {
@@ -150,6 +151,8 @@ export const api = {
   getArtistAlbums: (id, limit = 50) => request(`/artist/album?id=${id}&limit=${limit}`),
   getArtistMVs: (id) => request(`/artist/mv?id=${id}`),
 
+
+
   // MV player
   getMVDetail: (mvid) => request(`/mv/detail?mvid=${mvid}`),
   getMVUrl: (id) => request(`/mv/url?id=${id}`),
@@ -169,4 +172,14 @@ export const api = {
   // Discover Features
   getBanners: () => request('/banner'),
   getPersonalized: (limit = 12) => request(`/personalized?limit=${limit}`),
+
+  // Heart Mode & Intelligent Recommendations
+  getIntelligenceList: (songId, playlistId, startMusicId, count = 20) =>
+    request(`/playmode/intelligence/list?id=${songId}&pid=${playlistId}&sid=${startMusicId || songId}&count=${count}&timestamp=${Date.now()}`),
+  getSimiSongs: (songId, limit = 30) =>
+    request(`/simi/song?id=${songId}&limit=${limit}&timestamp=${Date.now()}`),
+  getRecommendSongs: () =>
+    request(`/recommend/songs?timestamp=${Date.now()}`),
+  getPersonalizedNewsongs: (limit = 30) =>
+    request(`/personalized/newsong?limit=${limit}&timestamp=${Date.now()}`),
 };

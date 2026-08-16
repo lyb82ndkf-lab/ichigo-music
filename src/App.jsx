@@ -389,7 +389,7 @@ function AppContent() {
       }
       else if (shortcutMatches(e, currentShortcuts?.likeTrack)) { if (currentCurrentSong?.id) toggleLike(currentCurrentSong.id); e.preventDefault(); }
       else if (shortcutMatches(e, currentShortcuts?.cyclePlayMode)) {
-        const modes = ['sequence', 'random', 'single'];
+        const modes = ['sequence', 'random', 'single', 'heart'];
         if (!currentPlaybackLocked) setPlayMode(modes[(modes.indexOf(currentPlayMode) + 1) % modes.length]);
         e.preventDefault();
       }

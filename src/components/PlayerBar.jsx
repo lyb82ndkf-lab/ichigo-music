@@ -14,6 +14,7 @@ import {
   Shuffle,
   Repeat,
   Repeat1,
+  HeartPulse,
   ListMusic,
   Trash2,
   Tv,
@@ -222,18 +223,20 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
         <div className="control-buttons">
           {/* Mode Switch */}
           <button 
-            className={`control-btn ${playMode !== 'sequence' ? 'active' : ''}`}
+            className={`control-btn ${playMode !== 'sequence' ? 'active' : ''} ${playMode === 'heart' ? 'heart-mode-active' : ''}`}
             onClick={playbackLocked ? undefined : () => {
               if (playMode === 'sequence') setPlayMode('random');
               else if (playMode === 'random') setPlayMode('single');
+              else if (playMode === 'single') setPlayMode('heart');
               else setPlayMode('sequence');
             }}
             disabled={playbackLocked}
-            title={playMode === 'sequence' ? '列表循环' : playMode === 'random' ? '随机播放' : '单曲循环'}
+            title={playMode === 'sequence' ? '列表循环' : playMode === 'random' ? '随机播放' : playMode === 'single' ? '单曲循环' : '心动模式 (根据喜好智能推荐)'}
           >
             {playMode === 'sequence' && <Repeat size={16} />}
             {playMode === 'random' && <Shuffle size={16} />}
             {playMode === 'single' && <Repeat1 size={16} />}
+            {playMode === 'heart' && <HeartPulse size={16} className="heart-mode-icon" />}
           </button>
 
           <button className="control-btn" onClick={playbackLocked ? undefined : playPrev} disabled={playbackLocked}>
@@ -486,7 +489,9 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
       {showQueue && (
         <div className="play-queue-popover">
           <div className="flex-between" style={{ borderBottom: '1px solid var(--card-border)', paddingBottom: 10 }}>
-            <span style={{ fontSize: 13, fontWeight: 700 }}>播放列表 ({playlist.length})</span>
+            <span style={{ fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {playMode === 'heart' ? <>心动模式 ({playlist.length}) <HeartPulse size={14} color="var(--primary)" /></> : `播放列表 (${playlist.length})`}
+            </span>
             {playlist.length > 0 && (
               <button 
                 onClick={() => {
@@ -523,8 +528,9 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
                   }}
                 >
                   <div className="song-row-info">
-                    <div className="song-row-name" style={{ fontWeight: 600, color: isActive ? 'var(--primary)' : 'var(--text-main)' }}>
-                      {song.name || song.title}
+                    <div className="song-row-name" style={{ fontWeight: 600, color: isActive ? 'var(--primary)' : 'var(--text-main)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>{song.name || song.title}</span>
+                      {song.isHeartRecommend && <span className="queue-heart-pill">心动推荐</span>}
                     </div>
                     <div className="song-row-artist" style={{ fontSize: 10 }}>
                       {song.artist || song.ar?.map(a => a.name).join(' / ')}

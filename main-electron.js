@@ -128,27 +128,46 @@ const startAudioProxy = () => {
         if (remoteUrl && /^https?:\/\//i.test(remoteUrl)) {
           const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
           if (req.headers.range) headers.Range = req.headers.range;
-          const remote = await electronNet.fetch(remoteUrl, { headers });
-          const contentType = remote.headers.get('content-type') || 'application/octet-stream';
-          const contentLength = remote.headers.get('content-length');
-          const contentRange = remote.headers.get('content-range');
-          res.writeHead(remote.status, {
-            ...corsHeaders,
-            'Content-Type': contentType,
-            ...(contentLength ? { 'Content-Length': contentLength } : {}),
-            ...(contentRange ? { 'Content-Range': contentRange } : {})
-          });
-          if (remote.body) {
-            const nodeStream = Readable.fromWeb(remote.body);
+          try {
+            const controller = new AbortController();
+            const timer = setTimeout(() => {
+              try { controller.abort(); } catch {}
+            }, 12000);
             req.on('close', () => {
-              try { nodeStream.destroy(); } catch {}
+              try { controller.abort(); } catch {}
             });
-            nodeStream.on('error', () => {
-              try { res.end(); } catch {}
+            const remote = await electronNet.fetch(remoteUrl, {
+              headers,
+              redirect: 'follow',
+              signal: controller.signal
             });
-            nodeStream.pipe(res);
-          } else {
-            res.end();
+            clearTimeout(timer);
+            const contentType = remote.headers.get('content-type') || 'application/octet-stream';
+            const contentLength = remote.headers.get('content-length');
+            const contentRange = remote.headers.get('content-range');
+            res.writeHead(remote.status, {
+              ...corsHeaders,
+              'Content-Type': contentType,
+              ...(contentLength ? { 'Content-Length': contentLength } : {}),
+              ...(contentRange ? { 'Content-Range': contentRange } : {})
+            });
+            if (remote.body) {
+              const nodeStream = Readable.fromWeb(remote.body);
+              req.on('close', () => {
+                try { nodeStream.destroy(); } catch {}
+              });
+              nodeStream.on('error', () => {
+                try { res.end(); } catch {}
+              });
+              nodeStream.pipe(res);
+            } else {
+              res.end();
+            }
+          } catch (fetchErr) {
+            try {
+              res.writeHead(502, corsHeaders);
+              res.end();
+            } catch {}
           }
           return;
         }

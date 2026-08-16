@@ -9,7 +9,7 @@ import pkg from '../../package.json';
 
 const AppContext = createContext();
 
-export const APP_VERSION = `v${pkg.version || '1.8.6'}`;
+export const APP_VERSION = `v${pkg.version || '1.9.1'}`;
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 
@@ -183,8 +183,12 @@ export function AppProvider({ children }) {
     currentSong,
     audioElement,
     isPlaying,
-    listenPlaybackLocked
+    listenPlaybackLocked,
+    likedPlaylistId
   };
+
+  const originalPlaylistBackupRef = useRef(null);
+  const isFetchingHeartRef = useRef(false);
 
   const setUser = useCallback((nextUser) => {
     setUserState(nextUser);
@@ -864,6 +868,37 @@ export function AppProvider({ children }) {
             console.warn(`Failed to resolve ${qualityLevel} playback URL for song ${song.id}:`, error);
           }
         }
+
+        // Fallback 1: Try UNM unblock via song/url/v1?unblock=true
+        try {
+          const unblockRes = await api.getSongUrls(song.id, 'standard', true);
+          const unblockUrl = Array.isArray(unblockRes?.data)
+            ? unblockRes.data.find(item => item?.url)?.url || null
+            : unblockRes?.data?.url || null;
+          if (unblockUrl) {
+            appendRuntimeLog('info', '通过智能解灰获取到歌曲音频链接', { songId: song.id }, 'audio');
+            songUrlCacheRef.current.set(urlCacheKey, { url: unblockUrl, time: Date.now() });
+            pruneSongUrlCache();
+            return unblockUrl;
+          }
+        } catch (unblockErr) {
+          console.warn(`Unblock failed for song ${song.id}:`, unblockErr);
+        }
+
+        // Fallback 2: Try match endpoint /song/url/match
+        try {
+          const matchRes = await api.getSongUrlMatch(song.id);
+          const matchUrl = matchRes?.data || matchRes?.url || null;
+          if (matchUrl && typeof matchUrl === 'string' && matchUrl.startsWith('http')) {
+            appendRuntimeLog('info', '通过全网匹配获取到歌曲音频链接', { songId: song.id }, 'audio');
+            songUrlCacheRef.current.set(urlCacheKey, { url: matchUrl, time: Date.now() });
+            pruneSongUrlCache();
+            return matchUrl;
+          }
+        } catch (matchErr) {
+          console.warn(`Match URL failed for song ${song.id}:`, matchErr);
+        }
+
         return null;
       })()
         .finally(() => {
@@ -1134,9 +1169,221 @@ export function AppProvider({ children }) {
     setIsPlaying(prev => !prev);
   }, [isPlaying, playSong, setIsPlaying]);
 
+  const heartBasePoolRef = useRef([]);
+
+  const fetchHeartRecommendedPool = useCallback(async (seedSong, playlistId) => {
+    if (!seedSong?.id) return [];
+    const pid = playlistId || stateRef.current.likedPlaylistId || '';
+    let recList = [];
+
+    // Tier 1: NetEase Cloud Music official intelligence list
+    try {
+      if (pid) {
+        const res = await api.getIntelligenceList(seedSong.id, pid, seedSong.id);
+        if (res?.code === 200 && Array.isArray(res.data) && res.data.length > 0) {
+          const list = res.data
+            .filter(item => item && (item.recommended || item.id !== seedSong.id))
+            .map(item => {
+              const s = item.songInfo || item;
+              return {
+                ...s,
+                id: s.id || item.id,
+                name: s.name,
+                ar: s.ar || s.artists || [{ name: s.artist || '未知艺术家' }],
+                al: s.al || s.album || { picUrl: s.picUrl || s.coverUrl },
+                coverUrl: s.coverUrl || s.al?.picUrl || s.album?.picUrl || s.picUrl || '',
+                isHeartRecommend: true
+              };
+            });
+          if (list.length > 0) {
+            recList = list;
+          }
+        }
+      }
+    } catch (err) {
+      appendRuntimeLog('warn', '心动模式官方接口不可用，尝试相似推荐', { error: err?.message }, 'player');
+    }
+
+    // Tier 2: Simi songs + Daily recommend / Personalized newsongs
+    if (recList.length < 6) {
+      try {
+        const simiRes = await api.getSimiSongs(seedSong.id).catch(() => null);
+        const simis = (simiRes?.songs || []).map(s => ({
+          ...s,
+          coverUrl: s.album?.picUrl || s.al?.picUrl || s.coverUrl || '',
+          ar: s.artists || s.ar || [{ name: s.artist || '未知艺术家' }],
+          al: s.album || s.al || { picUrl: s.coverUrl || '' },
+          isHeartRecommend: true
+        }));
+        recList = [...recList, ...simis];
+
+        if (recList.length < 8) {
+          const recRes = await api.getRecommendSongs().catch(() => null);
+          const dailySongs = (recRes?.data?.dailySongs || recRes?.recommend || []).map(s => ({
+            ...s,
+            coverUrl: s.al?.picUrl || s.album?.picUrl || s.coverUrl || '',
+            ar: s.artists || s.ar || [{ name: s.artist || '未知艺术家' }],
+            al: s.album || s.al || { picUrl: s.coverUrl || '' },
+            isHeartRecommend: true
+          }));
+          recList = [...recList, ...dailySongs];
+        }
+
+        if (recList.length < 8) {
+          const newRes = await api.getPersonalizedNewsongs(20).catch(() => null);
+          const newSongs = (newRes?.result || []).map(item => {
+            const s = item.song || item;
+            return {
+              ...s,
+              id: s.id || item.id,
+              name: item.name || s.name,
+              ar: s.artists || s.ar || [{ name: s.artist || '未知艺术家' }],
+              al: s.album || s.al || { picUrl: item.picUrl || '' },
+              coverUrl: item.picUrl || s.al?.picUrl || s.album?.picUrl || '',
+              isHeartRecommend: true
+            };
+          });
+          recList = [...recList, ...newSongs];
+        }
+      } catch (err) {
+        appendRuntimeLog('warn', '心动推荐拉取失败', { error: err?.message }, 'player');
+      }
+    }
+
+    // Deduplicate recommendations
+    const seen = new Set();
+    seen.add(String(seedSong.id));
+    return recList.filter(s => {
+      const id = String(s?.id || '');
+      if (!id || seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+  }, []);
+
+  const buildInterleavedHeartQueue = useCallback(async (seedSong, baseSongs = [], playlistId) => {
+    if (!seedSong?.id) return [];
+    const pid = playlistId || stateRef.current.likedPlaylistId || '';
+    
+    // 1. Shuffled liked/base song pool (excluding seed song)
+    const baseWithoutSeed = baseSongs.filter(s => s && s.id !== seedSong.id);
+    const shuffledBase = [...baseWithoutSeed].sort(() => Math.random() - 0.5);
+
+    // 2. Recommended songs pool
+    const recList = await fetchHeartRecommendedPool(seedSong, pid);
+
+    // 3. Interleave: Seed song -> 2 liked songs -> 1 recommended song -> 2 liked songs -> 1 recommended song...
+    const interleaved = [{ ...seedSong, isHeartRecommend: false }];
+    let baseIdx = 0;
+    let recIdx = 0;
+
+    while (baseIdx < shuffledBase.length || recIdx < recList.length) {
+      // Insert up to 2 liked songs
+      for (let i = 0; i < 2 && baseIdx < shuffledBase.length; i += 1) {
+        interleaved.push({ ...shuffledBase[baseIdx], isHeartRecommend: false });
+        baseIdx += 1;
+      }
+      // Insert 1 recommended song
+      if (recIdx < recList.length) {
+        interleaved.push({ ...recList[recIdx], isHeartRecommend: true });
+        recIdx += 1;
+      }
+    }
+
+    appendRuntimeLog('info', '心动模式队列构建成功（红心随机混洗+穿插推荐）', {
+      total: interleaved.length,
+      baseLikedCount: shuffledBase.length,
+      recommendCount: recList.length,
+      seedSongName: seedSong.name
+    }, 'player');
+
+    return interleaved;
+  }, [fetchHeartRecommendedPool]);
+
+  const startHeartMode = useCallback((startSong = null, playlistId = null, sourceList = null) => {
+    if (stateRef.current.listenPlaybackLocked) return;
+    const currentList = (sourceList && sourceList.length > 0)
+      ? sourceList
+      : (stateRef.current.playlist && stateRef.current.playlist.length > 0 ? stateRef.current.playlist : []);
+    if (currentList.length === 0) return;
+
+    // Backup original list
+    if (stateRef.current.playMode !== 'heart' || !originalPlaylistBackupRef.current) {
+      originalPlaylistBackupRef.current = [...currentList];
+    }
+    const baseBackup = originalPlaylistBackupRef.current || [...currentList];
+
+    // Pick seed song: if startSong provided use it, otherwise pick random from base list
+    const seed = startSong || baseBackup[Math.floor(Math.random() * baseBackup.length)] || currentList[0];
+    if (!seed) return;
+
+    // 1. Immediately create a shuffled queue starting with seed
+    const baseWithoutSeed = baseBackup.filter(s => s && s.id !== seed.id);
+    const initialShuffled = [{ ...seed, isHeartRecommend: false }, ...([...baseWithoutSeed].sort(() => Math.random() - 0.5))];
+
+    // 2. Immediately update playMode, playlist and start playback!
+    updateProfile({ playback: { playMode: 'heart' } });
+    setPlaylistAndPersist(initialShuffled);
+    setPlaylistIndexAndPersist(0);
+    playSong(seed, initialShuffled);
+
+    // 3. Concurrently fetch recommendations in background and interleave them!
+    const pid = playlistId || stateRef.current.likedPlaylistId || '';
+    fetchHeartRecommendedPool(seed, pid).then(recList => {
+      if (recList.length > 0) {
+        const currentPlaying = stateRef.current.currentSong || seed;
+        const remainingBase = initialShuffled.filter(s => s.id !== currentPlaying.id);
+        const interleaved = [{ ...currentPlaying, isHeartRecommend: false }];
+        let bIdx = 0;
+        let rIdx = 0;
+        while (bIdx < remainingBase.length || rIdx < recList.length) {
+          for (let i = 0; i < 2 && bIdx < remainingBase.length; i += 1) {
+            interleaved.push({ ...remainingBase[bIdx], isHeartRecommend: false });
+            bIdx += 1;
+          }
+          if (rIdx < recList.length) {
+            interleaved.push({ ...recList[rIdx], isHeartRecommend: true });
+            rIdx += 1;
+          }
+        }
+        setPlaylistAndPersist(interleaved);
+        const idx = interleaved.findIndex(s => s.id === currentPlaying.id);
+        setPlaylistIndexAndPersist(idx >= 0 ? idx : 0);
+      }
+    }).catch(err => {
+      console.warn('Background heart recommendation interleave failed:', err);
+    });
+  }, [fetchHeartRecommendedPool, updateProfile, setPlaylistAndPersist, setPlaylistIndexAndPersist, playSong]);
+
+  const setPlayModeAndPersist = useCallback(async (mode) => {
+    if (stateRef.current.listenPlaybackLocked) return;
+    const prevMode = stateRef.current.playMode;
+    updateProfile({ playback: { playMode: mode } });
+
+    // Entering Heart Mode
+    if (mode === 'heart' && prevMode !== 'heart') {
+      const currentList = stateRef.current.playlist || [];
+      const current = stateRef.current.currentSong || currentList[0];
+      if (currentList.length > 0 && current) {
+        startHeartMode(current, stateRef.current.likedPlaylistId, currentList);
+      }
+    }
+    // Exiting Heart Mode
+    else if (prevMode === 'heart' && mode !== 'heart') {
+      if (originalPlaylistBackupRef.current && originalPlaylistBackupRef.current.length > 0) {
+        const restored = originalPlaylistBackupRef.current;
+        const current = stateRef.current.currentSong;
+        setPlaylistAndPersist(restored);
+        const idx = current ? restored.findIndex(s => s.id === current.id) : 0;
+        setPlaylistIndexAndPersist(idx >= 0 ? idx : 0);
+        originalPlaylistBackupRef.current = null;
+      }
+    }
+  }, [updateProfile, startHeartMode, setPlaylistAndPersist, setPlaylistIndexAndPersist]);
+
   const playNext = useCallback(() => {
     if (stateRef.current.listenPlaybackLocked) return;
-    const { playlist, playlistIndex, playMode } = stateRef.current;
+    const { playlist, playlistIndex, playMode, currentSong } = stateRef.current;
     if (playlist.length === 0) return;
 
     let nextIndex = playlistIndex;
@@ -1146,11 +1393,47 @@ export function AppProvider({ children }) {
       nextIndex = (playlistIndex + 1) % playlist.length;
     }
 
+    // Auto-fetch and interleave more in Heart Mode when approaching end of queue
+    if (playMode === 'heart' && playlistIndex >= playlist.length - 4 && !isFetchingHeartRef.current) {
+      isFetchingHeartRef.current = true;
+      const lastSong = playlist[playlist.length - 1] || currentSong;
+      const basePool = originalPlaylistBackupRef.current || playlist;
+      
+      fetchHeartRecommendedPool(lastSong, stateRef.current.likedPlaylistId).then(moreRecs => {
+        if (moreRecs.length > 0 || basePool.length > 0) {
+          const existingIds = new Set(stateRef.current.playlist.map(s => s.id));
+          const newRecs = moreRecs.filter(s => !existingIds.has(s.id));
+          // Take more base liked songs
+          const newBase = [...basePool].filter(s => !existingIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, 10);
+          
+          const moreInterleaved = [];
+          let bIdx = 0;
+          let rIdx = 0;
+          while (bIdx < newBase.length || rIdx < newRecs.length) {
+            if (bIdx < newBase.length) {
+              moreInterleaved.push({ ...newBase[bIdx], isHeartRecommend: false });
+              bIdx += 1;
+            }
+            if (rIdx < newRecs.length) {
+              moreInterleaved.push({ ...newRecs[rIdx], isHeartRecommend: true });
+              rIdx += 1;
+            }
+          }
+
+          if (moreInterleaved.length > 0) {
+            setPlaylistAndPersist([...stateRef.current.playlist, ...moreInterleaved]);
+          }
+        }
+      }).catch(() => {}).finally(() => {
+        isFetchingHeartRef.current = false;
+      });
+    }
+
     const nextSong = playlist[nextIndex];
     if (nextSong) {
       playSong(nextSong);
     }
-  }, [playSong]);
+  }, [playSong, fetchHeartRecommendedPool, setPlaylistAndPersist]);
 
   const playPrev = useCallback(() => {
     if (stateRef.current.listenPlaybackLocked) return;
@@ -1170,11 +1453,6 @@ export function AppProvider({ children }) {
       playSong(prevSong);
     }
   }, [playSong]);
-
-  const setPlayModeAndPersist = useCallback((mode) => {
-    if (stateRef.current.listenPlaybackLocked) return;
-    updateProfile({ playback: { playMode: mode } });
-  }, [updateProfile]);
 
   // Logout action (shared central method)
   const logout = useCallback(async () => {
@@ -1280,6 +1558,7 @@ export function AppProvider({ children }) {
     requestAppClose,
 
     playSong,
+    startHeartMode,
     togglePlay,
     playNext,
     playPrev,
@@ -1353,7 +1632,7 @@ export function AppProvider({ children }) {
     saveNavbarConfig, saveLyricStyle, saveVisualizerMode, saveAppearanceConfig, saveCoverConfig, saveBackgroundConfig,
     saveAdvancedLyricConfig, saveVisualizerConfig, saveDesktopLyricsConfig, mergeDesktopLyricsConfigFromIpc,
     saveAudioConfig, saveCacheConfig, savePlaybackConfig, saveRenderingConfig, saveShortcuts, persistResumeTime,
-    navigateTo, goBack, goForward, checkUserLogin, fetchRemoteRecentlyPlayed, toggleLike, playSong, togglePlay, playNext, playPrev, setAudioQuality, addToRecent, logout,
+    navigateTo, goBack, goForward, checkUserLogin, fetchRemoteRecentlyPlayed, toggleLike, playSong, startHeartMode, togglePlay, playNext, playPrev, setAudioQuality, addToRecent, logout,
     resolveSongCover,
     extractedColors, immersiveColor, updateInfo, checkForUpdates, downloadUpdate, installUpdate
   ]);
