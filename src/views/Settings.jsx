@@ -5,7 +5,8 @@ import Login from './Login';
 import ShortcutRow from '../components/ShortcutRow';
 import { DEFAULT_PROFILE, EQ_PRESETS, exportProfile, importProfile, resetProfile } from '../utils/settingsProfile';
 import { Airplay, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu, Monitor, Music4, Palette, Power, Sliders, Trash2, UserCheck } from 'lucide-react';
-import { IMMERSIVE_MODE_OPTIONS, IMMERSIVE_MODE_PARAMETER_KEYS, normalizeImmersiveMode } from '../utils/immersiveModes';
+import { IMMERSIVE_MODE_OPTIONS, IMMERSIVE_MODE_PARAMETER_KEYS, normalizeImmersiveMode, KTV_TEMPLATE_GALLERY } from '../utils/immersiveModes';
+
 import { IMMERSIVE_PRESETS, IMMERSIVE_PRESET_MAP } from '../utils/immersivePresets';
 import { clearRuntimeLogs, formatRuntimeLogs, getRuntimeLogs, subscribeRuntimeLogs } from '../utils/runtimeLog';
 import { SegmentedControl, SegmentedControlItem, Switch } from '../components/ui';
@@ -357,60 +358,147 @@ export default function Settings() {
             </>
           )}
 
-          {/* ================= 混乱模式 (talk) 可视化参数================= */}
+          {/* ================= 文字 PV 模式 (talk) 可视化参数================= */}
           {advancedLyricConfig.lyricsMode === 'talk' && (
             <>
-              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>背景视差粒子与击鼓爆发特</h4>
-              <SettingRow label={`常驻星空粒子数：${advancedLyricConfig.talkParticleCount ?? 80}`}>
-                <input className="setting-slider" type="range" min="20" max="200" step="10" value={advancedLyricConfig.talkParticleCount ?? 80} onChange={(e) => updateImmersive({ talkParticleCount: Number(e.target.value) })} />
+              <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '24px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>文字 PV 视觉引擎与 MV 模板</h4>
+              
+              <SettingRow label="PV 模板选择" hint="点击缩略图直接切换，或选择智能匹配/多选轮播">
+                <select className="setting-select" value={advancedLyricConfig.ktvPreset || 'auto'}
+                  onChange={(e) => updateImmersive({ ktvPreset: e.target.value })}>
+                  <option value="auto">自动：按歌曲与封面智能匹配</option>
+                  <option value="multi">多选：随机轮播模板池</option>
+                  {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([val, label]) => (
+                    <option key={val} value={val}>{label}</option>
+                  ))}
+                </select>
               </SettingRow>
-              <SettingRow label={`粒子发光半径：${advancedLyricConfig.talkParticleSize ?? 1.0}`}>
-                <input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.talkParticleSize ?? 1.0} onChange={(e) => updateImmersive({ talkParticleSize: Number(e.target.value) })} />
-              </SettingRow>
-              <SettingRow label={`粒子底噪透明度：${advancedLyricConfig.talkParticleOpacity ?? 0.7}`}>
-                <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.talkParticleOpacity ?? 0.7} onChange={(e) => updateImmersive({ talkParticleOpacity: Number(e.target.value) })} />
-              </SettingRow>
-              <SettingRow label="常驻粒子形状">
-                <Segment 
-                  options={[
-                    { value: 'triangle', label: '经典三角' },
-                    { value: 'diamond', label: '华丽菱形' },
-                    { value: 'dot', label: '圆点星辰' },
-                    { value: 'line', label: '律动短线' }
-                  ]} 
-                  value={advancedLyricConfig.talkParticleShape || 'triangle'} 
-                  onChange={(v) => updateImmersive({ talkParticleShape: v })} 
-                />
-              </SettingRow>
-              <SettingRow label={`声浪冲击爆发阈值：${advancedLyricConfig.talkBurstThreshold ?? 200}`}>
-                <input className="setting-slider" type="range" min="100" max="250" step="5" value={advancedLyricConfig.talkBurstThreshold ?? 200} onChange={(e) => updateImmersive({ talkBurstThreshold: Number(e.target.value) })} />
-              </SettingRow>
-              <SettingRow label={`冲击波喷涌强度：${advancedLyricConfig.talkBurstIntensity ?? 1.0}`}>
-                <input className="setting-slider" type="range" min="0.3" max="2.0" step="0.1" value={advancedLyricConfig.talkBurstIntensity ?? 1.0} onChange={(e) => updateImmersive({ talkBurstIntensity: Number(e.target.value) })} />
-              </SettingRow>
-              <SettingRow label={`风向横向游移速度：${advancedLyricConfig.talkDriftSpeed ?? 1.0}`}>
-                <input className="setting-slider" type="range" min="0" max="3.0" step="0.1" value={advancedLyricConfig.talkDriftSpeed ?? 1.0} onChange={(e) => updateImmersive({ talkDriftSpeed: Number(e.target.value) })} />
-              </SettingRow>
-              <SettingRow label={`空间微弱引力效应：${advancedLyricConfig.talkGravity ?? 0.05}`}>
-                <input className="setting-slider" type="range" min="-0.2" max="0.2" step="0.02" value={advancedLyricConfig.talkGravity ?? 0.05} onChange={(e) => updateImmersive({ talkGravity: Number(e.target.value) })} />
-              </SettingRow>
-              <SettingRow label="配色方案">
-                <Segment 
-                  options={[
-                    { value: 'adaptive', label: '自适应封面' },
-                    { value: 'custom', label: '自定义颜色' }
-                  ]} 
-                  value={advancedLyricConfig.talkColorMode || 'adaptive'} 
-                  onChange={(v) => updateImmersive({ talkColorMode: v })} 
-                />
-              </SettingRow>
-              {advancedLyricConfig.talkColorMode === 'custom' && (
-                <SettingRow label="自定义粒子颜色">
-                  <input type="color" value={advancedLyricConfig.talkCustomColor || '#ff4081'} onChange={(e) => updateImmersive({ talkCustomColor: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                </SettingRow>
+
+              <div style={{ margin: '8px 0 18px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)' }}>全部 30 款独立视觉 MV 模板画廊：</div>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>点击卡片即时切换生效</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px', maxHeight: '340px', overflowY: 'auto', paddingRight: '4px' }}>
+                  {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([value, label, background, tag, desc, palette]) => {
+                    const selected = (advancedLyricConfig.ktvPreset || 'auto') === value;
+                    return (
+                      <div
+                        key={value}
+                        onClick={() => updateImmersive({ ktvPreset: value })}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: selected ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.12)',
+                          background: selected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
+                          boxShadow: selected ? '0 0 16px rgba(255,255,255,0.3)' : '0 2px 6px rgba(0,0,0,0.2)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {/* 缩略图色块 */}
+                        <div style={{
+                          width: '60px',
+                          height: '38px',
+                          borderRadius: '6px',
+                          background,
+                          boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35), 0 2px 4px rgba(0,0,0,0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                          fontSize: '11px',
+                          fontWeight: 800,
+                          color: '#ffffff',
+                          textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                        }}>
+                          PV
+                        </div>
+
+                        {/* 模板信息与风格标签 */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: selected ? '#ffffff' : 'rgba(255,255,255,0.9)' }}>{label}</span>
+                            <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.12)', color: 'var(--primary)' }}>{tag || '独立'}</span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {desc || '专属排版与动效'}
+                          </div>
+                        </div>
+
+                        {/* 调色盘与选中状态 */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                          <div style={{ display: 'flex', gap: '3px' }}>
+                            {Array.isArray(palette) && palette.slice(0, 3).map((c, i) => (
+                              <span key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: c, border: '1px solid rgba(255,255,255,0.3)' }} />
+                            ))}
+                          </div>
+                          <span style={{
+                            fontSize: '10px',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: selected ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
+                            color: selected ? '#ffffff' : 'rgba(255,255,255,0.6)',
+                            fontWeight: selected ? 800 : 500
+                          }}>
+                            {selected ? '使用中' : '应用'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+
+
+              {advancedLyricConfig.ktvPreset === 'multi' && (
+                <div style={{ margin: '0 0 16px', padding: '12px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', background: 'rgba(255,255,255,0.03)' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--primary)' }}>随机轮播模板池（勾选参与随机的模板）</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
+                    {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([value, label]) => {
+                      const pool = Array.isArray(advancedLyricConfig.ktvPresetPool) ? advancedLyricConfig.ktvPresetPool : [];
+                      const checked = pool.includes(value);
+                      return (
+                        <label key={`settings-multi-${value}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: checked ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={checked} onChange={() => {
+                            const next = checked ? pool.filter(i => i !== value) : [...pool, value];
+                            updateImmersive({ ktvPresetPool: next });
+                          }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               )}
+
+              <SettingRow label={`动画游走速度：${(advancedLyricConfig.ktvSpeed ?? 2.0).toFixed(1)}x`}>
+                <input className="setting-slider" type="range" min="0.2" max="4.0" step="0.1" value={advancedLyricConfig.ktvSpeed ?? 2.0} onChange={(e) => updateImmersive({ ktvSpeed: Number(e.target.value) })} />
+              </SettingRow>
+
+              <SettingRow label={`动效与爆发强度：${(advancedLyricConfig.ktvMotion ?? 1.0).toFixed(1)}x`}>
+                <input className="setting-slider" type="range" min="0.1" max="2.0" step="0.1" value={advancedLyricConfig.ktvMotion ?? 1.0} onChange={(e) => updateImmersive({ ktvMotion: Number(e.target.value) })} />
+              </SettingRow>
+
+              <SettingRow label={`背景不透明度：${Math.round((advancedLyricConfig.ktvBgOpacity ?? 1.0) * 100)}%`}>
+                <input className="setting-slider" type="range" min="0" max="1" step="0.05" value={advancedLyricConfig.ktvBgOpacity ?? 1.0} onChange={(e) => updateImmersive({ ktvBgOpacity: Number(e.target.value) })} />
+              </SettingRow>
+
+              <SettingRow label="显示歌曲开场标题卡" hint="在歌曲刚开始播放时展现全息/电影风格的歌曲标题卡片">
+                <Toggle checked={advancedLyricConfig.ktvShowTitleCard !== false} onChange={(v) => updateImmersive({ ktvShowTitleCard: v })} />
+              </SettingRow>
+
+              <SettingRow label="显示翻译 / 罗马音" hint="在文字 PV 歌词下方同步显示歌曲的副标题翻译与罗马音">
+                <Toggle checked={advancedLyricConfig.ktvShowTranslation !== false} onChange={(v) => updateImmersive({ ktvShowTranslation: v })} />
+              </SettingRow>
             </>
           )}
+
+
 
           {/* ================= 云阶模式 (cloudstep) 可视化参数================= */}
           {advancedLyricConfig.lyricsMode === 'cloudstep' && (

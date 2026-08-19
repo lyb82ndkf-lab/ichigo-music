@@ -9,7 +9,7 @@ import pkg from '../../package.json';
 
 const AppContext = createContext();
 
-export const APP_VERSION = `v${pkg.version || '1.9.1'}`;
+export const APP_VERSION = `v${pkg.version || '1.9.2'}`;
 
 const sameSongId = (a, b) => String(a ?? '') === String(b ?? '');
 

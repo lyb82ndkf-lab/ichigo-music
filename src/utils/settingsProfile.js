@@ -228,25 +228,21 @@ export const DEFAULT_PROFILE = {
     streamerBarSmoothing: 0.35,
 
     // KTV Text PV mode
-    ktvPreset: 'matrix',
+    ktvPreset: 'auto',
     ktvPresetPool: [
-      'matrix',
-      'girly-clouds',
-      'kawaii-pixel',
-      'sweet-pink',
-      'haruhikage',
-      'paper-cut'
+      'cinemaTeal',
+      'yozakura',
+      'kawaiPixel',
+      'rainCity',
+      'p5',
+      'akaiito',
+      'cityPop',
+      'suisai'
     ],
     ktvSongTemplates: {},
-    ktvTextEffect: 'auto',
-    ktvBackdrop: 'lyrics',
-    ktvComposition: 'auto',
-    ktvMotion: 1,
-    ktvCameraZoom: 0,
-    ktvCameraTilt: 0,
-    ktvCameraShake: 0,
-    ktvRenderQuality: 'auto',
-    ktvAccent: 'auto',
+    ktvSpeed: 2.0,
+    ktvMotion: 1.0,
+    ktvBgOpacity: 1.0,
     ktvUseCoverTexture: true,
     ktvBeatReactive: true,
     ktvPreviewEnabled: false,
@@ -255,6 +251,7 @@ export const DEFAULT_PROFILE = {
     ktvCustomColor: '#ff6b79',
     ktvShowTranslation: true,
     ktvShowPreviousLine: false,
+
 
     // Legacy Talk Mode Visualizer values
     talkParticleCount: 40,

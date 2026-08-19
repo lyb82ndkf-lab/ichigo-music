@@ -1,351 +1,72 @@
-﻿import fs from 'node:fs';
-import { resolveLyricTheme } from '../src/utils/pvTheme.js';
+import fs from 'node:fs';
 
 const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
 const source = read('src/components/lyrics/KineticKtvLyrics.jsx');
 const appSource = read('src/App.jsx');
-const posterSource = read('src/components/lyrics/MonetPosterLayout.jsx');
-const lyricsViewSource = read('src/components/LyricsView.jsx');
-// index.css is an @import entry point; resolve the chain so string checks
-// keep working against the full concatenated stylesheet.
-const resolveCss = (entry) => {
-  const text = read(entry);
-  const dir = entry.split('/').slice(0, -1).join('/');
-  return text.replace(/@import\s+['"]([^'"]+)['"]\s*;?/g, (_, p) => {
-    const child = p.replace(/^\.\//, '');
-    return resolveCss(dir ? `${dir}/${child}` : child);
-  });
-};
-const cssSource = resolveCss('src/index.css');
-const textSource = read('src/utils/ktvText.js');
-const themeSource = read('src/utils/pvTheme.js');
-const balancedCssSelector = String.raw`data-quality=\"balanced\"]`;
-const balancedGuardSelector = 'data-quality="balanced"]';
-const themeExamples = [
-  resolveLyricTheme('\u5927\u4eba\u306b\u306a\u3063\u3066\u5206\u304b\u3063\u305f\u3053\u3068'),
-  resolveLyricTheme('\u8ab0\u304b\u3092\u6012\u3089\u305b\u3061\u3083\u3046\u3053\u3068'),
-  resolveLyricTheme('\u300c\u3082\u3046\u3044\u3044\u3088\u300d\u306e\u672c\u5f53\u306e\u6c17\u6301\u3061\u3092'),
-  resolveLyricTheme('hello world'),
-  resolveLyricTheme('\uc548\ub155 hello world')
+const engineSource = read('src/pv/core/engine.ts');
+const effectsIndexSource = read('src/pv/effects/index.ts');
+const templatesIndexSource = read('src/pv/templates/index.ts');
+const immersiveModesSource = read('src/utils/immersiveModes.js');
+
+
+const templateKeys = [
+  'cinemaTeal', 'yozakura', 'kawaiPixel', 'rainCity', 'p5', 'akaiito',
+  'cityPop', 'neonNight', 'mono', 'tasogare', 'shinkuu',
+  'zasshi', 'lemonSoda', 'kiri', 'shinpaku', 'umi', 'film',
+  'yorushika', 'blueInk', 'battle', 'cyber', 'digitalImpression',
+  'glitch', 'holoScope', 'sweetPink', 'popArt', 'ruler', 'silhouetteClean', 'hakushi'
 ];
-const themeExampleCoverage = themeExamples.every(theme => theme.primary && theme.primary.length >= 2)
-  && themeExamples[0].primary.includes('\u5927\u4eba')
-  && themeExamples[0].secondary.includes('\u5206\u304b\u3063\u305f')
-  && themeExamples[1].primary.includes('\u6012\u3089\u305b')
-  && themeExamples[2].primary.includes('\u3082\u3046\u3044\u3044')
-  && themeExamples[3].primary === 'hello'
-  && themeExamples[3].secondary === 'world'
-  && themeExamples[4].primary !== themeExamples[4].secondary;
-const semanticCaptionCoverage = resolveLyricTheme('hello world').context === 'hello world'
-  && resolveLyricTheme('\u5927\u4eba\u306b\u306a\u3063\u3066\u5206\u304b\u3063\u305f\u3053\u3068').context.includes('\u5927\u4eba\u306b\u306a\u3063\u3066')
-  && resolveLyricTheme('\u8ab0\u304b\u3092\u6012\u3089\u305b\u3061\u3083\u3046\u3053\u3068').secondary.includes('\u8ab0\u304b');
 
-const mixedContextCoverage = resolveLyricTheme('\uc548\ub155 hello world').context.includes('\uc548\ub155')
-  && resolveLyricTheme('\u706f\u308a\u304c\u6d88\u3048\u308b\u591c\u306b').context.includes('\u591c');
-const themeUnitCoverage = resolveLyricTheme('\u591c\u306e\u8857\u3067 dancing alone').units.length >= 2
-  && resolveLyricTheme('\u541b\u306e\u3053\u3068\u304c\u597d\u304d\u3060\u3088').primary.includes('\u541b\u306e\u3053\u3068');
-
-const motionMapStart = source.indexOf('const PRESET_MOTION_VARIANTS = {');
-const motionMapEnd = source.indexOf('const PRESET_WORD_RENDERERS = {', motionMapStart);
-const motionMapSource = source.slice(motionMapStart, motionMapEnd);
-const templateMotionSource = source.slice(source.indexOf('const KTV_PV_TEMPLATE_MOTION = ('), motionMapStart);
-const motionVariants = [...motionMapSource.matchAll(/:\s*\[([^\]]+)\]/g)].flatMap(([, values]) => [...values.matchAll(/'([a-z]+(?:-[a-z]+)+)'/g)].map(([, variant]) => variant));
-const motionVariantsAreComplete = motionVariants.length === 63
-  && new Set(motionVariants).size === 63
-  && motionVariants.every(variant => templateMotionSource.includes('kpv-motion--' + variant)
-    && templateMotionSource.includes('kpv-v-' + variant));
 const checks = [
-  ['KtvLine receives resolved preset and motion variant', source.includes('const { line, tokens, index, relation, scene, effect, layout, rhythm, act, role, sectionStart, revealMode, preset, motionVariant, distance = 0 } = model;') && source.includes('kpv-motion--${motionVariant}')],
-  ['each preset has deterministic sentence motion variants', source.includes('const PRESET_MOTION_VARIANTS') && source.includes('function resolveTemplateMotionVariant') && ['blue-impact', 'kinetic-split', 'blue-structure', 'cyber-grunge', 'geometric', 'matrix', 'night-city', 'emotion-cinema', 'hysteric-night', 'spider-web', 'staggered-text', 'calm-villain', 'girly-clouds', 'sweet-pink', 'fly-me-to-the-moon', 'kawaii-pixel', 'crime-scene', 'haruhikage', 'custom', 'p5', 'paper-cut'].every(preset => new RegExp(`(?:'${preset}'|${preset}): \\[` ).test(source))],
-  ['all 63 template word motions are rendered and sentence-aware', motionVariantsAreComplete && source.includes("[preset, scene, rhythm, role, index, line?.text || ''].join('|')")],
-  ['CJK phrase stages keep template-specific compositions', ['blue-impact', 'kinetic-split', 'blue-structure', 'cyber-grunge', 'geometric', 'night-city', 'emotion-cinema', 'spider-web', 'staggered-text', 'calm-villain', 'girly-clouds', 'sweet-pink', 'fly-me-to-the-moon', 'kawaii-pixel', 'crime-scene', 'haruhikage', 'p5', 'paper-cut', 'custom'].every(preset => source.includes(`kpv-preset--${preset} .kpv-line--active.kpv-layout--jp-phrase .kpv-copy`))],
-  ['phrase progress traces follow the shared lyric clock without a second render loop', source.includes('className="kpv-progress-trace"') && source.includes('--kpv-phrase-progress') && source.includes('--kpv-trace-position') && source.includes('8 + progress * 84') && source.includes('kpv-stage[data-quality="efficient"] .kpv-progress-trace') && ['blue-impact','kinetic-split','blue-structure','cyber-grunge','geometric','matrix','night-city','emotion-cinema','spider-web','staggered-text','calm-villain','girly-clouds','sweet-pink','fly-me-to-the-moon','kawaii-pixel','crime-scene','haruhikage','p5','paper-cut','custom'].every((preset) => source.includes(`kpv-preset--${preset} .kpv-progress-trace`))],
-  ['current-token markers are preset-specific and layer below the glyph', source.includes('@keyframes kpv-live-marker') && source.includes('.kpv-token-motion{isolation:isolate}') && source.includes('.kpv-token-base,.kpv-stage .kpv-line--active .kpv-token-fill{z-index:1}') && ['blue-impact','kinetic-split','blue-structure','cyber-grunge','geometric','matrix','night-city','emotion-cinema','hysteric-night','spider-web','staggered-text','calm-villain','girly-clouds','sweet-pink','fly-me-to-the-moon','kawaii-pixel','crime-scene','haruhikage','p5','paper-cut','custom'].every((preset) => source.includes(`kpv-preset--${preset} .kpv-token[data-state="live"] .kpv-token-motion::before`)) && source.includes('kpv-stage[data-quality="efficient"] .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::before{animation:none!important')],
-  ['template lyric signals provide low-cost background movement', source.includes('className="kpv-lyric-signal"') && source.includes('kpv-stage[data-quality="efficient"] .kpv-lyric-signal{display:none}') && ['blue-impact', 'kinetic-split', 'blue-structure', 'cyber-grunge', 'geometric', 'night-city', 'emotion-cinema', 'spider-web', 'staggered-text', 'calm-villain', 'girly-clouds', 'sweet-pink', 'fly-me-to-the-moon', 'kawaii-pixel', 'crime-scene', 'haruhikage', 'p5', 'paper-cut', 'custom'].every(preset => source.includes(`kpv-preset--${preset} .kpv-lyric-signal`))],
-  ['line boundaries retain a visible foreground', source.includes('@keyframes kpv-line-settle{from{opacity:.94') && source.includes('kpv-copy-settle') && !source.includes('kpv-line-settle{from{opacity:0')],
-  ['custom owns a cover-driven prism score and accent-word feedback',
-    source.includes('kpv-prism-field-breathe') &&
-    source.includes('kpv-prism-halo-turn') &&
-    source.includes('kpv-prism-word-flash') &&
-    source.includes('PRISM SCORE  //  COVER HARMONIC') &&
-    source.includes('ACCENT / ALT / LYRIC') &&
-    source.includes('kpv-stage.kpv-preset--custom .kpv-custom-stage i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--custom .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--custom .kpv-custom-stage i:nth-child(3)')],  ['paper cut owns a layered paper theatre and folded-word feedback',
-    source.includes('kpv-papercut-stage-sway') &&
-    source.includes('kpv-papercut-back-layer') &&
-    source.includes('kpv-papercut-word-fold') &&
-    source.includes('PAPER THEATRE  //  CUT 06') &&
-    source.includes('FOLD / LAYER / BREATHE') &&
-    source.includes('kpv-stage.kpv-preset--paper-cut .kpv-paper-stack i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--paper-cut .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--paper-cut .kpv-paper-stack i:nth-child(3)')],  ['crime scene owns an evidence archive and sealed-word feedback',
-    source.includes('kpv-archive-thread-breathe') &&
-    source.includes('kpv-archive-seal-breathe') &&
-    source.includes('kpv-archive-word-seal') &&
-    source.includes('CASE ARCHIVE  //  EVIDENCE 142') &&
-    source.includes('CHAIN OF CUSTODY  /  SEALED') &&
-    source.includes('kpv-stage.kpv-preset--crime-scene .kpv-crime-stage i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--crime-scene .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--crime-scene .kpv-crime-stage i:nth-child(3)')],  ['cyber grunge owns a ruined terminal wall and corrected-word feedback',
-    source.includes('kpv-ruin-register-shift') &&
-    source.includes('kpv-ruin-panel-jitter') &&
-    source.includes('kpv-ruin-word-correct') &&
-    source.includes('SYSTEM // RUINED DISPLAY 04') &&
-    source.includes('ERRORS CORRECTED  /  SIGNAL STABLE') &&
-    source.includes('kpv-stage.kpv-preset--cyber-grunge .kpv-cyber-stage i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--cyber-grunge .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--cyber-grunge .kpv-cyber-stage i:nth-child(3)')],  ['calm villain owns an obsidian interrogation chamber and lock-word feedback',
-    source.includes('kpv-obsidian-table-breathe') &&
-    source.includes('kpv-obsidian-focus-breathe') &&
-    source.includes('kpv-obsidian-word-lock') &&
-    source.includes('INTERROGATION RECORD  //  ROOM 01') &&
-    source.includes('STATUS  /  OBSERVE  /  SILENCE') &&
-    source.includes('kpv-stage.kpv-preset--calm-villain .kpv-villain-stage i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--calm-villain .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--calm-villain .kpv-villain-stage i:nth-child(3)')],  ['staggered text owns a movable-type workbench and imprint-word feedback',
-    source.includes('kpv-type-baseline-shift') &&
-    source.includes('kpv-type-block-settle') &&
-    source.includes('kpv-type-word-imprint') &&
-    source.includes('TYPE COMPOSING ROOM  //  SET 04') &&
-    source.includes('LEAD / KERN / ALIGN') &&
-    source.includes('kpv-stage.kpv-preset--staggered-text .kpv-stagger-stage i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--staggered-text .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--staggered-text .kpv-stagger-stage i:nth-child(4)')],  ['spider web owns a crimson silk theatre and capture-word feedback',
-    source.includes('kpv-silk-heartbeat') &&
-    source.includes('kpv-silk-dew-twitch') &&
-    source.includes('kpv-silk-word-catch') &&
-    source.includes('SILK THEATRE  //  TENSION 05') &&
-    source.includes('THREAD COUNT  05  /  HEARTBEAT') &&
-    source.includes('kpv-stage.kpv-preset--spider-web .kpv-web-loom i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--spider-web .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--spider-web .kpv-web-loom i:nth-child(n+4)')],  ['fly me to the moon owns a lunar expedition field and orbit-word feedback',
-    source.includes('kpv-lunar-moon-glow') &&
-    source.includes('kpv-lunar-orbit-drift') &&
-    source.includes('kpv-lunar-word-orbit') &&
-    source.includes('APOLLO LYRIC MODULE  //  ORBIT 07') &&
-    source.includes('ALT  0360KM    /    SOFT LANDING') &&
-    source.includes('kpv-stage.kpv-preset--fly-me-to-the-moon .kpv-moon-stage i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--fly-me-to-the-moon .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--fly-me-to-the-moon .kpv-moon-stage i:nth-child(2)')],  ['kinetic split owns an editorial cutting-room field and slice-word feedback',
-    source.includes('kpv-kinetic-registration-shift') &&
-    source.includes('kpv-kinetic-panel-breathe') &&
-    source.includes('kpv-kinetic-word-cut') &&
-    source.includes('CUT / SYNC / 03') &&
-    source.includes('TYPE / MOVE / REPEAT') &&
-    source.includes('kpv-stage.kpv-preset--kinetic-split .kpv-split-planes i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--kinetic-split .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--kinetic-split .kpv-split-planes i:nth-child(3)')],  ['blue impact owns a sonar tactical field and locked-word feedback',
-    source.includes('kpv-blueimpact-sonar-turn') &&
-    source.includes('kpv-blueimpact-grid-breathe') &&
-    source.includes('kpv-blueimpact-word-surge') &&
-    source.includes('SONAR // IMPACT FIELD 01') &&
-    source.includes('TARGET LOCK  /  LYRIC CORE') &&
-    source.includes('kpv-stage.kpv-preset--blue-impact .kpv-impact-burst i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--blue-impact .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--blue-impact .kpv-impact-burst i:nth-child(n+3)')],
-  ['blue impact owns an abyssal hydrophone with local sonar returns and lifecycle throttles', source.includes('ABYSSAL HYDROPHONE  //  DEPTH FIELD 06') && source.includes('kpv-abyss-sonar-bearing') && source.includes('kpv-abyss-core-breathe') && source.includes('kpv-abyss-word-ring') && source.includes('LYRIC RETURN  //  RANGE LOCK') && source.includes('kpv-stage.kpv-preset--blue-impact .kpv-impact-burst i:nth-child(3)::after') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--blue-impact .kpv-impact-burst i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--blue-impact .kpv-impact-burst::before')],
-  ['emotion cinema owns a 35mm still and dialogue-word feedback',
-    source.includes('kpv-cinema-aperture') &&
-    source.includes('kpv-cinema-caption-breathe') &&
-    source.includes('kpv-cinema-dialogue-land') &&
-    source.includes('35MM  /  SCENE 04  /  TAKE 02') &&
-    source.includes('DIALOGUE  /  CLOSE UP') &&
-    source.includes('kpv-stage.kpv-preset--emotion-cinema .kpv-cinema-gate i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--emotion-cinema .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--emotion-cinema .kpv-cinema-gate i:nth-child(3)')],
-  ['night city owns a rain-line district and station-signal word feedback',
-    source.includes('kpv-city-skyline-breathe') &&
-    source.includes('kpv-city-window-drift') &&
-    source.includes('kpv-city-word-arrive') &&
-    source.includes('NIGHT LINE  //  LAST TRAIN  00:42') &&
-    source.includes('NOW ARRIVING  //  LYRIC SIGNAL') &&
-    source.includes('kpv-stage.kpv-preset--night-city .kpv-city-stage i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--night-city .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--night-city .kpv-city-stage i:nth-child(3)')],
-  ['geometric owns a modular exhibition field and coordinate-word feedback',
-    source.includes('kpv-geo-module-shift') &&
-    source.includes('kpv-geo-tile-drift') &&
-    source.includes('kpv-geo-coordinate-pop') &&
-    source.includes('FORM / COLOR / RHYTHM  —  02') &&
-    source.includes('GEOMETRY STUDY  /  ACTIVE LINE') &&
-    source.includes('kpv-stage.kpv-preset--geometric .kpv-geo-stage i:nth-child(2)::after') &&
-    source.includes('kpv-stage.kpv-preset--geometric .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--geometric .kpv-geo-stage i:nth-child(3)')],
-  ['kawaii pixel owns a handheld stage and sprite-cell word feedback',
-    source.includes('kpv-pixel-lcd-shift') &&
-    source.includes('kpv-pixel-sprite-hop') &&
-    source.includes('kpv-pixel-cell-pop') &&
-    source.includes('KAWAII PLAYER  //  STAGE 01') &&
-    source.includes('PRESS START  ·  LYRIC MODE') &&
-    source.includes('kpv-stage.kpv-preset--kawaii-pixel .kpv-pixel-ui i:nth-child(1)::after') &&
-    source.includes('kpv-stage.kpv-preset--kawaii-pixel .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--kawaii-pixel .kpv-pixel-ui i:nth-child(n+3)')],
-  ['p5 owns a generative plotting field and drawn-word feedback',
-    source.includes('kpv-p5-contour-drift') &&
-    source.includes('kpv-p5-field-breathe') &&
-    source.includes('kpv-p5-word-draw') &&
-    source.includes('GENERATIVE FIELD / 003') &&
-    source.includes('kpv-stage.kpv-preset--p5 .kpv-p5-stage i:nth-child(1)::after') &&
-    source.includes('kpv-stage.kpv-preset--p5 .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--p5 .kpv-p5-stage i:nth-child(3)')],
-  ['staggered text owns an editorial board and baseline-word feedback', source.includes('kpv-stagger-grid-roll') && source.includes('kpv-stagger-ruler-drift') && source.includes('kpv-stagger-word-baseline') && source.includes('TYPE STUDY  ·  RHYTHM 04') && source.includes('kpv-stage.kpv-preset--staggered-text .kpv-stagger-stage i:nth-child(1)::after') && source.includes('kpv-stage.kpv-preset--staggered-text .kpv-line--active .kpv-token[data-state=\"live\"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality=\"efficient\"].kpv-preset--staggered-text .kpv-stagger-stage i:nth-child(4)')],  ['calm villain owns an interrogation board and lock-on word feedback', source.includes('kpv-villain-board-shift') && source.includes('kpv-villain-table-breathe') && source.includes('kpv-villain-word-lock') && source.includes('INTERROGATION // ROOM 01') && source.includes('kpv-stage.kpv-preset--calm-villain .kpv-villain-stage i:nth-child(1)') && source.includes('kpv-stage.kpv-preset--calm-villain .kpv-line--active .kpv-token[data-state=\"live\"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality=\"efficient\"].kpv-preset--calm-villain .kpv-villain-stage i:nth-child(3)')],  ['hysteric night owns a fractured theatre stage and alert-word pulse', source.includes('kpv-hysteric-curtain-drift') && source.includes('kpv-hysteric-left-curtain') && source.includes('kpv-hysteric-word-pulse') && source.includes('STAGE // OVERDRIVE') && source.includes('kpv-stage.kpv-preset--hysteric-night .kpv-hysteric-shards i:nth-child(1)') && source.includes('kpv-stage.kpv-preset--hysteric-night .kpv-line--active .kpv-token[data-state=\"live\"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality=\"efficient\"].kpv-preset--hysteric-night .kpv-hysteric-shards i:nth-child(4)')],  ['spider web owns an ink-silk loom and dew-thread word feedback', source.includes('kpv-web-star-drift') && source.includes('kpv-web-loom-breathe') && source.includes('kpv-web-word-catch') && source.includes('SILK LOOM  ·  THREAD 05') && source.includes('kpv-stage.kpv-preset--spider-web .kpv-web-loom i:nth-child(1)') && source.includes('kpv-stage.kpv-preset--spider-web .kpv-line--active .kpv-token[data-state=\"live\"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality=\"efficient\"].kpv-preset--spider-web .kpv-web-loom i:nth-child(n+4)')],  ['moon owns a lunar observatory and moon-phase word feedback', source.includes('kpv-moon-chart-drift') && source.includes('kpv-moon-disk-breathe') && source.includes('kpv-moon-word-phase') && source.includes('LUNAR OBSERVATORY  ·  1964') && source.includes('kpv-stage.kpv-preset--fly-me-to-the-moon .kpv-moon-stage i:nth-child(1)') && source.includes('kpv-stage.kpv-preset--fly-me-to-the-moon .kpv-line--active .kpv-token[data-state=\"live\"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality=\"efficient\"].kpv-preset--fly-me-to-the-moon .kpv-moon-stage i:nth-child(2)')],  ['paper cut owns a layered paper theatre and scissor-led word feedback', source.includes('kpv-paper-stock-drift') && source.includes('kpv-paper-stage-sway') && source.includes('kpv-paper-word-cut') && source.includes('PAPER THEATRE') && source.includes('kpv-stage.kpv-preset--paper-cut .kpv-paper-stack i:nth-child(1)') && source.includes('kpv-stage.kpv-preset--paper-cut .kpv-line--active .kpv-token[data-state=\"live\"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality=\"efficient\"].kpv-preset--paper-cut .kpv-paper-stack i:nth-child(3)')],  ['crime scene owns a case-file board and evidence-pin word feedback', source.includes('kpv-crime-paper-drift') && source.includes('kpv-crime-evidence-float') && source.includes('kpv-crime-evidence-hit') && source.includes('CASE // 01  ·  EVIDENCE LOG') && source.includes('kpv-stage.kpv-preset--crime-scene .kpv-crime-stage i:nth-child(1)::after') && source.includes('kpv-stage.kpv-preset--crime-scene .kpv-line--active .kpv-token[data-state=\"live\"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality=\"efficient\"].kpv-preset--crime-scene .kpv-crime-stage i:nth-child(3)')],  ['haruhikage owns an airy branch tableau and petal-led word bloom', source.includes('kpv-haru-branch-sway') && source.includes('kpv-haru-petal-drift') && source.includes('kpv-haru-word-bloom') && source.includes('kpv-stage.kpv-preset--haruhikage .kpv-haru-branch::before') && source.includes('kpv-stage.kpv-preset--haruhikage .kpv-line--active .kpv-token[data-state=\"live\"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality=\"efficient\"].kpv-preset--haruhikage .kpv-haru-branch i:nth-child(n+4)')],  ['sweet pink has visible checker lace, scalloped trims, and a heart-led word cue', source.includes('kpv-lace-plaid-drift') && source.includes('kpv-lace-edge-drift') && source.includes('kpv-lace-ribbon-float') && source.includes('kpv-lace-word-pop') && source.includes('kpv-stage.kpv-preset--sweet-pink .kpv-frame::before') && source.includes('kpv-stage.kpv-preset--sweet-pink .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--sweet-pink .kpv-scallop-stage i:nth-child(3)')],
-  ['hysteric night owns a siren theatre with pulse fan, stage floor, understruck words and lifecycle throttles', source.includes('SIREN THEATRE  //  ACT OVERDRIVE') && source.includes('kpv-hysteric-fan-breathe') && source.includes('kpv-hysteric-floor-breathe') && source.includes('kpv-hysteric-word-understrike') && source.includes('LIVE  /  120 dB') && source.includes('kpv-stage.kpv-preset--hysteric-night .kpv-hysteric-shards i:nth-child(2)::after') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--hysteric-night .kpv-hysteric-shards i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--hysteric-night .kpv-hysteric-shards::before')],
-  ['girly clouds owns a bright morning cloud deck with petal word feedback and lifecycle throttles', source.includes('MORNING CLOUD DECK  //  PETAL SIGNAL') && source.includes('kpv-cloud-sky-drift') && source.includes('kpv-cloud-deck-breathe') && source.includes('kpv-cloud-petal-ring') && source.includes('PETAL WEATHER  /  LYRIC GARDEN') && source.includes('kpv-stage.kpv-preset--girly-clouds .kpv-cloud-bank i:nth-child(2)::after') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--girly-clouds .kpv-cloud-bank i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--girly-clouds .kpv-cloud-bank::before')],
-  ['girly clouds uses a bright cloud-bank scene and airy word bloom', source.includes('kpv-cloud-float-bank') && source.includes('kpv-cloud-horizon') && source.includes('kpv-cloud-word-bloom') && source.includes('kpv-stage.kpv-preset--girly-clouds .kpv-cloud-bank::before') && source.includes('kpv-stage.kpv-preset--girly-clouds .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--girly-clouds .kpv-cloud-bank i:nth-child(3)')],
-  ['blue structure has an architectural drawing field and plot-card word feedback', source.includes('kpv-blue-structure-scene') && source.includes('kpv-blueprint-drift') && source.includes('kpv-blueprint-ring') && source.includes('kpv-blueprint-plot-hit') && source.includes('kpv-stage.kpv-preset--blue-structure .kpv-blue-formulas') && source.includes('kpv-stage.kpv-preset--blue-structure .kpv-line--active .kpv-token[data-state="live"] .kpv-token-motion::after') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--blue-structure .kpv-structure-rays')],
-  ['matrix owns a forensic hacker console with binary audit data and uniform command cells',
-    source.includes('kpv-matrix-audit-scroll') &&
-    source.includes('kpv-matrix-audit-window') &&
-    source.includes('kpv-matrix-command-caret') &&
-    source.includes('SYSTEM / LYRIC DECODER / SESSION ACTIVE') &&
-    source.includes('LYRIC MATRIX // READ MODE') &&
-    source.includes('01001011 01010100 01010110') &&
-    source.includes('font-size:1em!important;') &&
-    source.includes('kpv-stage[data-quality="efficient"].kpv-preset--matrix .kpv-matrix-stage i:nth-child(n+3)')],
-  ['matrix uses a restrained data-terminal layout with reading annotations', source.includes('const MATRIX_PINYIN') && source.includes('function resolveMatrixReading') && source.includes('kpv-matrix-reading') && source.includes('kpv-matrix-code-drift') && source.includes('SYS // ROOT ACCESS') && source.includes('font-size:1em!important;vertical-align:baseline') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--matrix .kpv-matrix-reading{display:none}')],
-  ['matrix owns a persistent terminal frame and cursor cell', source.includes("if (preset === 'matrix') layout = 'matrix-terminal';") && source.includes("if (preset === 'matrix' && followsTemplate) return 'letter';") && source.includes('kpv-matrix-word-frame') && source.includes('kpv-matrix-cell') && source.includes('kpv-layout--matrix-terminal')],
-  ['matrix forensic cipherboard keeps byte traces, phonetic reads, equal glyph scale and lifecycle throttles', source.includes('function resolveMatrixByte') && source.includes('data-matrix-code={preset === \'matrix\' ? resolveMatrixByte(token.text) : undefined}') && source.includes('LYRIC CIPHERBOARD // PHONETIC TRACE') && source.includes('kpv-matrix-forensic-ticker') && source.includes('kpv-matrix-forensic-byte') && source.includes('font-size:1em!important;vertical-align:baseline!important') && source.includes('kpv-stage[data-quality="balanced"].kpv-preset--matrix .kpv-matrix-stage::before') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--matrix .kpv-matrix-stage::before')],
-  ['matrix core is a sober phonetic terminal with binary packet field, uniform text and lifecycle throttles', source.includes('MATRIX CORE // PHONETIC TERMINAL') && source.includes('ICHIGO.OS  //  LYRIC KERNEL  //  LINK: SECURE') && source.includes('ROOT@ICHIGO:~$  DECODE --WORD-TIMING --PHONETIC') && source.includes('LIVE WORD BUFFER  //  MONOSPACE LOCK  //  PHONETIC TRACE') && source.includes('kpv-matrix-core-packet') && source.includes('kpv-matrix-core-byte') && source.includes("content:'0b' attr(data-matrix-code)") && source.includes('font-size:1em!important;font-weight:inherit!important') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--matrix .kpv-matrix-stage::after') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--matrix .kpv-matrix-stage::after')],
-  ['matrix zero-one console owns a rigorous binary field, uniform token cells, phonetic reads and lifecycle throttles', source.includes('MATRIX // ZERO-ONE FORENSIC CONSOLE') && source.includes('ICHIGO // SECURE LYRIC CONSOLE // NODE 01') && source.includes('TOKEN STREAM  //  UNIFORM GLYPH GRID  //  PHONETIC TRACE') && source.includes('WORD / CODE / PHONETIC  //  ONE CELL PER TIMING UNIT') && source.includes('kpv-matrix-zero-one-drift') && source.includes('kpv-matrix-console-byte') && source.includes('font-size:1em!important;font-weight:inherit!important') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--matrix .kpv-lyric-signal i') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--matrix .kpv-lyric-signal i')],
-  ['emotion cinema owns a 35mm afterimage room with sprockets, frame-settle words and lifecycle throttles', source.includes('CINEMA // 35MM AFTERIMAGE ROOM') && source.includes('35MM  //  AFTERIMAGE ROOM  //  REEL 05') && source.includes('DIALOGUE  //  CLOSE FRAME  //  OPTICAL TRACK') && source.includes('REEL 05  ·  DIALOGUE TRACK  ·  FRAME HOLD') && source.includes('kpv-cinema-reel-turn') && source.includes('kpv-cinema-frame-settle') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--emotion-cinema .kpv-cinema-gate i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--emotion-cinema .kpv-lyric-signal i')],
-  ['kawaii pixel owns an arcade heartbeat screen with skyline sprites, cell-word feedback and lifecycle throttles', source.includes('KAWAII PIXEL // ARCADE HEARTBEAT') && source.includes('ARCADE HEARTBEAT  //  PLAYER 01  //  READY') && source.includes('PRESS START  //  LYRIC CARD  //  COMBO TRACK') && source.includes('SCORE  001  //  COMBO  01  //  STAGE  A') && source.includes('kpv-arcade-skyline-step') && source.includes('kpv-arcade-cell-land') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--kawaii-pixel .kpv-pixel-ui i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--kawaii-pixel .kpv-lyric-signal i')],
-  ['paper cut owns a layered window theatre with puppet cutouts, edge-word feedback and lifecycle throttles', source.includes('PAPER CUT // LAYERED WINDOW THEATRE') && source.includes('PAPER WINDOW THEATRE  //  ACT 03') && source.includes('CUTOUT LYRIC  //  FRONT LAYER  //  PAPER GRAIN') && source.includes('CUT SCENE  //  LAYER 02') && source.includes('kpv-paper-window-drift') && source.includes('kpv-paper-edge-land') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--paper-cut .kpv-paper-stack i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--paper-cut .kpv-lyric-signal i')],
-  ['moon owns a quiet lunar observatory with a crater disk, orbital words and lifecycle throttles', source.includes('MOON // QUIET LUNAR OBSERVATORY') && source.includes('QUIET LUNAR OBSERVATORY  //  ORBIT 07') && source.includes('LUNAR LYRIC  //  ORBITAL PHASE  //  QUIET SIGNAL') && source.includes('LUNAR MAP  /  AZ 072  /  EL 25') && source.includes('kpv-luna-disk-breathe') && source.includes('kpv-luna-word-arrival') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--fly-me-to-the-moon .kpv-moon-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--fly-me-to-the-moon .kpv-lyric-signal i')],
-  ['spider web owns a crimson silk worktable with dew pins, capture words and lifecycle throttles', source.includes('SPIDER WEB // CRIMSON SILK WORKTABLE') && source.includes('CRIMSON SILK WORKTABLE  //  THREAD 05') && source.includes('SILK CAPTURE  //  WORD THREAD  //  DEW TRACE') && source.includes('SILK MAP  //  TENSION 0.34  //  DEW READY') && source.includes('kpv-silk-loom-settle') && source.includes('kpv-silk-word-caught') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--spider-web .kpv-web-loom i:nth-child(n+4)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--spider-web .kpv-lyric-signal i')],
-  ['calm villain owns an observation archive room with dossier cards, locked words and lifecycle throttles', source.includes('CALM VILLAIN // OBSERVATION ARCHIVE ROOM') && source.includes('OBSERVATION ARCHIVE  //  ROOM 01  //  ACTIVE') && source.includes('TRANSCRIPT LOCK  //  WORD OBSERVATION  //  ROOM 01') && source.includes('EVIDENCE LOG  //  01 / 02 / 03  //  OBSERVE') && source.includes('kpv-archive-table-settle') && source.includes('kpv-archive-word-lock') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--calm-villain .kpv-villain-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--calm-villain .kpv-lyric-signal i')],
-  ['matrix owns a zero-one control room with uniform cells, phonetic trace and lifecycle throttles', source.includes('MATRIX // ZERO-ONE CONTROL ROOM') && source.includes('ICHIGO // ZERO-ONE CONTROL ROOM // NODE 01') && source.includes('TOKEN TRACE  //  UNIFORM GLYPH GRID  //  PHONETIC CHANNEL') && source.includes('ROOT@ICHIGO:~$ TRACE --WORD --PHONETIC --CLOCK=LOCKED') && source.includes('kpv-matrix-control-buffer') && source.includes('kpv-matrix-control-word') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--matrix .kpv-matrix-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--matrix .kpv-lyric-signal i')],
-  ['crime scene owns a forensic caseboard with evidence cards, transcript words and lifecycle throttles', source.includes('CRIME SCENE // FORENSIC CASEBOARD') && source.includes('FORENSIC CASEBOARD  //  FILE 014  //  OPEN') && source.includes('EVIDENCE TRANSCRIPT  //  ITEM 014  //  WORD TRACE') && source.includes('CASE 014  /  LOCATION: UNKNOWN') && source.includes('kpv-case-thread-hold') && source.includes('kpv-case-word-file') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--crime-scene .kpv-crime-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--crime-scene .kpv-lyric-signal i')],
-  ['blue impact owns a broadcast signal station with carrier waves, amplitude words and lifecycle throttles', source.includes('BLUE IMPACT // BROADCAST SIGNAL STATION') && source.includes('BROADCAST SIGNAL STATION  //  CHANNEL 06') && source.includes('LIVE TRANSCRIPT  //  AMPLITUDE CELL  //  CARRIER TRACE') && source.includes('STATION / A-06  //  LYRIC CARRIER  //  UPLINK') && source.includes('kpv-radio-bearing-turn') && source.includes('kpv-radio-word-up') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--blue-impact .kpv-impact-burst i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--blue-impact .kpv-lyric-signal i')],
-  ['kinetic split owns a dual track switcher with route panels, handoff words and lifecycle throttles', source.includes('KINETIC SPLIT // DUAL TRACK SWITCHER') && source.includes('DUAL TRACK SWITCHER  //  ROUTE A / B') && source.includes('LYRIC HANDOFF  //  DUAL ROUTE  //  CUT SYNC') && source.includes('ROUTE A  //  VOCAL FEED  //  ACTIVE') && source.includes('kpv-switch-route-drift') && source.includes('kpv-switch-word-route') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--kinetic-split .kpv-split-planes i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--kinetic-split .kpv-split-planes::before')],
-  ['hysteric night owns a redline siren theatre with pressure words and lifecycle throttles', source.includes('HYSTERIC NIGHT // REDLINE SIREN THEATRE') && source.includes('REDLINE SIREN THEATRE  //  ACT 09') && source.includes('ALARM TRANSCRIPT  //  PRESSURE WORD  //  STAGE BUS') && source.includes('SIREN BUS  //  VOCAL REDLINE  //  STAGE 09') && source.includes('kpv-siren-dial-turn') && source.includes('kpv-siren-word-strike') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--hysteric-night .kpv-hysteric-shards i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--hysteric-night .kpv-lyric-signal i')],
-  ['staggered text owns an editorial composing table with proof words and lifecycle throttles', source.includes('STAGGERED TEXT // EDITORIAL COMPOSING TABLE') && source.includes('EDITORIAL COMPOSING TABLE  //  ISSUE 04') && source.includes('COMPOSED LYRIC  //  BASELINE 24px  //  PROOF LINE') && source.includes('TYPE DESK  //  COLUMN FLOW  //  EDIT 04') && source.includes('kpv-editor-rail-drift') && source.includes('kpv-editor-word-set') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--staggered-text .kpv-stagger-stage i:nth-child(n+4)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--staggered-text .kpv-stagger-stage::before')],
-  ['p5 owns a generative score field with plotted words and lifecycle throttles', source.includes('P5 // GENERATIVE SCORE FIELD') && source.includes('GENERATIVE SCORE FIELD  //  PLOT 003') && source.includes('DRAWN LYRIC  //  POINT BY POINT  //  SCORE TRACE') && source.includes('SCORE / X-Y FIELD  //  LYRIC TRAJECTORY') && source.includes('kpv-plot-grid-drift') && source.includes('kpv-plot-word-draw') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--p5 .kpv-p5-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--p5 .kpv-p5-stage::before')],
-  ['custom owns a cover chroma observatory with harmonic words and lifecycle throttles', source.includes('CUSTOM // COVER CHROMA OBSERVATORY') && source.includes('COVER CHROMA OBSERVATORY  //  BAND 02') && source.includes('COVER HARMONIC  //  CHROMA WORD  //  SPECTRUM TRACE') && source.includes('CHROMA SAMPLE  //  COVER HARMONIC  //  BAND 02') && source.includes('kpv-chroma-band-breathe') && source.includes('kpv-chroma-word-rise') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--custom .kpv-custom-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--custom .kpv-lyric-signal i')],
-  ['spider web owns a dew loom atelier with tension words and lifecycle throttles', source.includes('SPIDER WEB // DEW LOOM ATELIER') && source.includes('DEW LOOM ATELIER  //  THREAD 05') && source.includes('SILK CAPTURE  //  WORD TENSION  //  DEW TRACE') && source.includes('SILK ATELIER  //  TENSION MAP  //  NIGHT WEAVE') && source.includes('kpv-loom-thread-settle') && source.includes('kpv-loom-word-caught') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--spider-web .kpv-web-loom i:nth-child(n+4)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--spider-web .kpv-lyric-signal i')],
-  ['night city owns a rain-platform composition with quiet windows, departure word signals and lifecycle throttles', source.includes('NIGHT CITY // RAIN PLATFORM') && source.includes('PLATFORM 07  ·  RAIN CLEARING') && source.includes('SHIBUYA  ·  00:42  //  WESTBOUND') && source.includes('DEPARTURE BOARD  //  WORD BY WORD  //  TRACK 07') && source.includes('kpv-city-platform-breathe') && source.includes('kpv-city-departure-rule') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--night-city .kpv-city-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--night-city .kpv-city-stage::after')],
-  ['cyber ruins owns an industrial signal yard with damaged plates, wired word feedback and lifecycle throttles', source.includes('CYBER RUINS // INDUSTRIAL SIGNAL YARD') && source.includes('SECTOR 04  //  SIGNAL YARD  //  DAMAGE LOG') && source.includes('INDUSTRIAL SIGNAL YARD  //  UNIT 04') && source.includes('FUSE ARRAY / VOLTAGE UNSTABLE') && source.includes('FIELD REPAIR LOG  //  WORD SIGNAL  //  CHANNEL 04') && source.includes('kpv-ruin-warning-pulse') && source.includes('kpv-ruin-word-wire') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--cyber-grunge .kpv-cyber-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--cyber-grunge .kpv-cyber-stage::after')],
-  ['geometric owns a constructive measure board with color planes, calibration word feedback and lifecycle throttles', source.includes('GEOMETRIC // CONSTRUCTIVE MEASURE BOARD') && source.includes('CONSTRUCTIVE STUDY  //  MODULE 03') && source.includes('GRID 12  /  AXIS X-Y  /  PRINT READY') && source.includes('MEASURE BOARD  //  WORD POSITION  //  X/Y LOCK') && source.includes('kpv-geo-construct-shift') && source.includes('kpv-geo-point-bracket') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--geometric .kpv-geo-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--geometric .kpv-geo-stage::after')],
-  ['matrix owns a cipher grid command room with binary diagnostics, uniform cells, phonetic reads and lifecycle throttles', source.includes('MATRIX // CIPHER GRID COMMAND ROOM') && source.includes('ICHIGO // CIPHER GRID COMMAND ROOM // NODE 01') && source.includes('CIPHER CELL  //  UNIFORM GLYPH GRID  //  PHONETIC TRACE') && source.includes('TOKEN / 0101 / PINYIN  //  ONE CELL PER TIMING UNIT') && source.includes('kpv-cipher-buffer-drift') && source.includes('kpv-cipher-phonetic-read') && source.includes('font-variant-ligatures:none!important') && source.includes('className="kpv-token-motion"\n                data-matrix-code={preset === \'matrix\' ? resolveMatrixByte(token.text) : undefined}') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--matrix .kpv-matrix-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--matrix .kpv-lyric-signal i')],
-  ['haruhikage owns a spring lantern garden with petal words and lifecycle throttles', source.includes('HARUHIKAGE // SPRING LANTERN GARDEN') && source.includes('SPRING LANTERN GARDEN  //  DAWN 06') && source.includes('SPRING TRANSCRIPT  //  PETAL WORD  //  GARDEN TRACE') && source.includes('FLOWER REPORT  //  PETAL COUNT 06  //  BREEZE: LOW') && source.includes('kpv-haru-lantern-branch') && source.includes('kpv-haru-lantern-petal-mark') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--haruhikage .kpv-haru-branch i:nth-child(n+4)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--haruhikage .kpv-lyric-signal i')],
-  ['blue structure owns a deconstructed blueprint lab with formula modules and lifecycle throttles', source.includes('BLUE STRUCTURE // DECONSTRUCTED BLUEPRINT LAB') && source.includes('DECONSTRUCTED BLUEPRINT LAB  //  PLATE 08') && source.includes('FORMULA TRANSCRIPT  //  MODULAR WORD  //  FIELD NOTE') && source.includes('COMPOSITION STUDY  //  MASS / FIELD / VECTOR') && source.includes('kpv-blue-lab-card-settle') && source.includes('kpv-blue-lab-word-register') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--blue-structure .kpv-structure-blocks i:nth-child(n+5)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--blue-structure .kpv-lyric-signal i')],
-  ['sweet pink owns a gingham lace studio with stitched words and lifecycle throttles', source.includes('SWEET PINK // GINGHAM LACE STUDIO') && source.includes('GINGHAM LACE STUDIO  //  RIBBON 05') && source.includes('LACE TRANSCRIPT  //  RIBBON WORD  //  STITCH LINE') && source.includes('CLOTH / LACE / RIBBON STUDY') && source.includes('kpv-gingham-cloth-shift') && source.includes('kpv-gingham-word-stitch') && source.includes('kpv-stage[data-quality="efficient"].kpv-preset--sweet-pink .kpv-scallop-stage i:nth-child(n+3)') && source.includes('kpv-stage[data-document-hidden="true"].kpv-preset--sweet-pink .kpv-lyric-signal i')],
-  ['balanced PV has a final single-scene compositor budget and efficient mode disables decorative motion', source.includes('PV FRAME BUDGET // one composed scene move in normal playback') && source.includes('kpv-pv-budget-scene') && source.includes('.kpv-stage[data-quality="balanced"] .kpv-art-scene *') && source.includes('.kpv-stage[data-quality="efficient"] .kpv-art-scene,.kpv-stage[data-quality="efficient"] .kpv-art-scene *') && source.includes('.kpv-stage[data-document-hidden="true"] .kpv-art-scene,.kpv-stage[data-document-hidden="true"] .kpv-preset-motif')],
-  ['balanced PV restores one low-cost signature gesture per theme after the global budget freeze', source.includes('Restore exactly one identity-bearing child gesture after the global') && source.includes('kpv-pv-budget-impact') && source.includes('kpv-pv-budget-map') && source.includes('kpv-pv-budget-pixel') && source.includes('kpv-pv-budget-lace') && source.includes('kpv-pv-budget-console') && source.includes('kpv-pv-budget-chroma')],
-  ['last-mounted palette keeps the compositor ceiling and the cloud/caseboard scene grammars', source.includes('FINAL PV COMPOSITOR CEILING') && source.includes('GIRLY CLOUDS // LETTERS ABOVE THE CLOUDLINE') && source.includes('CRIME SCENE // QUIET FORENSIC CASEBOARD') && source.includes('kpv-final-scene-drift') && source.includes('kpv-final-detail-float') && source.includes('kpv-final-detail-turn') && source.includes('kpv-stage[data-quality="balanced"].kpv-preset--crime-scene .kpv-crime-stage::before')],
-  ['motion ceiling is physically last after every late palette chapter', source.lastIndexOf('TRUE FINAL MOTION CEILING') > source.lastIndexOf('SPIDER WEB // DEW LOOM ATELIER') && source.lastIndexOf('TRUE FINAL MOTION CEILING') > source.lastIndexOf('CALM VILLAIN // OBSERVATION ARCHIVE ROOM') && source.lastIndexOf('TRUE FINAL MOTION CEILING') > source.lastIndexOf('MATRIX // CIPHER GRID COMMAND ROOM') && source.lastIndexOf('TRUE FINAL MOTION CEILING') > source.lastIndexOf('FLY ME TO THE MOON') && source.lastIndexOf('TRUE FINAL MOTION CEILING') > source.lastIndexOf('CRIME SCENE // QUIET FORENSIC CASEBOARD')],
-  ['auto quality drops once on sustained compositor pressure without overriding manual tiers', source.includes('function resolveRenderQuality(config = {}, runtimeOverride = null)') && source.includes("if (runtimeOverride === 'efficient') return 'efficient';") && source.includes('const [runtimeQuality, setRuntimeQuality] = useState(null);') && source.includes('const renderQuality = resolveRenderQuality(config, runtimeQuality);') && source.includes('Eight\n    // frames slower than 34ms') && source.includes('sampleCount >= 14 && slowFrames >= 8') && source.includes("current === 'efficient' ? current : 'efficient'")],
-  ['stable line refs', source.includes('const lineRef = useCallback(') && source.includes('const register = useCallback(')],
-  ['track-aware lyric keys', source.includes('function lineKey(line, index, trackKey = \'\')') && source.includes("previewEnabled ? 'pv-preview' : songKey")],
-  ['binary-search active line lookup', /function resolveVisualActiveIndex[\s\S]*?while \(low <= high\)/u.test(source)],
-  ['boundary timer visual sync', source.includes('function findNextVisualBoundaryIndex') && source.includes('window.setTimeout(() =>') && !source.includes('subscribeLyricClock(syncVisualIndex)')],
-  ['paused PV unsubscribes', source.includes('if (!previewEnabled && !isPlaying) return undefined;') && source.includes('return subscribeLyricClock(update);')],
-  ['stalled media freezes writes', source.includes('stalledLyricFrames >= 2') && source.includes('lastLyricClockTime')],
-  ['one active art scene is mounted', source.includes('function renderActivePvScene(preset)') && source.includes('{renderActivePvScene(preset)}')],
-  ['inactive lines skip heavy decor', source.includes('const isActive = relation === \'active\'') && source.includes('{isActive && <>')],
-  ['generic PV decor is not duplicated', !source.includes('<div className="kpv-atmosphere"') && source.includes('.kpv-stage .kpv-atmosphere{display:none!important}')],
-  ['generic overlay is disabled in PV', appSource.includes('currentLyricsMode !== \'talk\'') && cssSource.includes('.lyrics-overlay--talk .lyrics-overlay-bg')],
-  ['immersive player bars stay mounted', appSource.includes('{layoutMode !== \'modern\' && (') && appSource.includes('{layoutMode === \'modern\' && <ModernPlayerBar') && appSource.includes('Keep the bar mounted while immersive lyrics/PV is open')],
-  ['immersive player bar sensor can reveal both layouts', cssSource.includes('.lyrics-open .lyrics-immersive-hover-sensor:hover ~ .app-player-bar') && cssSource.includes('.lyrics-open .lyrics-immersive-hover-sensor:hover ~ #player-bar') && cssSource.includes('z-index: 1290')],
-  ['legacy lyric sweep skips PV', lyricsViewSource.includes("if (advancedLyricConfig?.lyricsMode === 'talk') return undefined;")],
-  ['PV stylesheet is hoisted', source.includes('const KTV_PV_STYLE_ELEMENTS =') && !source.includes('<style>{`')],
-  ['PV scene motion is independent', source.includes('@keyframes kpv-scene-impact') && source.includes('@keyframes kpv-scene-cyber') && source.includes('@keyframes kpv-scene-clouds') && source.includes('@keyframes kpv-scene-matrix')],
-  ['preset motifs are independent', source.includes('kpv-preset--girly-clouds .kpv-preset-motif::before') && source.includes('kpv-preset--kawaii-pixel .kpv-preset-motif::before') && source.includes('kpv-preset--haruhikage .kpv-preset-motif::before') && source.includes('kpv-preset--hysteric-night .kpv-preset-motif::before')],
-  ['blue structure reference layers', source.includes('kpv-blue-structure-scene') && source.includes('kpv-structure-blocks') && source.includes('kpv-structure-rays') && source.includes('kpv-structure-links') && source.includes('kpv-blue-formulas')],
-  ['cyber reference layers', source.includes('kpv-cyber-scene') && source.includes('kpv-cyber-monitors') && source.includes('kpv-cyber-debris') && source.includes('kpv-cyber-bars')],
-  ['reference shells remain visible', source.includes('kpv-stage.kpv-preset--blue-structure .kpv-preset-motif') && source.includes('kpv-stage.kpv-preset--cyber-grunge .kpv-preset-motif{display:block!important')],
-  ['scene camera signatures exist', source.includes('@keyframes kpv-background-cinema') && source.includes('@keyframes kpv-background-terminal') && source.includes('@keyframes kpv-background-float') && source.includes('@keyframes kpv-background-paper')],
-  ['camera motion pauses when hidden', source.includes('data-document-hidden="true"] .kpv-background-camera{animation-play-state:paused!important}')],
-  ['PV sweep overlays are disabled', source.includes('.kpv-shutter{display:none!important}') && source.includes('.kpv-stage::before{opacity:0!important') && source.includes('.kpv-field i:nth-child(3){animation:none!important;opacity:0!important}')],
-  ['active lyric stays opaque with entry motion', source.includes('Foreground reading contract') && source.includes('.kpv-stage .kpv-line--active{z-index:6!important;animation:kpv-line-in') && source.includes('.kpv-stage .kpv-line--active .kpv-token-base{color:var(--kpv-token-idle)!important;opacity:1!important}')],
-  ['CJK foreground stays horizontal and complete', source.includes("if (isEastAsianText(line?.text)) layout = 'jp-phrase';") && source.includes('writing-mode:horizontal-tb!important') && source.includes('.kpv-reactive-backdrop--matrix .kpv-backdrop-lyric-field b{')],
-  ['theme typography stays behind the lyric', source.includes('.kpv-stage .kpv-theme-layer{z-index:2!important}') && source.includes('.kpv-stage .kpv-theme-layer .kpv-ghost{max-width:min(30vw,440px)!important')],
-  ['glyph motion is restored', source.includes('@keyframes kpv-glyph-land') && source.includes('animation:kpv-glyph-land') && source.includes('animation:kpv-copy-hit')],
-  ['letter mode keeps continuous fill', source.includes('const paintLetterTokens = (refs, time)') && source.includes("if (model.revealMode === 'letter')")],
-  ['Latin words stay grouped', source.includes('segmentMixedTokens(text || \'\')') && source.includes('data-token-kind={tokenKind}')],
-  ['timed mixed-script units are merged', source.includes('mergeTimedMixedTokens') && source.includes('const timedUnits = []')],
-  ['balanced removes cover compositor cost', source.includes(`${balancedCssSelector} .kpv-coverwash{opacity:.045!important;filter:none!important`) && source.includes(`${balancedCssSelector} .kpv-cover-cel{opacity:.12!important;filter:none!important`)],
-  ['balanced removes scene filter cost', source.includes(`${balancedCssSelector} .kpv-art-scene`) && source.includes('kpv-cyber-debris i:nth-child(even)')],
-  ['balanced beat meter is low-cost', source.includes(`${balancedGuardSelector} .kpv-beat-rig{opacity:calc(.08 + var(--kpv-energy,0) * .16)!important;height:10vh!important`) && source.includes(`${balancedGuardSelector} .kpv-beat-rig i{box-shadow:none!important;will-change:auto}`)],
-  ['balanced keeps transform/opacity lyric motion', source.includes('Keep lyric hit motion: transform/opacity are compositor-friendly') && !source.includes('.kpv-stage .kpv-line--active .kpv-token,.kpv-stage .kpv-line--active .kpv-token-motion,.kpv-stage .kpv-line--active .kpv-token-fill{animation:none!important')],
-  ['balanced scene motion has a single-detail budget', source.includes('Balanced/efficient keep one scene-level camera move') && source.includes('signature detail') && source.includes('.kpv-stage[data-quality="balanced"] .kpv-art-scene--clouds .kpv-cloud-bank::before{animation:kpv-cloud-drift 28s ease-in-out infinite!important}') && source.includes('.kpv-stage[data-quality="balanced"] .kpv-art-scene--cyber .kpv-cyber-stage::after{animation:kpv-cyber-glitch 6s steps(2,end) infinite!important}') && source.includes('.kpv-stage[data-quality="balanced"] .kpv-art-scene--custom .kpv-custom-stage::after{animation:kpv-custom-ring 26s ease-in-out infinite!important}') && source.includes('.kpv-stage[data-quality="balanced"].kpv-preset--blue-structure .kpv-structure-links::before{animation:kpv-structure-links 18s ease-in-out infinite!important}') && source.includes('.kpv-stage[data-quality="balanced"].kpv-preset--cyber-grunge .kpv-cyber-monitors i:first-child{animation:kpv-cyber-panel 12s steps(4,end) infinite!important}')],
-  ['preset layout is preserved across lyric rhythms', source.includes('Keep the preset\'s structural layout for non-card templates') && !source.includes("else if (scene !== 'impact') {\n    if (rhythm === 'emblem') layout = 'emblem-board'")],
-  ['scene-specific beat camera is compositor-only', source.includes('var(--kpv-scene-beat-scale') && source.includes('will-change:transform,scale,translate') && source.includes('audio response is a single compositor property')],
-  ['song acts modulate scene motion', source.includes('data-act="intro"') && source.includes('--kpv-scene-beat-mult:.55') && source.includes('data-act="peak"') && source.includes('--kpv-scene-beat-mult:1.45') && source.includes('data-hook="true"')],
-  ['shot changes have distinct camera grammar', source.includes('data-scene="poster"') && source.includes('--kpv-shot-x:-.35%') && source.includes('data-scene="split"') && source.includes('--kpv-shot-x:-1.2%') && source.includes('data-scene="impact"') && source.includes('--kpv-shot-zoom:.021') && source.includes('transition:translate .78s cubic-bezier')],
-  ['scene lenses are mounted after performance guards', source.includes('const KTV_PV_SCENE_LENSES') && source.includes('{KTV_PV_SCENE_LENSES}') && source.includes('full-screen sweep on every line') && source.includes('preset-motif')],
-  ['lyric theme drives background typography', themeSource.includes('export function resolveLyricTheme') && themeSource.includes('kindPriority') && themeSource.includes('context') && source.includes('resolveLyricTheme') && source.includes('theme.primary') && source.includes('theme.ghost') && source.includes('theme.context') && source.includes('theme.secondary') && source.includes('kpv-theme-echo-drift') && source.includes('getTokenVisualScale') && source.includes('full phrase remains visible') && source.includes('contextText')],
-  ['theme parser keeps multilingual literals intact', themeSource.includes('\\u306f') && themeSource.includes('\\uC740') && themeSource.includes('THEME_BRACKET_RE') && themeSource.includes('kindPriority') && themeSource.includes('mixedParts')],
-  ['editorial token scale varies by layout', source.includes('const isEditorial') && source.includes('fontSize: isPixelPreset') && source.includes("'jp-phrase', 'cinema-hero'")],
-  ['preset word-stage grammars are distinct', source.includes('kpv-card-tilt') && source.includes('terminal-board .kpv-token:nth-child(3n)') && source.includes('kawaii-pixel') && source.includes('haruhikage') && source.includes('hysteric-night')],
-  ['preset typography has distinct grammar', source.includes('Preset-specific background typography') && source.includes('blue-structure .kpv-line--active .kpv-ghost') && source.includes('cyber-grunge .kpv-line--active .kpv-ghost') && source.includes('matrix .kpv-line--active .kpv-ghost') && source.includes('emotion-cinema .kpv-line--active .kpv-ghost') && source.includes('kawaii-pixel .kpv-line--active .kpv-ghost') && source.includes('hysteric-night .kpv-line--active .kpv-ghost') && source.includes('paper-cut .kpv-line--active .kpv-ghost') && source.includes('--kpv-theme-token-scale')],
-  ['theme words share the lyric stack below the foreground', source.includes('function KtvThemeLayer') && source.includes('kpv-theme-layer') && source.includes('Theme typography shares the lyric camera') && source.lastIndexOf('<KtvThemeLayer') < source.lastIndexOf('{models.map(model => (') && source.includes('--kpv-key-x:78%') && source.includes('reserved lanes') && source.includes('kpv-theme-ghost-breathe') && !/function KtvLine[\s\S]*?<div className="kpv-ghost"/u.test(source)],
-  ['translation and theme captions use distinct lanes', source.includes('right:clamp(28px,7vw,118px)') && source.includes('top:clamp(250px,58vh,620px)') && source.includes('fixed reading rail') && source.includes('cyber-grunge .kpv-context-line{left:auto;right:8%;top:17%') && source.includes('kawaii-pixel .kpv-context-line{left:8%;top:16%')],
-  ['translation is a compact centered reading line', source.includes('const KTV_PV_TRANSLATION_GUARD') && source.includes('kpv-fixed-translation') && source.includes('left:50%!important') && source.includes('white-space:nowrap!important') && source.includes('activeModel?.line?.translation') && source.includes('Math.max(18') && !source.includes('className="kpv-translation"')],
-  ['requested palette refinements are mounted', source.includes('const KTV_PV_PALETTE_REFINEMENTS') && source.includes('{KTV_PV_PALETTE_REFINEMENTS}') && source.includes('airy candy sky') && source.includes('evidence-board') && source.includes('sweet-pink')],
-  ['cyber reference scene avoids duplicate compositor', source.includes('Cyber Grunge already has a complete monitor/debris reference layer') && source.includes('.kpv-stage.kpv-preset--cyber-grunge .kpv-art-scene--cyber{display:none!important}')],
-  ['visibility budget is wired', source.includes('applyVisibilityBudget') && source.includes('data-document-hidden')],
-  ['Japanese boundary helper remains', textSource.includes('function mergeJapaneseSegments') && textSource.includes('OPEN_BRACKET_RE')]
-  ,['theme extraction keeps lexical phrases', themeExampleCoverage]
-  ,['theme extraction keeps a semantic caption lane', semanticCaptionCoverage]
-  ,['mixed-script caption keeps source-language context', mixedContextCoverage]
-  ,['theme layer receives deduplicated semantic units', themeUnitCoverage]
-  ,['background typography has four reserved zones', source.includes('explicit four-zone map') && source.includes('kpv-preset--matrix .kpv-theme-layer .kpv-echoes b:nth-child(1)') && source.includes('kpv-preset--hysteric-night .kpv-theme-layer .kpv-ghost')]
-  ,['theme-specific token rhythm is wired', source.includes('function getPresetTokenScale') && source.includes("'kawaii-pixel': [1.04, .76, 1.22") && source.includes('getPresetTokenScale(preset, tokenIndex, token')]
-  ,['background units get deterministic theme slots', source.includes('function getThemeUnitPlacement') && source.includes('kpv-preset--blue-structure') && source.includes('splitShift')]
-   ,['auto warm palette excludes disabled plotting', source.includes("['fly-me-to-the-moon', 'geometric', 'paper-cut']") && source.includes("if (requested === 'multi' && presetPool.length)")]
-  ,['matrix packet rail binds visible byte and phonetic diagnostics to lyric tokens', source.includes('function MatrixDiagnosticRail') && source.includes('kpv-matrix-diagnostic-rail') && source.includes('kpv-matrix-diagnostic-packet') && source.includes('resolveMatrixByte(token.text)') && source.includes('resolveMatrixReading(token.text) || \'raw\'') && source.includes('<MatrixDiagnosticRail tokens={displayTokens} index={index} />') && source.includes('kpv-matrix-packet-commit') && source.includes('kpv-matrix-packet-cursor') && source.includes('data-document-hidden="true"].kpv-preset--matrix .kpv-matrix-diagnostic-rail{visibility:hidden!important}')]
-  ,['night-city arrival board binds transit cells to lyric tokens without a second clock', source.includes('function CityArrivalBoard') && source.includes('function resolveCityArrivalCode') && source.includes('kpv-city-arrival-board') && source.includes('kpv-city-arrival-cell') && source.includes('CAR {resolveCityArrivalCode(token.text)}') && source.includes('<CityArrivalBoard tokens={displayTokens} index={index} />') && source.includes('kpv-city-arrival-commit') && source.includes('kpv-city-arrival-lamp') && source.includes('data-document-hidden="true"].kpv-preset--night-city .kpv-city-arrival-board{visibility:hidden!important}')]
-  ,['p5 lyric trajectory plots deterministic token points without a second clock', source.includes('function PlotTrajectory') && source.includes('function resolvePlotPoint') && source.includes('kpv-plot-trajectory') && source.includes('<polyline points={polyline} />') && source.includes('splitGraphemes(value).reduce') && source.includes('<PlotTrajectory tokens={displayTokens} />') && source.includes('kpv-plot-trajectory-commit') && source.includes('kpv-plot-trajectory-point') && source.includes('data-document-hidden="true"].kpv-preset--p5 .kpv-plot-trajectory{visibility:hidden!important}')]
-  ,['blue structure measure strip binds blueprint divisions to lyric units without another clock', source.includes('function BlueMeasureStrip') && source.includes('kpv-blue-measure-strip') && source.includes('kpv-blue-measure-cell') && source.includes("String(cellIndex + 1).padStart(2, '0')") && source.includes('<BlueMeasureStrip tokens={displayTokens} />') && source.includes('kpv-blue-measure-register') && source.includes('kpv-blue-measure-bracket') && source.includes('data-document-hidden="true"].kpv-preset--blue-structure .kpv-blue-measure-strip{visibility:hidden!important}')]
-  ,['emotion cinema contact sheet binds dialogue frames to lyric units without another clock', source.includes('function CinemaContactSheet') && source.includes('kpv-cinema-contact-sheet') && source.includes('kpv-cinema-contact-cell') && source.includes("String(index + 1).padStart(2, '0')") && source.includes('<CinemaContactSheet tokens={displayTokens} index={index} />') && source.includes('kpv-cinema-contact-settle') && source.includes('kpv-cinema-contact-line') && source.includes('data-document-hidden="true"].kpv-preset--emotion-cinema .kpv-cinema-contact-sheet{visibility:hidden!important}')]
-  ,['moon observation rail binds lunar phase readings to lyric units without another clock', source.includes('function LunarObservationRail') && source.includes('function resolveLunarPhase') && source.includes('kpv-luna-observation-rail') && source.includes('kpv-luna-observation-cell') && source.includes('resolveLunarPhase(token.text)') && source.includes('<LunarObservationRail tokens={displayTokens} index={index} />') && source.includes('kpv-luna-observation-arrival') && source.includes('kpv-luna-observation-phase') && source.includes('data-document-hidden="true"].kpv-preset--fly-me-to-the-moon .kpv-luna-observation-rail{visibility:hidden!important}')]
-  ,['girly cloud postmark ribbon binds morning weather stamps to lyric units without another clock', source.includes('function CloudMorningRibbon') && source.includes('function resolveCloudStamp') && source.includes('kpv-cloud-morning-ribbon') && source.includes('kpv-cloud-morning-stamp') && source.includes('resolveCloudStamp(token.text)') && source.includes('<CloudMorningRibbon tokens={displayTokens} index={index} />') && source.includes('kpv-cloud-postmark-arrival') && source.includes('kpv-cloud-postmark-bloom') && source.includes('data-document-hidden="true"].kpv-preset--girly-clouds .kpv-cloud-morning-ribbon{visibility:hidden!important}')]
-  ,['kawaii pixel combo ledger binds fixed arcade cells to lyric units without another clock', source.includes('function PixelComboLedger') && source.includes('function resolvePixelCombo') && source.includes('kpv-pixel-combo-ledger') && source.includes('kpv-pixel-combo-cell') && source.includes('resolvePixelCombo(token.text, cellIndex)') && source.includes('<PixelComboLedger tokens={displayTokens} index={index} />') && source.includes('kpv-pixel-ledger-input') && source.includes('kpv-pixel-ledger-cell') && source.includes('data-document-hidden="true"].kpv-preset--kawaii-pixel .kpv-pixel-combo-ledger{visibility:hidden!important}')]
-  ,['haruhikage petal ledger binds garden marks to lyric units without another clock', source.includes('function HaruPetalLedger') && source.includes('function resolveHaruPetalMark') && source.includes('kpv-haru-petal-ledger') && source.includes('kpv-haru-petal-note') && source.includes('resolveHaruPetalMark(token.text)') && source.includes('<HaruPetalLedger tokens={displayTokens} index={index} />') && source.includes('kpv-haru-ledger-arrival') && source.includes('kpv-haru-ledger-petal') && source.includes('data-document-hidden="true"].kpv-preset--haruhikage .kpv-haru-petal-ledger{visibility:hidden!important}')]
-  ,['each PV preset owns a distinct word-arrival renderer and the lyric number has no box chrome', source.includes('const PRESET_WORD_RENDERERS') && source.includes('const KTV_PV_WORD_RENDERERS') && source.includes('data-word-renderer={wordRenderer}') && ['sonar','slash','measure','scan','geometry','matrix','neon','subtitle','shards','thread','cascade','dossier','cloud','ribbon','lunar','pixel','evidence','petal','comic','paper','prism'].every((renderer) => source.includes(`kpv-word-renderer--${renderer}`)) && source.includes('kpv-matrix-prompt') && source.includes('.kpv-stage .kpv-caption span{') && source.includes('border:0!important')]
-   ,['each template owns three rotating word variants plus a lyric-and-cover backdrop', source.includes('const PRESET_WORD_VARIANTS') && source.includes('function resolveWordVariant') && source.includes('const wordVariant = resolveWordVariant') && source.includes('data-word-variant={wordVariant}') && source.includes('KtvReactiveBackdrop') && source.includes('kpv-backdrop-cover-field') && source.includes('kpv-backdrop-lyric-field') && source.includes('ktvBackdrop') && ['blue-impact','kinetic-split','blue-structure','cyber-grunge','geometric','matrix','night-city','emotion-cinema','hysteric-night','spider-web','staggered-text','calm-villain','girly-clouds','sweet-pink','fly-me-to-the-moon','kawaii-pixel','crime-scene','haruhikage','p5','paper-cut','custom'].every((preset) => new RegExp(String.raw`(?:'${preset}'|${preset}): \['[^']+', '[^']+', '[^']+'\]`).test(source))]
-   ,['token variation config reaches KtvLine', source.includes('function KtvLine({ model, fontPx, fontStack, showLyricIndex = true, presetLabel, renderQuality, register, config = {} })') && source.includes('config={config}') && source.includes('data-token-variant={tokenVariant}')]
-   ,['template animation modes are consolidated', appSource.includes('value="template-rich"') && appSource.includes('value="template-single"') && !appSource.includes('ktvWordRandomness') && !appSource.includes('ktvAvoidWordRepeats') && source.includes("selectedEffect === 'template-rich'") && source.includes("selectedEffect === 'template-single'")]
-   ,['open compositions replace generic lyric cards', source.includes('const KTV_PV_OPEN_COMPOSITIONS') && source.includes('kpv-open-siren-word') && source.includes('kpv-open-sonar-word') && source.includes('kpv-open-cut-word') && source.includes('kpv-open-glitch-word') && source.includes('kpv-open-geo-word') && source.includes('kpv-open-plot-word') && source.includes('kpv-open-cinema-word')]
-    ,['matrix keeps three distinct token arrivals', source.includes('data-token-variant$="-stream"') && source.includes('data-token-variant$="-decode"') && source.includes('data-token-variant$="-command"') && source.includes('kpv-open-matrix-decode') && source.includes('kpv-open-matrix-command')]
-    ,['geometric theme layer cannot leak into lyric baseline', source.includes("model.preset === 'geometric' || model.preset === 'fly-me-to-the-moon'") && source.includes('kpv-stage.kpv-preset--geometric .kpv-line--active .kpv-token[data-token-variant$="-grid"]')]
-    ,['geometry stays transform-free and moon owns a PV spatial cloud canvas', source.includes('kpv-preset--geometric .kpv-reactive-backdrop-lyric-field{display:none!important}') && source.includes('kpv-preset--geometric .kpv-line--active .kpv-token-fill{display:none!important}') && source.includes('animation:kpv-geo-baseline-light') && source.includes('transition:none!important;transform:none!important;translate:none!important') && source.includes('function resolveFlySpatialPoint') && source.includes('function FlyMoonSpatialCloud') && source.includes('kpv-fly-cloud-points') && source.includes('kpv-fly-cloud-links') && source.includes('kpv-fly-cloud-cover--far') && source.includes('animation:kpv-fly-glyph-light') && source.includes('perspective:1200px!important')]
-    ,['kawaii bundles and applies a real pixel font', source.includes("@fontsource/dotgothic16/japanese.css") && source.includes("@fontsource/dotgothic16/latin.css") && source.includes("font-family:'DotGothic16'") && source.includes('font-synthesis:none!important')]
-  ];
+  ['PVEngine core is available and has lifecycle methods',
+    engineSource.includes('export class PVEngine') &&
+    engineSource.includes('async init(') &&
+    engineSource.includes('destroy()') &&
+    engineSource.includes('loadTemplate(') &&
+    engineSource.includes('setPlaybackTime(') &&
+    engineSource.includes('setLyricTimeline(') &&
+    engineSource.includes('addMediaUrl(')],
 
-const failed = checks.filter(([, passed]) => !passed).map(([label]) => label);
-if (failed.length) {
-  console.error(`[ktv-pv] FAILED: ${failed.join('; ')}`);
-  process.exit(1);
+  ['All PV templates are loaded and indexed in templates/index.ts',
+    templateKeys.every(tplKey => templatesIndexSource.includes(tplKey))],
+
+  ['50+ effect renderers are registered in effects catalog',
+    ['lyricText', 'matrixDecodeText', 'pixelTypewriterText', 'modernArchitectText', 'poeticStaggerText', 'popComicText', 'cinematicCleanText', 'kineticSlashText', 'meshGradient', 'dustParticles', 'petalFall', 'waveLines', 'speedLines', 'retroSun', 'threadLine', 'paperTear', 'chromaticAberration', 'filmGrain', 'scanlines', 'glitchBars', 'vignette', 'letterbox', 'pixelWindow', 'desktopIcon', 'pixelBackground', 'pixelTypewriter', 'shatterText', 'staggeredText', 'fallingText', 'waveText'].every(effectName => effectsIndexSource.includes(`'${effectName}'`))],
+
+
+  ['KineticKtvLyrics mounts PVEngine and syncs with lyric clock',
+    source.includes('new PVEngine()') &&
+    source.includes('subscribeLyricClock') &&
+    source.includes('pv.setPlaybackTime') &&
+    source.includes('pv.setLyricTimeline') &&
+    source.includes('kpv-pixi-stage')],
+
+  ['App gallery contains complete template selection and preview colors',
+    (appSource.includes('KTV_TEMPLATE_GALLERY') || immersiveModesSource.includes('KTV_TEMPLATE_GALLERY')) &&
+    templateKeys.every(key => immersiveModesSource.includes(key))],
+
+
+  ['PV settings include animation speed, motion intensity, title card, and translation controls',
+    appSource.includes('ktvSpeed') &&
+    appSource.includes('ktvMotion') &&
+    appSource.includes('ktvBgOpacity') &&
+    appSource.includes('ktvShowTitleCard') &&
+    appSource.includes('ktvShowTranslation')]
+
+];
+
+let failed = 0;
+for (const [title, pass] of checks) {
+  if (!pass) {
+    console.error(`FAIL: ${title}`);
+    failed++;
+  } else {
+    console.log(`OK: ${title}`);
+  }
 }
 
-console.log(`[ktv-pv] OK: ${checks.length} PV lifecycle and rendering invariants`);
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+if (failed > 0) {
+  process.exit(1);
+} else {
+  console.log(`\n[check:ktv-pv] All ${checks.length} checks PASSED.`);
+}

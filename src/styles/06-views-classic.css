@@ -621,8 +621,10 @@
   position: absolute;
   top: 70px;
   right: 24px;
-  background: var(--glass-bg-hover);
-  border: none;
+  background: rgba(18, 16, 28, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   color: #ffffff;
   width: 40px;
   height: 40px;
@@ -631,12 +633,15 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 3000;
 }
 
 .immersive-settings-btn:hover {
-  background: var(--glass-bg-hover);
+  background: rgba(30, 26, 48, 0.92);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.65), 0 0 14px rgba(255, 255, 255, 0.3);
   transform: scale(1.1) rotate(45deg);
 }
 
@@ -778,9 +783,11 @@
   position: absolute;
   top: 70px;
   right: 76px;
-  background: var(--glass-bg-hover);
-  border: none;
-  color: var(--text-active);
+  background: rgba(18, 16, 28, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  color: #ffffff;
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -788,12 +795,15 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   z-index: 3000;
 }
 
 .immersive-close-btn:hover {
-  background: var(--glass-bg-strong);
+  background: rgba(220, 38, 38, 0.85);
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 6px 24px rgba(220, 38, 38, 0.5), 0 0 14px rgba(255, 255, 255, 0.4);
   transform: scale(1.08);
 }
 
