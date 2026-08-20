@@ -32,7 +32,6 @@ const PRESET_ALIAS_MAP = {
   'cinema-teal': 'cinemaTeal',
   'P5怪盗红黑': 'p5',
   'p5': 'p5',
-  '命运红线': 'akaiito',
   '都市蓝调': 'cityPop',
   'city-pop': 'cityPop',
   '霓虹夜市': 'neonNight',
@@ -40,14 +39,11 @@ const PRESET_ALIAS_MAP = {
   '深空真空': 'shinkuu',
   '黄昏晚霞': 'tasogare',
   '黑白映画': 'mono',
-  '白紙极简': 'hakushi',
-  '白纸极简': 'hakushi',
   '日系杂志': 'zasshi',
   '柠檬苏打': 'lemonSoda',
   'lemon-soda': 'lemonSoda',
   '晨雾迷朦': 'kiri',
   '晨雾迷蒙': 'kiri',
-  '心跳声波': 'shinpaku',
   '深海波澜': 'umi',
   '复古胶片': 'film',
   '夜鹿忧郁': 'yorushika',
@@ -73,6 +69,13 @@ const PRESET_ALIAS_MAP = {
   'calm-villain': 'mono',
   'girly-clouds': 'sweetPink',
   'sweet-pink': 'sweetPink',
+  'EVA警报': 'evaAlert',
+  'eva-alert': 'evaAlert',
+  'evaAlert': 'evaAlert',
+  '赛博朋克2077': 'cyberpunk2077',
+  'cyberpunk': 'cyberpunk2077',
+  'cyberpunk-2077': 'cyberpunk2077',
+  'cyberpunk2077': 'cyberpunk2077',
 };
 
 // 智能自动模板选择器
@@ -194,6 +197,8 @@ export default function KineticKtvLyrics({
       if (typeof config?.ktvSpeed === 'number') pv.animationSpeed = config.ktvSpeed;
       if (typeof config?.ktvMotion === 'number') pv.motionIntensity = config.ktvMotion;
       if (typeof config?.ktvBgOpacity === 'number') pv.effectOpacity = config.ktvBgOpacity;
+      pv.showTranslation = config?.showTranslation !== false;
+      pv.showFurigana = config?.showFurigana !== false;
 
       // 如果有封面图，载入媒体底图
       if (coverUrl && config?.ktvUseCoverTexture !== false) {
@@ -244,6 +249,15 @@ export default function KineticKtvLyrics({
   }, [isEngineReady, resolvedTemplate, config?.ktvPreset, config?.ktvSpeed, config?.ktvMotion, config?.ktvBgOpacity]);
 
 
+  // 响应翻译与假名开关变化
+  useEffect(() => {
+    if (!isEngineReady) return;
+    const pv = engineInstanceRef.current;
+    if (!pv) return;
+    pv.showTranslation = config?.showTranslation !== false;
+    pv.showFurigana = config?.showFurigana !== false;
+  }, [isEngineReady, config?.showTranslation, config?.showFurigana]);
+
   // 响应封面图变化
   useEffect(() => {
     if (!isEngineReady) return;
@@ -285,7 +299,7 @@ export default function KineticKtvLyrics({
     };
   }, [isPlaying, engineRef]);
 
-  // 响应歌曲信息与开场标题卡 / 翻译开关配置变化
+  // 响应歌曲信息与开场标题卡 / 翻译 / 假名注音开关配置变化
   useEffect(() => {
     if (!isEngineReady) return;
     const pv = engineInstanceRef.current;
@@ -296,8 +310,9 @@ export default function KineticKtvLyrics({
       album: ''
     });
     pv.showTitleCard = config?.ktvShowTitleCard !== false;
-    pv.showTranslation = config?.ktvShowTranslation !== false;
-  }, [isEngineReady, songTitle, songArtist, config?.ktvShowTitleCard, config?.ktvShowTranslation]);
+    pv.showTranslation = config?.showTranslation !== false;
+    pv.showFurigana = config?.showFurigana !== false;
+  }, [isEngineReady, songTitle, songArtist, config?.ktvShowTitleCard, config?.showTranslation, config?.showFurigana]);
 
   // 播放/暂停状态响应
   useEffect(() => {

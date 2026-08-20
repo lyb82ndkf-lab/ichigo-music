@@ -6,6 +6,7 @@ import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
 import { resolveColor } from '../core/types';
 import { clamp01, easeOutQuart } from '../core/easing';
+import { annotateFurigana } from '../../utils/lyrics/furiganaHelper';
 
 interface PoeticChar {
   obj: PIXI.Text;
@@ -18,12 +19,22 @@ interface PoeticChar {
   lineIdx: number;
 }
 
+interface PoeticRuby {
+  obj: PIXI.Text;
+  baseX: number;
+  baseY: number;
+  startGlobalIdx: number;
+  endGlobalIdx: number;
+  floatPhase: number;
+}
+
 /**
  * 错落文字 (Yorushika) 专属：诗意错落排版与黄昏微尘
  * 1. 彻底废除机械全倾斜！采用ヨルシカ (Yorushika) 诗意微错落排版
  * 2. 奇偶字符带有自然的微高低起伏与字距呼吸漂移
  * 3. 优雅的衬线字体、半透明阶梯淡入与黄昏浮尘微动
  * 4. 超长歌词两行自适应排版与翻译副标题
+ * 5. 全面支持平假名复合注音与行居中对齐
  */
 export class PoeticStaggerText extends BaseEffect {
   readonly name = 'poeticStaggerText';
@@ -31,6 +42,7 @@ export class PoeticStaggerText extends BaseEffect {
   private quoteGfx!: PIXI.Graphics;
   private translationText!: PIXI.Text;
   private chars: PoeticChar[] = [];
+  private rubies: PoeticRuby[] = [];
   private currentRaw = '';
   private fontSize = 48;
 
@@ -57,6 +69,14 @@ export class PoeticStaggerText extends BaseEffect {
     const raw = ctx.currentText || '';
     if (raw === this.currentRaw && this.chars.length > 0) return;
     this.currentRaw = raw;
+
+    for (const r of this.rubies) {
+      try {
+        this.textLayer.removeChild(r.obj);
+        r.obj.destroy();
+      } catch { /* safe */ }
+    }
+    this.rubies = [];
 
     for (const c of this.chars) {
       try {
@@ -102,6 +122,7 @@ export class PoeticStaggerText extends BaseEffect {
     const lineHeight = this.fontSize * 1.35;
     const lineCount = linesOfChars.length;
     let maxLineWidth = 0;
+    const globalCharSlots: Record<number, { slotX: number; charW: number; y: number; lineIdx: number }> = {};
 
     for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
       const lineData = linesOfChars[lineIdx];
@@ -130,7 +151,6 @@ export class PoeticStaggerText extends BaseEffect {
         });
         obj.anchor.set(0.5, 0.5);
 
-        // 诗意错落高低微偏移（上下微移 ±4px）
         const staggerY = yOffset + (i % 2 === 0 ? -4 : 4);
         const slotX = cursorX + charW / 2;
 
@@ -150,11 +170,60 @@ export class PoeticStaggerText extends BaseEffect {
           lineIdx
         });
 
+        globalCharSlots[globalIdx] = { slotX, charW, y: staggerY, lineIdx };
         cursorX += charW;
       }
 
       if (cursorX > maxLineWidth) {
         maxLineWidth = cursorX;
+      }
+    }
+
+    // Furigana 注音生成
+    if (ctx.showFurigana !== false) {
+      const segments = annotateFurigana(raw);
+      let charCursor = 0;
+      for (const seg of segments) {
+        const segLen = seg.text.length;
+        const startIdx = charCursor;
+        const endIdx = charCursor + segLen - 1;
+
+        if (seg.ruby && globalCharSlots[startIdx] && globalCharSlots[endIdx]) {
+          const sSlot = globalCharSlots[startIdx];
+          const eSlot = globalCharSlots[endIdx];
+
+          if (sSlot.lineIdx === eSlot.lineIdx) {
+            const leftEdge = sSlot.slotX - sSlot.charW / 2;
+            const rightEdge = eSlot.slotX + eSlot.charW / 2;
+            const compoundCenterX = (leftEdge + rightEdge) / 2;
+            const rubyY = sSlot.y - this.fontSize * 0.56;
+
+            const rubyObj = new PIXI.Text({
+              text: seg.ruby,
+              style: new PIXI.TextStyle({
+                fontFamily: '"Noto Serif SC", "Source Han Serif SC", "Yu Mincho", serif',
+                fontSize: Math.max(10, Math.round(this.fontSize * 0.28)),
+                fill: resolveColor('$secondary', this.palette) || '#f5a623',
+                alpha: 0.9
+              })
+            });
+            rubyObj.anchor.set(0.5, 0.5);
+            rubyObj.x = compoundCenterX;
+            rubyObj.y = rubyY;
+            rubyObj.alpha = 0;
+            this.textLayer.addChild(rubyObj);
+
+            this.rubies.push({
+              obj: rubyObj,
+              baseX: compoundCenterX,
+              baseY: rubyY,
+              startGlobalIdx: startIdx,
+              endGlobalIdx: endIdx,
+              floatPhase: startIdx * 0.6
+            });
+          }
+        }
+        charCursor += segLen;
       }
     }
 
@@ -206,9 +275,31 @@ export class PoeticStaggerText extends BaseEffect {
         c.obj.y = c.baseY + (1 - ease) * 8 + floatDelta;
       }
     }
+
+    // 假名注音同步浮现
+    for (const r of this.rubies) {
+      const parentChar = this.chars[r.startGlobalIdx];
+      if (parentChar) {
+        if (now < parentChar.time) {
+          r.obj.alpha = 0.12;
+          r.obj.y = r.baseY + 6;
+        } else {
+          const p = clamp01((now - parentChar.time) / (parentChar.duration || 0.25));
+          const ease = easeOutQuart(p);
+          r.obj.alpha = 0.9;
+          const floatDelta = Math.sin(now * 1.5 + r.floatPhase) * 1.5;
+          r.obj.y = r.baseY + (1 - ease) * 6 + floatDelta;
+        }
+      }
+    }
   }
 
   destroy(): void {
+    for (const r of this.rubies) {
+      try { r.obj.destroy(); } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try { c.obj.destroy(); } catch { /* safe */ }
     }
@@ -221,4 +312,3 @@ export class PoeticStaggerText extends BaseEffect {
     super.destroy();
   }
 }
-

@@ -88,6 +88,12 @@ export class PVEngine {
   private _npSavedUserText: string | null = null;
 
   private _externalTime: number | null = null;
+  private _audioFreqBuffer: Uint8Array | null = null;
+  private _smoothedBass = 0;
+  private _smoothedMid = 0;
+  private _smoothedTreble = 0;
+  private _smoothedEnergy = 0;
+  private _lastBeatTime = 0;
 
   constructor() {
     this.app = new PIXI.Application();
@@ -366,6 +372,14 @@ export class PVEngine {
   }
   get showTranslation() {
     return this._showTranslation;
+  }
+
+  private _showFurigana = true;
+  set showFurigana(val: boolean) {
+    this._showFurigana = val;
+  }
+  get showFurigana() {
+    return this._showFurigana;
   }
 
 
@@ -1255,6 +1269,57 @@ export class PVEngine {
     const charTimings = this.computeCharTimings(currentLine, lyricClock);
     const { wordIndex, wordProgress, lineProgress } = this.computeWordProgress(currentLine, lyricClock);
 
+    // 实时音频反应性分析（低频/中频/高频/能量/律动鼓点）
+    let bass = 0;
+    let mid = 0;
+    let treble = 0;
+    let energy = 0;
+    let isBeat = false;
+
+    const analyser = (typeof window !== 'undefined' ? (window as any).ichigoAnalyser : null);
+    if (analyser?.getByteFrequencyData && analyser.frequencyBinCount > 0) {
+      if (!this._audioFreqBuffer || this._audioFreqBuffer.length !== analyser.frequencyBinCount) {
+        this._audioFreqBuffer = new Uint8Array(analyser.frequencyBinCount);
+      }
+      analyser.getByteFrequencyData(this._audioFreqBuffer);
+      const len = this._audioFreqBuffer.length;
+      const bassBins = Math.max(1, Math.floor(len * 0.08));
+      const midBins = Math.max(1, Math.floor(len * 0.42));
+
+      let bSum = 0;
+      for (let i = 0; i < bassBins; i++) bSum += this._audioFreqBuffer[i];
+      let mSum = 0;
+      for (let i = bassBins; i < midBins; i++) mSum += this._audioFreqBuffer[i];
+      let tSum = 0;
+      for (let i = midBins; i < len; i++) tSum += this._audioFreqBuffer[i];
+
+      const rawBass = bSum / (bassBins * 255);
+      const rawMid = mSum / (Math.max(1, midBins - bassBins) * 255);
+      const rawTreble = tSum / (Math.max(1, len - midBins) * 255);
+      const rawEnergy = (rawBass * 0.5 + rawMid * 0.35 + rawTreble * 0.15);
+
+      this._smoothedBass += (rawBass - this._smoothedBass) * 0.28;
+      this._smoothedMid += (rawMid - this._smoothedMid) * 0.22;
+      this._smoothedTreble += (rawTreble - this._smoothedTreble) * 0.25;
+      this._smoothedEnergy += (rawEnergy - this._smoothedEnergy) * 0.25;
+
+      bass = this._smoothedBass;
+      mid = this._smoothedMid;
+      treble = this._smoothedTreble;
+      energy = this._smoothedEnergy;
+
+      if (rawBass > 0.40 && (time - this._lastBeatTime > 0.20)) {
+        isBeat = true;
+        this._lastBeatTime = time;
+      }
+    } else {
+      const synth = Math.sin(time * 2.2) * 0.5 + 0.5;
+      bass = synth * 0.22;
+      mid = synth * 0.18;
+      treble = synth * 0.15;
+      energy = synth * 0.20;
+    }
+
     const ctx: UpdateContext = {
       time,
       deltaTime,
@@ -1273,11 +1338,19 @@ export class PVEngine {
       currentWordProgress: wordProgress,
       charTimings,
       segmentTime: this.getSegmentTime(lyricClock),
-      beatIntensity: this.beat.getIntensity(time) * this._beatReactivity,
+      beatIntensity: (isBeat ? 1.0 : (bass * 1.6)) * this._beatReactivity,
       motionTargets: this.motionTargets,
       songInfo: this._songInfo || undefined,
       showTitleCard: this._showTitleCard,
       showTranslation: this._showTranslation,
+      showFurigana: this._showFurigana !== false,
+      audioReact: {
+        bass,
+        mid,
+        treble,
+        energy,
+        isBeat,
+      },
     };
 
     // 渲染各模板专属风格的歌曲开场标题卡 (Opening Cinematic Title Card: 0~4.5s)

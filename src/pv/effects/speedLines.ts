@@ -52,20 +52,21 @@ export class SpeedLines extends BaseEffect {
     const cx = (cfg.x ?? 0.5) * w;
     const cy = (cfg.y ?? 0.5) * h;
     const maxR = Math.hypot(w, h) * 0.55;
-    const color = resolveColor(cfg.color ?? '$primary', this.palette);
-    const alpha = (cfg.alpha ?? 0.15) + ctx.beatIntensity * (cfg.beatBoost ?? 0.08);
+    const bass = ctx.audioReact?.bass ?? 0;
+    const isBeat = ctx.audioReact?.isBeat ?? false;
+    const alpha = (cfg.alpha ?? 0.15) + (ctx.beatIntensity * 0.10) + (bass * 0.15) + (isBeat ? 0.12 : 0);
     const rot = ctx.time * (cfg.rotSpeed ?? 0.05) * ctx.animationSpeed;
-    const flow = (cfg.flowSpeed ?? 0.5) * ctx.animationSpeed;
+    const flow = ((cfg.flowSpeed ?? 0.5) * ctx.animationSpeed) * (1.0 + bass * 0.8);
 
     for (const r of this.rays) {
       // inner edge streams outward, then wraps
       const t = (r.inner + ctx.time * r.sp * flow * 0.1) % 0.55;
-      const r0 = (0.28 + t) * maxR;
-      const r1 = r0 + (r.outer - 0.6) * 0.35 * maxR;
+      const r0 = (0.28 + t) * maxR * (1.0 - bass * 0.08);
+      const r1 = r0 + (r.outer - 0.6) * 0.35 * maxR * (1.0 + bass * 0.35);
       const a = r.angle + rot;
       g.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0);
       g.lineTo(cx + Math.cos(a) * r1, cy + Math.sin(a) * r1);
-      g.stroke({ color, width: r.width, alpha: alpha * r.alpha, cap: 'round' });
+      g.stroke({ color, width: r.width * (isBeat ? 1.5 : 1.0), alpha: Math.min(1.0, alpha * r.alpha), cap: 'round' });
     }
   }
 }

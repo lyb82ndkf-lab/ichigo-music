@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useMemo } from 'react';
 import { buildGraphemeOffsets, computeFillWidth } from './MonetLyricsEngine';
+import { toRubyHtml } from '../../utils/lyrics/furiganaHelper';
 
 // 全局注册表：存放所有当前存在于 DOM 中的 wordSweep 更新函数
 // 由顶级 rAF loop 统一调用，彻底绕过 React render
@@ -62,7 +63,8 @@ export default function MonetWordSweep({
   showGlow = false,
   glowIntensity = 1,
   animationStyle = 'pop',
-  showBase = true
+  showBase = true,
+  showFurigana = true
 }) {
   const spanRef = useRef(null);
   const fillRef = useRef(null);
@@ -250,12 +252,16 @@ export default function MonetWordSweep({
     };
   }, [token, graphemeOffsets, fontPx, isChorus, lineRenderEndTime, status, showGlow, glowIntensity, animationStyle]);
 
+  const rubyHtml = useMemo(() => toRubyHtml(token.text, showFurigana !== false), [token.text, showFurigana]);
+
   if (!token.timed) {
     // 标点、空格、没有时轴信息的普通字符
     return (
-      <span className="monet-word-static" style={{ whiteSpace: 'pre-wrap', opacity: showBase ? 1 : 1, color: showBase ? undefined : 'transparent' }}>
-        {token.text}
-      </span>
+      <span
+        className="monet-word-static"
+        style={{ whiteSpace: 'pre-wrap', opacity: showBase ? 1 : 1, color: showBase ? undefined : 'transparent' }}
+        dangerouslySetInnerHTML={{ __html: rubyHtml }}
+      />
     );
   }
 
@@ -279,9 +285,11 @@ export default function MonetWordSweep({
         willChange: status === 'active' && animationStyle !== 'regular' ? 'transform, opacity' : 'auto'
       }}
     >
-      <span className="monet-word-base" style={{ opacity: showBase ? (status === 'active' ? (animationStyle === 'regular' ? 0.58 : 0.28) : 1) : 0, textShadow: showGlow ? 'var(--word-glow, none)' : 'none' }}>
-        {token.text}
-      </span>
+      <span
+        className="monet-word-base"
+        style={{ opacity: showBase ? (status === 'active' ? (animationStyle === 'regular' ? 0.58 : 0.28) : 1) : 0, textShadow: showGlow ? 'var(--word-glow, none)' : 'none' }}
+        dangerouslySetInnerHTML={{ __html: rubyHtml }}
+      />
       <span 
         ref={fillRef}
         className="monet-word-fill"

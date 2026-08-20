@@ -24,15 +24,9 @@ export const rainCityTemplate: TemplateConfig = {
       },
     },
     {
-      type: 'fallingText',
+      type: 'matrixRain',
       layer: 'decoration',
-      config: {
-        color: '#00aa28',
-        count: 45,
-        minSize: 18,
-        maxSize: 42,
-        fontFamily: '"Courier New", "Consolas", monospace',
-      },
+      config: {},
     },
     {
       type: 'matrixDecodeText',

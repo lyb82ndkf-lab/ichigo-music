@@ -58,4 +58,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   writeLyricCache: (data) => ipcRenderer.invoke('write-lyric-cache', data),
   getCacheStats: (data) => ipcRenderer.invoke('get-cache-stats', data),
   clearAppCache: (data) => ipcRenderer.invoke('clear-app-cache', data),
+  selectLocalMusicFolder: () => ipcRenderer.invoke('select-local-music-folder'),
+  scanLocalMusicFolder: (folderPath) => ipcRenderer.invoke('scan-local-music-folder', folderPath),
 });

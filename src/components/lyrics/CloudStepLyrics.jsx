@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { splitGraphemes } from './MonetLyricsEngine';
 import { subscribeLyricClock } from '../../utils/lyricClock';
+import { toRubyHtml } from '../../utils/lyrics/furiganaHelper';
 
 function buildWordTimings(line) {
   if (!line || !line.text) return [];
@@ -28,7 +29,7 @@ function buildWordTimings(line) {
   return timings;
 }
 
-const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeColor, showGlow, globalOffset, isActive, isPassed, dist, spacing }) => {
+const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeColor, showGlow, globalOffset, isActive, isPassed, dist, spacing, showFurigana = true }) => {
   const wordTimings = useMemo(() => buildWordTimings(line), [line]);
   const wordRefs = useRef([]);
 
@@ -89,7 +90,6 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
   const zOffset = -absDist * 250; 
   const yOffset = dist * (fontPx * 2.8 * spacing); 
   const opacity = isActive ? 1 : Math.max(0, 0.8 - absDist * 0.25);
-  // Cap blur heavily to avoid GPU stalls.
   const blur = isActive ? 0 : Math.min(2, absDist * 0.5);
   const rotateX = dist * 8; 
 
@@ -141,9 +141,8 @@ const CinematicLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCol
               transition: 'color 0.4s ease, transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), text-shadow 0.4s ease',
               willChange: isActive ? 'transform, color' : 'auto'
             }}
-          >
-            {timing.text}
-          </span>
+            dangerouslySetInnerHTML={{ __html: toRubyHtml(timing.text, showFurigana !== false) }}
+          />
         ))}
       </div>
     </div>
@@ -159,7 +158,10 @@ export default function CloudStepLyrics({
   themeColor = 'var(--primary)',
   showGlow = true,
   globalOffset = 0,
-  cloudStepSpacing = 1
+  cloudStepSpacing = 1,
+  showTranslation = true,
+  showFurigana = true,
+  config = {}
 }) {
 
   const displayLines = useMemo(() => {
@@ -179,58 +181,56 @@ export default function CloudStepLyrics({
   }, [lyrics, activeLineIndex]);
 
   const activeLine = lyrics?.[activeLineIndex];
+  const effectiveShowTranslation = config?.showTranslation !== undefined ? config.showTranslation !== false : showTranslation !== false;
+  const effectiveShowFurigana = config?.showFurigana !== undefined ? config.showFurigana !== false : showFurigana !== false;
 
   return (
     <div style={{
       width: '100%',
       height: '100%',
       position: 'relative',
-      perspective: '1200px', 
+      overflow: 'hidden',
+      perspective: '1200px',
       transformStyle: 'preserve-3d',
-      overflow: 'hidden'
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
     }}>
-      <div style={{
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-        zIndex: 20
-      }} />
-
       {displayLines.map(item => (
         <CinematicLine
-          key={`cloudstep-${item.line.time}-${item.index}`}
+          key={item.line.id || item.index}
           line={item.line}
-          dist={item.dist}
-          spacing={cloudStepSpacing}
-          isActive={item.dist === 0}
-          isPassed={item.dist < 0}
           engineRef={engineRef}
           fontPx={fontPx}
           fontStack={fontStack}
           themeColor={themeColor}
           showGlow={showGlow}
           globalOffset={globalOffset}
+          isActive={item.index === activeLineIndex}
+          isPassed={item.index < activeLineIndex}
+          dist={item.dist}
+          spacing={cloudStepSpacing}
+          showFurigana={effectiveShowFurigana}
         />
       ))}
-
-      {/* Independent translation layer at the bottom, above visualizer */}
-      {activeLine && activeLine.translation && (
-        <div style={{
-          position: 'absolute',
-          bottom: '100px', // Right above the visualizer which is max 88px tall
-          left: 0,
-          right: 0,
-          textAlign: 'center',
-          fontSize: `${fontPx * 0.7}px`,
-          fontWeight: 600,
-          color: 'var(--text-main)',
-          opacity: 0.85,
-          fontFamily: fontStack,
-          letterSpacing: '1px',
-          textShadow: `0 2px 10px rgba(0,0,0,0.8)`,
-          zIndex: 30,
-          transition: 'all 0.5s ease'
-        }}>
+      
+      {effectiveShowTranslation && activeLine?.translation && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '12%',
+            left: '10%',
+            right: '10%',
+            textAlign: 'center',
+            fontSize: `${fontPx * 0.85}px`,
+            color: 'var(--text-muted)',
+            fontFamily: fontStack,
+            opacity: 0.8,
+            transition: 'opacity 0.5s ease',
+            pointerEvents: 'none',
+            textShadow: '0 2px 8px rgba(0,0,0,0.5)'
+          }}
+        >
           {activeLine.translation}
         </div>
       )}

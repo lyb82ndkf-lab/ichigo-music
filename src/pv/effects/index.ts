@@ -106,6 +106,13 @@ import { WatercolorSpreadText } from './watercolorSpreadText';
 import { GlitchDisplaceText } from './glitchDisplaceText';
 import { FluffyClouds } from './fluffyClouds';
 import { P5VectorBg } from './p5VectorBg';
+import { EvaHexGrid } from './evaHexGrid';
+import { HazardTape } from './hazardTape';
+import { EvaImpactText } from './evaImpactText';
+import { CyberGridRoad } from './cyberGridRoad';
+import { CyberScannerText } from './cyberScannerText';
+import { CyberpunkNightCity } from './cyberpunkNightCity';
+import { MatrixRain } from './matrixRain';
 
 type EffectConstructor = new () => BaseEffect;
 
@@ -218,6 +225,14 @@ register('watercolorSpreadText', WatercolorSpreadText);
 register('glitchDisplaceText', GlitchDisplaceText);
 register('fluffyClouds', FluffyClouds);
 register('p5VectorBg', P5VectorBg);
+
+register('evaHexGrid', EvaHexGrid);
+register('hazardTape', HazardTape);
+register('evaImpactText', EvaImpactText);
+register('cyberGridRoad', CyberGridRoad);
+register('cyberScannerText', CyberScannerText);
+register('cyberpunkNightCity', CyberpunkNightCity);
+register('matrixRain', MatrixRain);
 
 
 export function createEffect(

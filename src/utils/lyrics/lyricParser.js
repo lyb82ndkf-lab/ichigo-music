@@ -154,6 +154,24 @@ export function mergeTranslation(lyrics, tlyricStr) {
   });
 }
 
+/**
+ * Merge Romaji / Furigana pronunciation text into lyrics
+ */
+export function mergeRomaji(lyrics, romalrcStr) {
+  if (!romalrcStr || lyrics.length === 0) return lyrics;
+
+  const romajiLrc = parseLrc(romalrcStr);
+  if (romajiLrc.length === 0) return lyrics;
+
+  return lyrics.map(line => {
+    const rLine = romajiLrc.find(rl => Math.abs(rl.time - line.time) < 0.45);
+    return {
+      ...line,
+      romaji: rLine ? rLine.text : ''
+    };
+  });
+}
+
 export function computeLineDurations(lines) {
   if (!lines || lines.length === 0) return [];
   const processed = [];

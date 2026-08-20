@@ -1,5 +1,4 @@
 import React from 'react';
-import { useApp } from '../context/AppContext';
 import {
   Music,
   Search,
@@ -7,14 +6,17 @@ import {
   Heart,
   History,
   Settings as SettingsIcon,
-  Radio
+  Radio,
+  HardDrive
 } from 'lucide-react';
+import { useApp } from '../context/AppContext';
 
 const navNameMap = {
   'listen-together': '一起听',
   discover: '发现音乐',
   search: '搜索音乐',
   leaderboards: '排行榜',
+  local: '本地音乐',
   liked: '我喜欢的音乐',
   recent: '最近播放',
   settings: '设置'
@@ -32,6 +34,7 @@ const iconMap = {
   discover: Music,
   search: Search,
   leaderboards: ListMusic,
+  local: HardDrive,
   liked: Heart,
   recent: History,
   settings: SettingsIcon
@@ -97,29 +100,41 @@ export default function Sidebar() {
               return (
                 <button
                   key={pl.id}
-                  className={`nav-item ${isActive ? 'active' : ''}`}
+                  className={`playlist-nav-item ${isActive ? 'active' : ''}`}
+                  onClick={() => navigateTo('playlist-detail', { id: pl.id })}
+                  title={pl.name}
                   style={{
-                    padding: '8px 12px',
-                    fontSize: '12px',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '10px',
-                    width: '100%',
-                    textAlign: 'left',
-                    background: 'transparent',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
                     border: 'none',
-                    borderRadius: 'var(--border-radius-md)',
-                    cursor: 'pointer',
+                    background: isActive ? 'var(--nav-item-active-bg)' : 'transparent',
                     color: isActive ? 'var(--primary)' : 'var(--text-main)',
-                    transition: 'all 0.2s'
+                    fontSize: '13px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease, color 0.15s ease',
+                    width: '100%'
                   }}
-                  onClick={() => navigateTo('playlist-detail', { id: pl.id })}
                 >
-                  <ListMusic size={14} style={{ flexShrink: 0 }} />
+                  <img
+                    src={pl.coverImgUrl}
+                    alt={pl.name}
+                    style={{
+                      width: '24px',
+                      height: '24px',
+                      borderRadius: '4px',
+                      objectFit: 'cover',
+                      flexShrink: 0
+                    }}
+                  />
                   <span style={{
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    flex: 1
                   }}>
                     {pl.name}
                   </span>

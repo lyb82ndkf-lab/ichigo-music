@@ -1,17 +1,9 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { buildVisibleWindow } from './MonetLyricsEngine';
 import MonetLyricsRail from './MonetLyricsRail';
 import ImmersiveLyricsStage, { preloadKineticKtvLyrics } from './ImmersiveLyricsStage';
 import MonetAudioOverlay from './MonetAudioOverlay';
 import MonetFloatingDecor from './MonetFloatingDecor';
-
-
-
-
-
-
-
-
 
 function MonetPosterLayout({ 
   lyrics, 
@@ -32,19 +24,14 @@ function MonetPosterLayout({
 }) {
   const animMode = advancedLyricConfig?.lyricsMode || 'regular';
   const isRegularMode = animMode === 'regular';
-  // PV stays route-split for startup, but starting the fetch as soon as the
-  // user selects it means entering the stage normally has no loading beat.
+
   useEffect(() => {
     if (animMode === 'talk') preloadKineticKtvLyrics();
   }, [animMode]);
-  // KTV 文字 PV 和舞台模式使用全幅画面；封面/列表布局会削弱逐字构图。
+
   const isKashiMode = ['talk'].includes(animMode);
   const showCover = advancedLyricConfig?.showCover !== false && isRegularMode;
   const showSongInfo = advancedLyricConfig?.showSongInfo !== false;
-  // Dedicated KTV/PV stages own the full canvas. The generic floating decor
-  // includes a slow horizontal watermark and canvas particles, which can
-  // look like an unrelated sweep and adds another compositor loop underneath
-  // the PV scene.
   const enableDecor = advancedLyricConfig?.showDecor === true && !isKashiMode;
   const fontScale = (advancedLyricConfig?.fontSize || 24) / 24;
   const fontFamilyMap = {
@@ -63,12 +50,10 @@ function MonetPosterLayout({
   const handleWheel = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    // 鼠标滚轮翻页预览歌词，每次滚动约 1.5 秒的时间跨度
     const delta = e.deltaY > 0 ? 1.5 : -1.5;
     setManualScrollOffset(prev => prev + delta);
     
     if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
-    // 停止滚动 3 秒后自动恢复跟随播放进度
     scrollTimeoutRef.current = setTimeout(() => {
       setManualScrollOffset(0);
     }, 2200);
@@ -82,13 +67,12 @@ function MonetPosterLayout({
     }
   };
 
-
   useEffect(() => {
     return () => {
       if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
     };
   }, []);
-  // Responsive Layout Tracking for Canvas exact pixel measurements
+
   const [dimensions, setDimensions] = useState({
     fontPx: 36 * fontScale,
     transPx: 18 * fontScale,
@@ -99,144 +83,126 @@ function MonetPosterLayout({
   const railContainerRef = useRef(null);
   const coverPaneRef = useRef(null);
   const coverImgRef = useRef(null);
-  // Dynamic anchor: track where the album cover center sits relative to the lyrics rail
-  const [coverAlignedRatio, setCoverAlignedRatio] = useState(0.42);
+  const [coverAlignedRatio, setCoverAlignedRatio] = useState(0.5);
 
   useEffect(() => {
-    const el = railContainerRef.current;
-    if (!el) return;
-
-    const measureAndUpdate = () => {
-      const w = window.innerWidth;
-      let fPx = 36;
-      let tPx = 18;
-      if (w > 1600) { fPx = 42; tPx = 20; }
-      else if (w > 1200) { fPx = 36; tPx = 18; }
-      else if (w > 800) { fPx = 28; tPx = 15; }
-      else { fPx = 24; tPx = 14; }
-
-      const rect = el.getBoundingClientRect();
-      const maxWidth = rect.width * 0.95;
-      const railH = rect.height;
-
+    const updateDimensions = () => {
+      if (!railContainerRef.current) return;
+      const { clientWidth, clientHeight } = railContainerRef.current;
+      const baseFont = Math.min(Math.max(clientWidth * 0.052, 22), 48) * fontScale;
       setDimensions({
-        fontPx: fPx * fontScale,
-        transPx: tPx * fontScale,
-        maxWidthPx: maxWidth || 600,
-        railHeight: railH || 500
+        fontPx: baseFont,
+        transPx: baseFont * 0.48,
+        maxWidthPx: clientWidth * 0.95,
+        railHeight: clientHeight
       });
 
-      // Compute where the album cover center is relative to this rail container
-      const coverPane = coverPaneRef.current;
-      if (coverPane && railH > 0) {
-        const coverRect = coverPane.getBoundingClientRect();
-        const coverCenterY = coverRect.top + coverRect.height / 2;
-        const railTop = rect.top;
-        const rawRatio = (coverCenterY - railTop) / railH;
-        // Clamp to a sensible range
-        setCoverAlignedRatio(Math.max(0.2, Math.min(0.85, rawRatio)));
+      if (showCover && coverPaneRef.current && railContainerRef.current) {
+        const coverRect = coverPaneRef.current.getBoundingClientRect();
+        const railRect = railContainerRef.current.getBoundingClientRect();
+        if (railRect.height > 0) {
+          const coverCenterY = coverRect.top + coverRect.height / 2;
+          const relativeY = coverCenterY - railRect.top;
+          const ratio = Math.max(0.1, Math.min(0.9, relativeY / railRect.height));
+          setCoverAlignedRatio(ratio);
+        }
       }
     };
 
-    const observer = new ResizeObserver(measureAndUpdate);
-    observer.observe(el);
-    // Also observe the cover pane
-    if (coverPaneRef.current) observer.observe(coverPaneRef.current);
-    measureAndUpdate();
-    return () => observer.disconnect();
-  }, [fontScale]);
+    updateDimensions();
+    window.addEventListener('resize', updateDimensions);
+    return () => window.removeEventListener('resize', updateDimensions);
+  }, [fontScale, showCover]);
 
-  const displayLyrics = useMemo(() => (
-    advancedLyricConfig?.showTranslation === false
-      ? lyrics.map(line => ({ ...line, translation: '' }))
-      : lyrics
-  ), [lyrics, advancedLyricConfig?.showTranslation]);
+  const displayLyrics = useMemo(() => {
+    return lyrics && lyrics.length > 0 ? lyrics : [{
+      time: 0,
+      duration: 999,
+      text: '暂无歌词，享受音乐',
+      translation: 'No lyrics available'
+    }];
+  }, [lyrics]);
+
+  const effectiveActiveIndex = useMemo(() => {
+    if (manualScrollOffset === 0) return activeLineIndex;
+    const currentLine = displayLyrics[activeLineIndex] || displayLyrics[0];
+    const targetTime = (currentLine?.time || 0) + manualScrollOffset;
+    let closestIndex = activeLineIndex;
+    let minDiff = Infinity;
+    displayLyrics.forEach((l, idx) => {
+      const diff = Math.abs(l.time - targetTime);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIndex = idx;
+      }
+    });
+    return closestIndex;
+  }, [displayLyrics, activeLineIndex, manualScrollOffset]);
 
   const visibleLines = useMemo(() => {
-    // Render a viewport-sized window instead of a fixed five-line slice.
-    // The rail clips only what is physically outside the available height.
-    const estimatedLineHeight = Math.max(dimensions.fontPx * 1.5, 1);
-    const linesToKeep = Math.max(9, Math.ceil(dimensions.railHeight / estimatedLineHeight) + 8);
-    const before = Math.floor(linesToKeep / 2);
-    const after = Math.max(1, linesToKeep - before - 1);
-    const baseTime = currentTime ?? currentTimeRef?.current ?? 0;
-    const displayTime = Math.max(0, baseTime + manualScrollOffset);
-    
-    let effectiveActiveIndex = activeLineIndex;
-    // During normal playback the lyric engine's activeLineIndex is the single
-    // source of truth. Recomputing from a stale currentTimeRef during the same
-    // render can lag by one line and center the previous lyric instead.
-    if (manualScrollOffset !== 0 && displayLyrics && displayLyrics.length > 0) {
-      for (let i = displayLyrics.length - 1; i >= 0; i--) {
-        if (displayTime >= displayLyrics[i].time) {
-          effectiveActiveIndex = i;
-          break;
-        }
-      }
-    }
-    return buildVisibleWindow(displayLyrics, effectiveActiveIndex, displayTime, { before, after });
-  }, [displayLyrics, activeLineIndex, currentTime, manualScrollOffset, dimensions.fontPx, dimensions.railHeight]);
+    return buildVisibleWindow(
+      displayLyrics,
+      effectiveActiveIndex,
+      dimensions.fontPx,
+      dimensions.transPx,
+      dimensions.maxWidthPx,
+      fontStack,
+      dimensions.railHeight,
+      6,
+      advancedLyricConfig?.showTranslation !== false,
+      isRegularMode ? 0.5 : 0.48
+    );
+  }, [displayLyrics, effectiveActiveIndex, dimensions, fontStack, isRegularMode, advancedLyricConfig?.showTranslation]);
 
-  // Active Intro Key logic for transitions on song change
-  const [introKey, setIntroKey] = useState(currentSong?.id || 'initial');
-  useEffect(() => {
-    if (currentSong?.id) {
-      setIntroKey(currentSong.id);
-    }
-  }, [currentSong?.id]);
-
-  const fallbackSong = {
-    title: '听你所想，享你所爱',
-    artist: 'ICHIGOMusic',
-    coverUrl: 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg',
-    ...currentSong
+  const fallbackSong = currentSong || {
+    title: 'ICHIGOMusic',
+    artist: 'High-Fidelity Audio',
+    album: { name: 'Local Experience' }
   };
 
-  const safeCoverUrl = coverUrl || fallbackSong.coverUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg';
-  const coverUrlResized = safeCoverUrl.includes('?') 
-    ? safeCoverUrl 
-    : `${safeCoverUrl}?param=600y600`;
-
-  useEffect(() => {
-    if (audioAnalyser) window.ichigoAnalyser = audioAnalyser;
-  }, [audioAnalyser]);
+  const coverUrlResized = useMemo(() => {
+    if (!coverUrl) return '';
+    if (coverUrl.includes('param=')) return coverUrl.replace(/param=\d+y\d+/, 'param=600y600');
+    return coverUrl.includes('?') ? `${coverUrl}&param=600y600` : `${coverUrl}?param=600y600`;
+  }, [coverUrl]);
 
   return (
-    <div
-      // Keep the poster/stage compositor mounted across song changes.  A root
-      // key here used to tear down the entire immersive scene for one React
-      // commit, exposing another background while the new PV was mounting.
-      // The small title card owns its own key below, so its entrance can still
-      // replay without replacing the visual field or lyric clock.
-      data-intro-key={introKey}
-      className={`monet-poster-layout${isKashiMode ? ' monet-poster-layout--kashi' : ''}`}
-      style={{ width: '100%', height: '100%', position: 'relative' }}
-    >
+    <div className={`monet-poster-layout ${isKashiMode ? 'monet-poster-layout--kashi' : ''}`} style={{
+      position: 'absolute',
+      inset: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: isKashiMode ? '0' : '4vh 5vw',
+      gap: isKashiMode ? '0' : '5vw',
+      overflow: 'hidden',
+      userSelect: 'none'
+    }}>
       <style>
         {`
           .monet-poster-layout {
-            display: flex;
-            flex-direction: row;
-            padding: 5vh 4vw 4vh 4vw;
             box-sizing: border-box;
-            gap: 4vw;
-            align-items: stretch;
-            height: 100%;
+            font-family: ${fontStack};
           }
           
           .monet-left-pane {
-            flex: ${showCover === false ? '1 1 100%' : '1'};
-            padding: 0 2vw;
+            flex: 1 1 55%;
+            height: 100%;
             display: flex;
             flex-direction: column;
+            justifyContent: center;
             min-width: 0;
+            z-index: 2;
           }
-
+          
           .monet-right-pane {
-            flex-basis: clamp(260px, 32vw, 550px);
+            flex: 1 1 45%;
+            height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
+            max-width: 540px;
+            z-index: 2;
             position: relative;
           }
 
@@ -322,14 +288,12 @@ function MonetPosterLayout({
             transform: scale(1.02) translateY(-5px);
           }
 
-          /* 歌词视频直接使用沉浸页已有的封面背景作为连续镜头。 */
           .monet-poster-layout--kashi .monet-left-pane { position: relative; z-index: 2; pointer-events: none; }
           .monet-poster-layout--kashi .monet-anim-rail { display: none !important; }
           .monet-kashi-layer { position: absolute; inset: 0; z-index: 1; overflow: hidden; }
         `}
       </style>
 
-      {/* Background Decor: disabled by default for smoother lyric rendering. */}
       {enableDecor && <MonetFloatingDecor isPlaying={isPlaying} currentSong={currentSong} advancedLyricConfig={advancedLyricConfig} />}
 
       {/* LEFT: Metadata & Lyrics */}
@@ -362,12 +326,11 @@ function MonetPosterLayout({
               containerHeight={dimensions.railHeight}
               maxWidthPx={dimensions.maxWidthPx}
               showTranslation={advancedLyricConfig?.showTranslation !== false}
+              showFurigana={advancedLyricConfig?.showFurigana !== false}
               showGlow={advancedLyricConfig?.showGlow === true}
               glowIntensity={advancedLyricConfig?.lyricGlowIntensity ?? 1}
               activeAnchorRatio={(() => {
                 if (showCover) {
-                  // The active line itself is the anchor: align its visual center
-                  // with the album-cover center, without the old two-line offset.
                   const userExtraOffset = ((advancedLyricConfig?.lyricsPositionY ?? 50) - 50) / 100;
                   return Math.min(0.82, Math.max(0.18, coverAlignedRatio + userExtraOffset));
                 } else {
@@ -394,10 +357,9 @@ function MonetPosterLayout({
       {showCover && (
       <div className="monet-right-pane" ref={coverPaneRef}>
         <div className="monet-anim-cover-wrapper">
-          {/* Render circular visualizer behind the cover image in regular mode */}
           {animMode === 'regular' && (
             <div style={{ position: 'absolute', inset: '-100px', zIndex: 1, pointerEvents: 'none' }}>
-          <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode="regular" isBehindCover={true} coverRef={coverImgRef} advancedLyricConfig={advancedLyricConfig} visualizerFps={visualizerFps} showCover={showCoverPreference} />
+              <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode="regular" isBehindCover={true} coverRef={coverImgRef} advancedLyricConfig={advancedLyricConfig} visualizerFps={visualizerFps} showCover={showCoverPreference} />
             </div>
           )}
           <img 
@@ -412,7 +374,6 @@ function MonetPosterLayout({
       </div>
       )}
 
-      {/* BACKGROUND/BOTTOM layer for modes with dedicated audio backdrops. */}
       {['streamer', 'cloudstep'].includes(animMode) && (
         <div style={{ position: 'absolute', inset: 0, zIndex: animMode === 'streamer' ? 3 : 1, pointerEvents: 'none' }}>
           <MonetAudioOverlay isPlaying={isPlaying} primaryColor={themeColor} animationMode={animMode} isBehindCover={false} advancedLyricConfig={advancedLyricConfig} visualizerFps={visualizerFps} showCover={showCoverPreference} />
@@ -422,10 +383,4 @@ function MonetPosterLayout({
   );
 }
 
-// Progress updates arrive through AppContext several times per second. The
-// lyric clock and canvas layers handle those updates imperatively, so avoid
-// rebuilding the full poster/stage tree when none of its inputs changed.
 export default React.memo(MonetPosterLayout);
-
-
-

@@ -5,7 +5,8 @@ import * as PIXI from 'pixi.js';
 import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
 import { resolveColor } from '../core/types';
-import { clamp01, easeOutQuart } from '../core/easing';
+import { clamp01 } from '../core/easing';
+import { annotateFurigana } from '../../utils/lyrics/furiganaHelper';
 
 interface WaterChar {
   obj: PIXI.Text;
@@ -15,12 +16,19 @@ interface WaterChar {
   slotX: number;
 }
 
+interface WaterRuby {
+  obj: PIXI.Text;
+  centerX: number;
+  startCharIdx: number;
+  endCharIdx: number;
+}
+
 /**
  * 水彩 / 春日影专属：水彩墨晕渐染与水滴融散
  * 1. 柔和春日水彩青蓝粉紫渐晕
  * 2. 逐字到达时，像一滴水彩落入宣纸慢慢晕染扩散（从轻微模糊渐显到鲜润）
  * 3. 伴随水彩光晕与微风浮动
- * 4. 彻底消除千篇一律的心跳呼吸
+ * 4. 支持平假名复合注音
  */
 export class WatercolorSpreadText extends BaseEffect {
   readonly name = 'watercolorSpreadText';
@@ -28,6 +36,7 @@ export class WatercolorSpreadText extends BaseEffect {
   private haloGfx!: PIXI.Graphics;
   private translationText!: PIXI.Text;
   private chars: WaterChar[] = [];
+  private rubies: WaterRuby[] = [];
   private currentRaw = '';
   private fontSize = 48;
 
@@ -57,6 +66,14 @@ export class WatercolorSpreadText extends BaseEffect {
     if (raw === this.currentRaw && this.chars.length > 0) return;
     this.currentRaw = raw;
 
+    for (const r of this.rubies) {
+      try {
+        this.textLayer.removeChild(r.obj);
+        r.obj.destroy();
+      } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try {
         this.textLayer.removeChild(c.obj);
@@ -77,6 +94,7 @@ export class WatercolorSpreadText extends BaseEffect {
     const lineDur = ctx.currentLine?.duration ?? 4.0;
 
     let cursorX = 0;
+    const charSlots: { slotX: number; charW: number }[] = [];
 
     for (let i = 0; i < chars.length; i++) {
       const char = chars[i];
@@ -114,7 +132,48 @@ export class WatercolorSpreadText extends BaseEffect {
         slotX
       });
 
+      charSlots.push({ slotX, charW });
       cursorX += charW;
+    }
+
+    // Furigana 注音生成
+    if (ctx.showFurigana !== false) {
+      const segments = annotateFurigana(raw);
+      let charCursor = 0;
+      for (const seg of segments) {
+        const segLen = seg.text.length;
+        const startIdx = charCursor;
+        const endIdx = charCursor + segLen - 1;
+
+        if (seg.ruby && charSlots[startIdx] && charSlots[endIdx]) {
+          const leftEdge = charSlots[startIdx].slotX - charSlots[startIdx].charW / 2;
+          const rightEdge = charSlots[endIdx].slotX + charSlots[endIdx].charW / 2;
+          const compoundCenterX = (leftEdge + rightEdge) / 2;
+
+          const rubyObj = new PIXI.Text({
+            text: seg.ruby,
+            style: new PIXI.TextStyle({
+              fontFamily: '"Yu Mincho", "Noto Serif JP", serif',
+              fontSize: Math.max(10, Math.round(this.fontSize * 0.28)),
+              fill: resolveColor('$secondary', this.palette) || '#4a6fa5',
+              alpha: 0.9
+            })
+          });
+          rubyObj.anchor.set(0.5, 0.5);
+          rubyObj.x = compoundCenterX;
+          rubyObj.y = -this.fontSize * 0.58;
+          rubyObj.alpha = 0;
+          this.textLayer.addChild(rubyObj);
+
+          this.rubies.push({
+            obj: rubyObj,
+            centerX: compoundCenterX,
+            startCharIdx: startIdx,
+            endCharIdx: endIdx
+          });
+        }
+        charCursor += segLen;
+      }
     }
 
     this.textLayer.pivot.x = cursorX / 2;
@@ -153,12 +212,10 @@ export class WatercolorSpreadText extends BaseEffect {
       const endTime = c.time + dur;
 
       if (now < c.time) {
-        // 未唱到：极淡水墨底色，准备晕开
         c.obj.alpha = 0.15;
         c.obj.scale.set(0.92);
         c.obj.y = 5;
       } else if (now <= endTime) {
-        // 正在唱到：水墨落纸晕染激荡，向上微弹并扩散 (Pop & Bloom)
         const p = clamp01((now - c.time) / dur);
         const pulse = Math.sin(p * Math.PI);
         const bounce = -pulse * (this.fontSize * 0.16);
@@ -167,15 +224,32 @@ export class WatercolorSpreadText extends BaseEffect {
         c.obj.scale.set(bloomScale);
         c.obj.y = bounce;
       } else {
-        // 已唱过：鲜润水墨落定，微风轻拂
         c.obj.alpha = 1.0;
         c.obj.scale.set(1.0);
         c.obj.y = Math.sin(now * 1.2 + c.slotX * 0.05) * 1.5;
       }
     }
+
+    // 假名注音同步晕染
+    for (const r of this.rubies) {
+      const parentChar = this.chars[r.startCharIdx];
+      if (parentChar) {
+        if (now < parentChar.time) {
+          r.obj.alpha = 0.15;
+        } else {
+          r.obj.alpha = 0.95;
+          r.obj.y = -this.fontSize * 0.58 + Math.sin(now * 1.2 + r.centerX * 0.05) * 1.5;
+        }
+      }
+    }
   }
 
   destroy(): void {
+    for (const r of this.rubies) {
+      try { r.obj.destroy(); } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try { c.obj.destroy(); } catch { /* safe */ }
     }

@@ -5,6 +5,7 @@ import * as PIXI from 'pixi.js';
 import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
 import { resolveColor } from '../core/types';
+import { annotateFurigana } from '../../utils/lyrics/furiganaHelper';
 
 interface NeonChar {
   obj: PIXI.Text;
@@ -16,11 +17,20 @@ interface NeonChar {
   lineIdx: number;
 }
 
+interface NeonRuby {
+  obj: PIXI.Text;
+  centerX: number;
+  baseY: number;
+  startGlobalIdx: number;
+  endGlobalIdx: number;
+}
+
 /**
  * 霓虹夜市专属：霓虹灯管通电打火闪烁与辉光点亮
  * 1. 经典霓虹夜市管线辉光（玫红/荧光青/金黄）
  * 2. 逐字在时间到达时进行 3 次高速高频通电打火闪烁，然后稳定通电发光
  * 3. 超长歌词两行自适应与荧光翻译字幕
+ * 4. 支持平假名复合注音
  */
 export class NeonFlickerText extends BaseEffect {
   readonly name = 'neonFlickerText';
@@ -28,6 +38,7 @@ export class NeonFlickerText extends BaseEffect {
   private tubeFrameGfx!: PIXI.Graphics;
   private translationText!: PIXI.Text;
   private chars: NeonChar[] = [];
+  private rubies: NeonRuby[] = [];
   private currentRaw = '';
   private fontSize = 52;
 
@@ -61,6 +72,14 @@ export class NeonFlickerText extends BaseEffect {
     const raw = ctx.currentText || '';
     if (raw === this.currentRaw && this.chars.length > 0) return;
     this.currentRaw = raw;
+
+    for (const r of this.rubies) {
+      try {
+        this.textLayer.removeChild(r.obj);
+        r.obj.destroy();
+      } catch { /* safe */ }
+    }
+    this.rubies = [];
 
     for (const c of this.chars) {
       try {
@@ -108,6 +127,7 @@ export class NeonFlickerText extends BaseEffect {
     const lineHeight = this.fontSize * 1.35;
     const lineCount = linesOfChars.length;
     let maxLineWidth = 0;
+    const globalCharSlots: Record<number, { slotX: number; charW: number; y: number; lineIdx: number }> = {};
 
     for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
       const lineData = linesOfChars[lineIdx];
@@ -162,11 +182,60 @@ export class NeonFlickerText extends BaseEffect {
           lineIdx
         });
 
+        globalCharSlots[globalIdx] = { slotX, charW, y: yOffset, lineIdx };
         cursorX += charW;
       }
 
       if (cursorX > maxLineWidth) {
         maxLineWidth = cursorX;
+      }
+    }
+
+    // Furigana 平假名注音生成
+    if (ctx.showFurigana !== false) {
+      const segments = annotateFurigana(raw);
+      let charCursor = 0;
+      for (const seg of segments) {
+        const segLen = seg.text.length;
+        const startIdx = charCursor;
+        const endIdx = charCursor + segLen - 1;
+
+        if (seg.ruby && globalCharSlots[startIdx] && globalCharSlots[endIdx]) {
+          const sSlot = globalCharSlots[startIdx];
+          const eSlot = globalCharSlots[endIdx];
+
+          if (sSlot.lineIdx === eSlot.lineIdx) {
+            const leftEdge = sSlot.slotX - sSlot.charW / 2;
+            const rightEdge = eSlot.slotX + eSlot.charW / 2;
+            const compoundCenterX = (leftEdge + rightEdge) / 2;
+            const rubyY = sSlot.y - this.fontSize * 0.58;
+
+            const rubyObj = new PIXI.Text({
+              text: seg.ruby,
+              style: new PIXI.TextStyle({
+                fontFamily: '"Outfit", "PingFang SC", sans-serif',
+                fontSize: Math.max(11, Math.round(this.fontSize * 0.28)),
+                fontWeight: '900',
+                fill: '#00f0ff',
+                stroke: { color: neonColor, width: 2.5 }
+              })
+            });
+            rubyObj.anchor.set(0.5, 0.5);
+            rubyObj.x = compoundCenterX;
+            rubyObj.y = rubyY;
+            rubyObj.alpha = 0;
+            this.textLayer.addChild(rubyObj);
+
+            this.rubies.push({
+              obj: rubyObj,
+              centerX: compoundCenterX,
+              baseY: rubyY,
+              startGlobalIdx: startIdx,
+              endGlobalIdx: endIdx
+            });
+          }
+        }
+        charCursor += segLen;
       }
     }
 
@@ -213,20 +282,41 @@ export class NeonFlickerText extends BaseEffect {
         c.obj.alpha = 0.08;
       } else {
         const elapsed = now - c.time;
-        // 通电前 0.18s 发生 3 次高频闪烁打火
         if (elapsed < 0.18) {
           const flickers = Math.sin(elapsed * 45);
           c.obj.alpha = flickers > 0 ? 1 : 0.2;
         } else {
-          // 通电完毕稳定常亮，伴随轻微电压呼吸
           const stableGlow = 0.9 + Math.sin(now * 8 + c.slotX) * 0.08;
           c.obj.alpha = stableGlow;
+        }
+      }
+    }
+
+    // 假名注音同步打火
+    for (const r of this.rubies) {
+      const parentChar = this.chars[r.startGlobalIdx];
+      if (parentChar) {
+        if (now < parentChar.time) {
+          r.obj.alpha = 0.08;
+        } else {
+          const elapsed = now - parentChar.time;
+          if (elapsed < 0.18) {
+            const flickers = Math.sin(elapsed * 45);
+            r.obj.alpha = flickers > 0 ? 1 : 0.2;
+          } else {
+            r.obj.alpha = 0.95;
+          }
         }
       }
     }
   }
 
   destroy(): void {
+    for (const r of this.rubies) {
+      try { r.obj.destroy(); } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try { c.obj.destroy(); } catch { /* safe */ }
     }

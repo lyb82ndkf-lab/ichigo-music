@@ -444,3 +444,18 @@
   accent-color: var(--primary);
 }
 
+/* Japanese Furigana / Ruby annotations */
+ruby {
+  ruby-align: center;
+  ruby-position: over;
+}
+
+ruby rt {
+  font-size: 0.42em;
+  line-height: 1;
+  letter-spacing: 0;
+  user-select: none;
+  opacity: 0.85;
+  text-align: center;
+  font-weight: 600;
+}

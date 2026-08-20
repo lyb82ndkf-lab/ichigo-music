@@ -5,14 +5,13 @@ import MonetWordSweep from './MonetWordSweep';
 /**
  * MonetRailLine component
  */
-const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack, y, maxWidthPx, showTranslation, showGlow, glowIntensity, onClick, inactiveLyricBlur }) => {
+const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack, y, maxWidthPx, showTranslation, showFurigana, showGlow, glowIntensity, onClick, inactiveLyricBlur }) => {
   const { line, status, offset, layout } = entry;
   
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
   const tokenRows = useMemo(() => [tokens], [tokens]);
   const isChorus = line.isChorus || false;
 
-  // 根据 status 设置不同样式
   let opacity = 0;
   let scale = 1;
   let blur = 0;
@@ -26,13 +25,10 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
     fontWeight = 600;
     color = 'var(--text-main)';
   } else {
-    // 距离中心越远，越透明且越小，并且添加模糊
     const distance = Math.abs(offset);
     const blurAmount = inactiveLyricBlur !== undefined ? inactiveLyricBlur : 0.8;
     opacity = Math.max(0.15, 0.72 - distance * 0.15);
     scale = Math.max(0.7, 0.92 - distance * 0.08);
-    // Keep blur bounded like folia-major; large animated CSS filters are one of
-    // the most expensive paint paths in the immersive view.
     blur = Math.min(3.2, distance * blurAmount);
     fontWeight = 500;
     color = 'var(--text-muted)';
@@ -101,6 +97,7 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
                 isChorus={isChorus}
                 lineRenderEndTime={lineEndTime}
                 status={status}
+                showFurigana={showFurigana}
                 showGlow={showGlow}
                 glowIntensity={glowIntensity}
                 animationStyle="regular"
@@ -130,26 +127,22 @@ const MonetRailLine = React.memo(({ entry, fontPx, translationFontPx, fontStack,
   );
 });
 
-export default function MonetLyricsRail({ visibleLines, fontPx, translationFontPx, fontStack, containerHeight, maxWidthPx, showTranslation = true, showGlow = false, glowIntensity = 1, activeAnchorRatio = 0.5, onWheel, onLyricClick, inactiveLyricBlur }) {
+export default function MonetLyricsRail({ visibleLines, fontPx, translationFontPx, fontStack, containerHeight, maxWidthPx, showTranslation = true, showFurigana = true, showGlow = false, glowIntensity = 1, activeAnchorRatio = 0.5, onWheel, onLyricClick, inactiveLyricBlur }) {
   const containerRef = useRef(null);
 
-  // 计算每一行 Y 的绝对位置
   const positionedLines = useMemo(() => {
     if (!visibleLines || visibleLines.length === 0) return [];
 
-    // 1. 先测量每一行的 layout 物理高度
     const linesWithLayout = visibleLines.map(entry => {
       const lineForLayout = showTranslation ? entry.line : { ...entry.line, translation: '' };
       const layout = measureLineLayout(lineForLayout, fontPx, translationFontPx, fontStack, maxWidthPx);
       return { ...entry, layout };
     });
 
-    // 2. 锚点计算 (offset === 0 的活跃行作为中心基准，让其处于 activeAnchorRatio 比例处)
     let anchorIndex = linesWithLayout.findIndex(e => e.offset === 0);
     if (anchorIndex === -1) anchorIndex = 0;
 
     const anchorY = containerHeight * activeAnchorRatio; 
-    // 3. 向下计算坐标
     for (let i = anchorIndex; i < linesWithLayout.length; i++) {
       if (i === anchorIndex) {
         linesWithLayout[i].y = anchorY - (linesWithLayout[i].layout.visualHeightPx / 2);
@@ -160,7 +153,6 @@ export default function MonetLyricsRail({ visibleLines, fontPx, translationFontP
       }
     }
 
-    // 4. 向上计算坐标
     for (let i = anchorIndex - 1; i >= 0; i--) {
       const next = linesWithLayout[i + 1];
       const current = linesWithLayout[i];
@@ -196,6 +188,7 @@ export default function MonetLyricsRail({ visibleLines, fontPx, translationFontP
           y={entry.y}
           maxWidthPx={maxWidthPx}
           showTranslation={showTranslation}
+          showFurigana={showFurigana}
           showGlow={showGlow}
           glowIntensity={glowIntensity}
           onClick={() => onLyricClick && onLyricClick(entry.line)}
@@ -205,4 +198,3 @@ export default function MonetLyricsRail({ visibleLines, fontPx, translationFontP
     </div>
   );
 }
-

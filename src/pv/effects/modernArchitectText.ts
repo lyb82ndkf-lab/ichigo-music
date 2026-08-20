@@ -2,7 +2,8 @@ import * as PIXI from 'pixi.js';
 import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
 import { resolveColor } from '../core/types';
-import { clamp01, easeOutQuart } from '../core/easing';
+import { clamp01 } from '../core/easing';
+import { annotateFurigana } from '../../utils/lyrics/furiganaHelper';
 
 interface ArchitectChar {
   obj: PIXI.Text;
@@ -14,12 +15,20 @@ interface ArchitectChar {
   lineIdx: number;
 }
 
+interface ArchitectRuby {
+  obj: PIXI.Text;
+  centerX: number;
+  baseY: number;
+  startGlobalIdx: number;
+  endGlobalIdx: number;
+}
+
 /**
  * 蓝色构成专属：横向现代建筑网格与几何线框排版
  * 1. 彻底废弃竖排，采用横向现代建筑排版架构
  * 2. 蓝白极简高对比，配建筑坐标轴、网格辅助线、标尺角标与图纸编号
  * 3. 超长歌词两行自适应排版
- * 4. 底部支持高精几何翻译字幕
+ * 4. 底部支持高精几何翻译字幕与平假名注音
  */
 export class ModernArchitectText extends BaseEffect {
   readonly name = 'modernArchitectText';
@@ -29,6 +38,7 @@ export class ModernArchitectText extends BaseEffect {
   private metaTextBottom!: PIXI.Text;
   private translationText!: PIXI.Text;
   private chars: ArchitectChar[] = [];
+  private rubies: ArchitectRuby[] = [];
   private currentRaw = '';
   private fontSize = 48;
 
@@ -82,6 +92,14 @@ export class ModernArchitectText extends BaseEffect {
     if (raw === this.currentRaw && this.chars.length > 0) return;
     this.currentRaw = raw;
 
+    for (const r of this.rubies) {
+      try {
+        this.textLayer.removeChild(r.obj);
+        r.obj.destroy();
+      } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try {
         this.textLayer.removeChild(c.obj);
@@ -126,6 +144,7 @@ export class ModernArchitectText extends BaseEffect {
     const lineHeight = this.fontSize * 1.3;
     const lineCount = linesOfChars.length;
     let maxLineWidth = 0;
+    const globalCharSlots: Record<number, { slotX: number; charW: number; y: number; lineIdx: number }> = {};
 
     for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
       const lineData = linesOfChars[lineIdx];
@@ -172,11 +191,60 @@ export class ModernArchitectText extends BaseEffect {
           lineIdx
         });
 
+        globalCharSlots[globalIdx] = { slotX, charW, y: yOffset, lineIdx };
         cursorX += charW;
       }
 
       if (cursorX > maxLineWidth) {
         maxLineWidth = cursorX;
+      }
+    }
+
+    // Furigana 注音
+    if (ctx.showFurigana !== false) {
+      const segments = annotateFurigana(raw);
+      let charCursor = 0;
+      for (const seg of segments) {
+        const segLen = seg.text.length;
+        const startIdx = charCursor;
+        const endIdx = charCursor + segLen - 1;
+
+        if (seg.ruby && globalCharSlots[startIdx] && globalCharSlots[endIdx]) {
+          const sSlot = globalCharSlots[startIdx];
+          const eSlot = globalCharSlots[endIdx];
+
+          if (sSlot.lineIdx === eSlot.lineIdx) {
+            const leftEdge = sSlot.slotX - sSlot.charW / 2;
+            const rightEdge = eSlot.slotX + eSlot.charW / 2;
+            const compoundCenterX = (leftEdge + rightEdge) / 2;
+            const rubyY = sSlot.y - this.fontSize * 0.56;
+
+            const rubyObj = new PIXI.Text({
+              text: seg.ruby,
+              style: new PIXI.TextStyle({
+                fontFamily: '"Outfit", "Inter", sans-serif',
+                fontSize: Math.max(10, Math.round(this.fontSize * 0.28)),
+                fontWeight: '700',
+                fill: '#416be2',
+                alpha: 0.95
+              })
+            });
+            rubyObj.anchor.set(0.5, 0.5);
+            rubyObj.x = compoundCenterX;
+            rubyObj.y = rubyY;
+            rubyObj.alpha = 0;
+            this.textLayer.addChild(rubyObj);
+
+            this.rubies.push({
+              obj: rubyObj,
+              centerX: compoundCenterX,
+              baseY: rubyY,
+              startGlobalIdx: startIdx,
+              endGlobalIdx: endIdx
+            });
+          }
+        }
+        charCursor += segLen;
       }
     }
 
@@ -241,7 +309,7 @@ export class ModernArchitectText extends BaseEffect {
       this.translationText.visible = false;
     }
 
-    // 逐字建筑几何推进与坐标刻度弹起 (Left-to-Right Architect Pop)
+    // 逐字建筑几何推进
     for (const c of this.chars) {
       const dur = Math.max(0.12, c.duration || 0.25);
       const endTime = c.time + dur;
@@ -265,9 +333,26 @@ export class ModernArchitectText extends BaseEffect {
         c.obj.y = c.slotY;
       }
     }
+
+    // 假名注音同步显现
+    for (const r of this.rubies) {
+      const parentChar = this.chars[r.startGlobalIdx];
+      if (parentChar) {
+        if (now < parentChar.time) {
+          r.obj.alpha = 0.15;
+        } else {
+          r.obj.alpha = 0.95;
+        }
+      }
+    }
   }
 
   destroy(): void {
+    for (const r of this.rubies) {
+      try { r.obj.destroy(); } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try { c.obj.destroy(); } catch { /* safe */ }
     }

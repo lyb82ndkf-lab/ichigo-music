@@ -10,11 +10,12 @@ const immersiveModesSource = read('src/utils/immersiveModes.js');
 
 
 const templateKeys = [
-  'cinemaTeal', 'yozakura', 'kawaiPixel', 'rainCity', 'p5', 'akaiito',
+  'cinemaTeal', 'yozakura', 'kawaiPixel', 'rainCity', 'p5',
   'cityPop', 'neonNight', 'mono', 'tasogare', 'shinkuu',
-  'zasshi', 'lemonSoda', 'kiri', 'shinpaku', 'umi', 'film',
+  'zasshi', 'lemonSoda', 'kiri', 'umi', 'film',
   'yorushika', 'blueInk', 'battle', 'cyber', 'digitalImpression',
-  'glitch', 'holoScope', 'sweetPink', 'popArt', 'ruler', 'silhouetteClean', 'hakushi'
+  'glitch', 'holoScope', 'sweetPink', 'popArt', 'ruler', 'silhouetteClean',
+  'evaAlert', 'cyberpunk2077'
 ];
 
 const checks = [
@@ -51,7 +52,7 @@ const checks = [
     appSource.includes('ktvMotion') &&
     appSource.includes('ktvBgOpacity') &&
     appSource.includes('ktvShowTitleCard') &&
-    appSource.includes('ktvShowTranslation')]
+    (appSource.includes('showTranslation') || appSource.includes('ktvShowTranslation'))]
 
 ];
 

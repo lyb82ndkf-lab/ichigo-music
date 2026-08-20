@@ -6,6 +6,7 @@ import type { TemplateConfig } from '../core/types';
 /**
  * 都市蓝调 — City Pop
  * 80年代落日：紫夜渐变、割缝落日、远处的海平线波光。
+ * 歌词与译文置于太阳上方夜空，层次分明，杜绝色彩重合干扰。
  */
 export const cityPopTemplate: TemplateConfig = {
   name: '都市蓝调',
@@ -25,17 +26,17 @@ export const cityPopTemplate: TemplateConfig = {
     }},
     { type: 'retroSun', layer: 'decoration', config: {
       colorTop: '#ffd319', colorBottom: '#ff2975',
-      x: 0.5, y: 0.52, sizeFrac: 0.65, beatPulse: 0.03,
+      x: 0.5, y: 0.66, sizeFrac: 0.46, beatPulse: 0.03,
     }},
     { type: 'waveLines', layer: 'decoration', config: {
-      color: '#ff9e4a', y: 0.82, spread: 0.1, layers: 3,
+      color: '#ff9e4a', y: 0.86, spread: 0.08, layers: 3,
       amplitude: 14, speed: 0.35, alpha: 0.4,
     }},
     { type: 'lyricText', layer: 'text', config: {
-      color: '$text', fontSize: 60,
+      color: '$text', fontSize: 50,
       fontFamily: '"Outfit", "Noto Sans JP", "Hiragino Kaku Gothic Pro", sans-serif',
       fontWeight: '700', letterSpacing: 6,
-      y: 0.22,
+      x: 0.5, y: 0.22,
       glowColor: '#ff9e4a', glowAlpha: 0.6, glowBlur: 16,
     }},
     { type: 'vignette', layer: 'overlay', config: {

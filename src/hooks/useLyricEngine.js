@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { parseLrc, parseYrc, mergeTranslation, computeLineDurations } from '../utils/lyrics/lyricParser.js';
+import { parseLrc, parseYrc, mergeTranslation, mergeRomaji, computeLineDurations } from '../utils/lyrics/lyricParser.js';
 import { api } from '../utils/api.js';
 
 function getDurationSec(songMeta) {
@@ -125,7 +125,7 @@ function findNextLyricIndex(lines = [], currentTime = 0) {
   return result;
 }
 
-function normalizeMatchedLines(result) {
+export function normalizeMatchedLines(result) {
   const lines = result?.data?.lines || result?.lines || [];
   const source = result?.data?.source || result?.source || 'matched';
   return Array.isArray(lines)
@@ -292,6 +292,9 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
         );
         if (res.tlyric && res.tlyric.lyric && neteaseLines.length > 0) {
           neteaseLines = mergeTranslation(neteaseLines, res.tlyric.lyric);
+        }
+        if (res.romalrc && res.romalrc.lyric && neteaseLines.length > 0) {
+          neteaseLines = mergeRomaji(neteaseLines, res.romalrc.lyric);
         }
         neteaseLines = computeLineDurations(neteaseLines).map(line => ({ ...line, lyricSource: line.lyricSource || 'netease' }));
 

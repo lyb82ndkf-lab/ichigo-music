@@ -41,14 +41,21 @@ export class BurstLines extends BaseEffect {
     const rotSpeed = (this.config.rotSpeed ?? 0.05) * ctx.animationSpeed;
     const rot = ctx.time * rotSpeed;
 
+    const bass = ctx.audioReact?.bass ?? 0;
+    const energy = ctx.audioReact?.energy ?? 0;
+    const isBeat = ctx.audioReact?.isBeat ?? false;
+    const pulse = 1.0 + bass * 0.35 + (isBeat ? 0.25 : 0);
+    const dynAlpha = Math.min(1.0, alpha * (0.7 + energy * 0.8 + (isBeat ? 0.4 : 0)));
+    const dynOuterRadius = outerRadius * pulse;
+
     for (let i = 0; i < rayCount; i++) {
       const angle = rot + i * angleStep;
       const sx = cx + Math.cos(angle) * innerRadius;
       const sy = cy + Math.sin(angle) * innerRadius;
-      const ex = cx + Math.cos(angle) * outerRadius;
-      const ey = cy + Math.sin(angle) * outerRadius;
+      const ex = cx + Math.cos(angle) * dynOuterRadius;
+      const ey = cy + Math.sin(angle) * dynOuterRadius;
       g.moveTo(sx, sy).lineTo(ex, ey);
     }
-    g.stroke({ color, width: this.config.lineWidth ?? 1, alpha });
+    g.stroke({ color, width: (this.config.lineWidth ?? 1) * (isBeat ? 1.6 : 1.0), alpha: dynAlpha });
   }
 }

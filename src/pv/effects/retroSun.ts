@@ -62,12 +62,25 @@ export class RetroSun extends BaseEffect {
     const cfg = this.config;
     const d = ctx.screenHeight * (cfg.sizeFrac ?? 0.55);
     this.sprite.x = (cfg.x ?? 0.5) * ctx.screenWidth;
-    this.baseY = (cfg.y ?? 0.52) * ctx.screenHeight;
+    this.baseY = (cfg.y ?? 0.55) * ctx.screenHeight;
     // gentle hover bob + beat pulse
     const bob = Math.sin(ctx.time * 0.5 * ctx.animationSpeed) * d * 0.008;
     this.sprite.y = this.baseY + bob;
-    const pulse = 1 + ctx.beatIntensity * (cfg.beatPulse ?? 0.02);
+
+    const bass = ctx.audioReact?.bass ?? 0;
+    const energy = ctx.audioReact?.energy ?? 0;
+    const isBeat = ctx.audioReact?.isBeat ?? false;
+    const pulse = 1 + (ctx.beatIntensity * (cfg.beatPulse ?? 0.03)) + (bass * 0.07) + (isBeat ? 0.04 : 0);
     this.sprite.scale.set((d / 512) * pulse);
-    this.sprite.alpha = cfg.alpha ?? 1;
+    this.sprite.alpha = Math.min(1, (cfg.alpha ?? 1) * (0.88 + energy * 0.25));
+  }
+
+  destroy(): void {
+    try {
+      if (this.sprite) {
+        this.container.removeChild(this.sprite);
+        this.sprite.destroy();
+      }
+    } catch { /* safe */ }
   }
 }

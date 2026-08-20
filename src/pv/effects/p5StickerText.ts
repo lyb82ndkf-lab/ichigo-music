@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
 import { clamp01, easeOutBack } from '../core/easing';
+import { annotateFurigana } from '../../utils/lyrics/furiganaHelper';
 
 interface P5Char {
   container: PIXI.Container;
@@ -16,12 +17,20 @@ interface P5Char {
   burst: boolean;
 }
 
+interface P5Ruby {
+  obj: PIXI.Text;
+  centerX: number;
+  startCharIdx: number;
+  endCharIdx: number;
+}
+
 /**
  * P5怪盗专属：Persona 5 标志性不规则剪切贴纸与冲击盖章
  * 1. 每一个字符拥有独立的多边形剪贴底块（黑/黄/白高反差撞色）
  * 2. 激进的 -12°~+12° 错落倾斜与字距交错
  * 3. 逐字以超大尺寸向屏幕重力拍击（Stamp Slam Down）并带有弹性回弹
  * 4. 底部呈现 Persona 5 风格的斜切怪盗贴纸标语与翻译
+ * 5. 支持日文平假名复合注音
  */
 export class P5StickerText extends BaseEffect {
   readonly name = 'p5StickerText';
@@ -30,6 +39,7 @@ export class P5StickerText extends BaseEffect {
   private bannerText!: PIXI.Text;
   private translationText!: PIXI.Text;
   private chars: P5Char[] = [];
+  private rubies: P5Ruby[] = [];
   private currentRaw = '';
   private fontSize = 52;
 
@@ -71,6 +81,14 @@ export class P5StickerText extends BaseEffect {
     if (raw === this.currentRaw && this.chars.length > 0) return;
     this.currentRaw = raw;
 
+    for (const r of this.rubies) {
+      try {
+        this.textLayer.removeChild(r.obj);
+        r.obj.destroy();
+      } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try {
         this.textLayer.removeChild(c.container);
@@ -90,6 +108,7 @@ export class P5StickerText extends BaseEffect {
     const lineDur = ctx.currentLine?.duration ?? 4.0;
 
     let cursorX = 0;
+    const charSlots: { slotX: number; charW: number }[] = [];
 
     for (let i = 0; i < chars.length; i++) {
       const char = chars[i];
@@ -163,7 +182,49 @@ export class P5StickerText extends BaseEffect {
         burst: false
       });
 
+      charSlots.push({ slotX, charW });
       cursorX += charW + 4;
+    }
+
+    // Furigana 平假名注音生成
+    if (ctx.showFurigana !== false) {
+      const segments = annotateFurigana(raw);
+      let charCursor = 0;
+      for (const seg of segments) {
+        const segLen = seg.text.length;
+        const startIdx = charCursor;
+        const endIdx = charCursor + segLen - 1;
+
+        if (seg.ruby && charSlots[startIdx] && charSlots[endIdx]) {
+          const leftEdge = charSlots[startIdx].slotX - charSlots[startIdx].charW / 2;
+          const rightEdge = charSlots[endIdx].slotX + charSlots[endIdx].charW / 2;
+          const compoundCenterX = (leftEdge + rightEdge) / 2;
+
+          const rubyObj = new PIXI.Text({
+            text: seg.ruby,
+            style: new PIXI.TextStyle({
+              fontFamily: '"Impact", "PingFang SC", sans-serif',
+              fontSize: Math.max(11, Math.round(this.fontSize * 0.28)),
+              fontWeight: '900',
+              fill: '#ffea00',
+              stroke: { color: '#111111', width: 3 }
+            })
+          });
+          rubyObj.anchor.set(0.5, 0.5);
+          rubyObj.x = compoundCenterX;
+          rubyObj.y = -this.fontSize * 0.65;
+          rubyObj.alpha = 0;
+          this.textLayer.addChild(rubyObj);
+
+          this.rubies.push({
+            obj: rubyObj,
+            centerX: compoundCenterX,
+            startCharIdx: startIdx,
+            endCharIdx: endIdx
+          });
+        }
+        charCursor += segLen;
+      }
     }
 
     this.textLayer.pivot.x = cursorX / 2;
@@ -232,16 +293,32 @@ export class P5StickerText extends BaseEffect {
         const p = clamp01((now - c.time) / (c.duration || 0.22));
         const ease = easeOutBack(p);
 
-        // 从 2.5 倍超大尺寸向下猛砸并回弹
         const s = 1.0 + (1 - p) * 1.4 * Math.cos(p * Math.PI * 0.5);
         c.container.scale.set(Math.max(0, s));
         c.container.alpha = Math.min(1, p * 4);
         c.container.y = (1 - ease) * -40;
       }
     }
+
+    // 假名注音同步显现
+    for (const r of this.rubies) {
+      const parentChar = this.chars[r.startCharIdx];
+      if (parentChar) {
+        if (now < parentChar.time) {
+          r.obj.alpha = 0;
+        } else {
+          r.obj.alpha = 0.95;
+        }
+      }
+    }
   }
 
   destroy(): void {
+    for (const r of this.rubies) {
+      try { r.obj.destroy(); } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try {
         c.container.destroy({ children: true });

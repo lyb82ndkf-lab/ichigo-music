@@ -6,12 +6,21 @@ import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
 import { resolveColor } from '../core/types';
 import { clamp01, easeOutQuart, easeInQuad, easeOutExpo, lerp } from '../core/easing';
+import { annotateFurigana } from '../../utils/lyrics/furiganaHelper';
 
 interface CharUnit {
   obj: PIXI.Text;
   slotX: number;
   slotY: number;
   index: number;
+}
+
+interface RubyUnit {
+  obj: PIXI.Text;
+  centerX: number;
+  centerY: number;
+  startCharIdx: number;
+  endCharIdx: number;
 }
 
 interface ExitingLine {
@@ -43,6 +52,7 @@ export class LyricText extends BaseEffect {
   private decor!: PIXI.Graphics;
   private translationText!: PIXI.Text;
   private chars: CharUnit[] = [];
+  private rubies: RubyUnit[] = [];
   private exitingLines: ExitingLine[] = [];
   private currentText = '';
   private enterT0 = 0;
@@ -128,6 +138,7 @@ export class LyricText extends BaseEffect {
     for (let i = 0; i < chars.length; i++) {
       const obj = new PIXI.Text({ text: chars[i], style: new PIXI.TextStyle(style) });
       obj.anchor.set(0.5);
+
       const advance = (vertical ? fontSize : obj.width) + letterSpacing;
       units.push({ obj, slotX: 0, slotY: 0, index: i });
       cursor += advance;
@@ -162,6 +173,49 @@ export class LyricText extends BaseEffect {
     this.fitScale = Math.min(1, fitW, vertical ? fitH : fitW);
 
     this.chars = units;
+
+    // Third pass: Parse Furigana compounds and center ruby reading across the full compound
+    this.rubies = [];
+    if (ctx.showFurigana !== false) {
+      const segments = annotateFurigana(text);
+      let charCursor = 0;
+      for (const seg of segments) {
+        const segLen = seg.text.length;
+        const startIdx = charCursor;
+        const endIdx = charCursor + segLen - 1;
+
+        if (seg.ruby && units[startIdx] && units[endIdx]) {
+          const startUnit = units[startIdx];
+          const endUnit = units[endIdx];
+          const centerX = (startUnit.slotX + endUnit.slotX) / 2;
+          const centerY = (startUnit.slotY + endUnit.slotY) / 2;
+
+          const rubyObj = new PIXI.Text({
+            text: seg.ruby,
+            style: new PIXI.TextStyle({
+              fontFamily: '"Noto Sans JP", "Hiragino Kaku Gothic Pro", "PingFang SC", sans-serif',
+              fontSize: Math.max(12, Math.round(fontSize * 0.28)),
+              fontWeight: '600',
+              fill: color,
+              alpha: 0.95
+            })
+          });
+          rubyObj.anchor.set(0.5);
+          rubyObj.x = centerX;
+          rubyObj.y = vertical ? centerY : centerY - fontSize * 0.58;
+          rubyObj.alpha = 0;
+
+          this.rubies.push({
+            obj: rubyObj,
+            centerX,
+            centerY,
+            startCharIdx: startIdx,
+            endCharIdx: endIdx
+          });
+        }
+        charCursor += segLen;
+      }
+    }
   }
 
   private setText(text: string, ctx: UpdateContext, instant: boolean): void {
@@ -188,11 +242,15 @@ export class LyricText extends BaseEffect {
       }
     }
     this.chars = [];
+    this.rubies = [];
     this.currentText = text;
 
     if (!text) return;
     this.buildChars(text, ctx);
     this.enterT0 = instant ? -Infinity : ctx.time;
+    const fontSize = this.config.fontSize ?? 64;
+    const vertical = this.config.vertical ?? false;
+
     for (const u of this.chars) {
       if (instant) {
         u.obj.alpha = 1;
@@ -202,6 +260,17 @@ export class LyricText extends BaseEffect {
         u.obj.alpha = 0;
       }
       this.line.addChild(u.obj);
+    }
+
+    for (const r of this.rubies) {
+      if (instant) {
+        r.obj.alpha = 0.95;
+        r.obj.x = vertical ? r.centerX + fontSize * 0.55 : r.centerX;
+        r.obj.y = vertical ? r.centerY : r.centerY - fontSize * 0.58;
+      } else {
+        r.obj.alpha = 0;
+      }
+      this.line.addChild(r.obj);
     }
   }
 
@@ -302,6 +371,27 @@ export class LyricText extends BaseEffect {
       }
     }
 
+    // 复合词假名注音同步显隐与弹跳
+    for (const r of this.rubies) {
+      if (ctx.showFurigana === false) {
+        r.obj.visible = false;
+        continue;
+      }
+      r.obj.visible = true;
+      const startChar = this.chars[r.startCharIdx];
+      if (startChar) {
+        r.obj.alpha = startChar.obj.alpha * 0.95;
+        r.obj.scale.set(startChar.obj.scale.x * 0.95);
+        if (vertical) {
+          r.obj.x = startChar.obj.x + (fontSize * 0.55);
+          r.obj.y = r.centerY;
+        } else {
+          r.obj.x = r.centerX;
+          r.obj.y = startChar.obj.y - (fontSize * 0.58);
+        }
+      }
+    }
+
     // Exiting lines: smoothly rise and fade without jumping to top-left
     for (let i = this.exitingLines.length - 1; i >= 0; i--) {
       const ex = this.exitingLines[i];
@@ -347,10 +437,19 @@ export class LyricText extends BaseEffect {
     this.decor.y = this.line.y;
     this.decor.scale.set(this.fitScale * beat);
 
-    // 翻译副歌词（自适应避开下划线装饰）
+    // 翻译副歌词（自适应对齐与避开下划线装饰）
     if (ctx.showTranslation !== false && ctx.translation) {
       this.translationText.visible = true;
       this.translationText.text = ctx.translation;
+
+      const align = this.config.align ?? 'center';
+      if (align === 'left') {
+        this.translationText.anchor.set(0, 0);
+      } else if (align === 'right') {
+        this.translationText.anchor.set(1, 0);
+      } else {
+        this.translationText.anchor.set(0.5, 0);
+      }
       this.translationText.x = this.line.x;
 
       let bottomOffset = (this.naturalH * this.fitScale) / 2;
@@ -404,7 +503,7 @@ export class LyricText extends BaseEffect {
       const slide = (1 - p) * fontSize * 0.3;
       if (vertical) {
         g.rect(-thickness / 2, this.decorCenter - half - slide - len / 2, thickness, len);
-        g.rect(-thickness / 2, this.decorCenter + half + slide - len / 2, thickness, len);
+        g.rect(-thickness / 2, this.decorCenter + half - slide - len / 2, thickness, len);
       } else {
         g.rect(this.decorCenter - half - slide - len / 2, -thickness / 2, len, thickness);
         g.rect(this.decorCenter + half + slide - len / 2, -thickness / 2, len, thickness);
@@ -422,6 +521,7 @@ export class LyricText extends BaseEffect {
     }
     this.exitingLines = [];
     this.chars = [];
+    this.rubies = [];
     try {
       this.translationText.destroy();
     } catch { /* ignore */ }

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Compass, TrendingUp, Heart, History, Settings, Play, Music, Radio } from 'lucide-react';
+import { Compass, TrendingUp, Heart, History, Settings, Play, Music, Radio, HardDrive } from 'lucide-react';
 import GlassNavCard from '../components/GlassNavCard';
 import ResilientCover from '../components/ResilientCover';
 import CachedCover, { useCachedCoverUrl } from '../components/CachedCover';
@@ -79,13 +79,17 @@ export default function ModernHome() {
     || currentSong?.al?.picUrl
     || currentSong?.album?.picUrl
     || '';
-  const activeLyric = activeLineIndex >= 0 && lyrics[activeLineIndex] ? lyrics[activeLineIndex].text : '';
+
+  const activeLyric = (activeLineIndex >= 0 && lyrics?.[activeLineIndex]?.text)
+    ? lyrics[activeLineIndex].text
+    : '';
+
   const currentPrimaryArtist = currentSong?.ar?.[0] || currentSong?.artists?.[0] || null;
   const currentAlbumName = currentSong?.al?.name || currentSong?.album?.name || '未知专辑';
 
   return (
-    <div id="modern-home" className="modern-home">
-      <div className="home-hero glass-hero">
+    <div className="view-container modern-home">
+      <div className="glass-hero">
         <div className="home-hero-inner" style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
           {coverUrl ? (
             <div className="hero-cover-container" style={{ flexShrink: 0, position: 'relative' }}>
@@ -96,7 +100,7 @@ export default function ModernHome() {
               />
               <div 
                 className="hero-cover-glow" 
-                style={{ position: 'absolute', inset: 0, backgroundImage: `url(${coverUrl})`, backgroundSize: 'cover', filter: 'blur(32px)', opacity: 0.6, zIndex: 1, transform: 'translateY(10px) scale(1.05)' }}
+                style={{ position: 'absolute', inset: 0, background: `url(${coverUrl})`, filter: 'blur(32px)', opacity: 0.6, zIndex: 1, transform: 'translateY(10px) scale(1.05)', backgroundSize: 'cover' }} 
               />
             </div>
           ) : (
@@ -105,7 +109,7 @@ export default function ModernHome() {
             </div>
           )}
           
-          <div className="hero-info" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <div className="hero-info" style={{ flex: 1, minWidth: 0 }}>
             <div className="home-kicker">ICHIGOMUSIC</div>
             <div className="home-title" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {currentSong ? currentSong.name : '听你所想，享你所爱'}
@@ -148,11 +152,12 @@ export default function ModernHome() {
       <div className="home-card-grid">
         <GlassNavCard icon={<Compass />} label="DISCOVER" title="发现音乐" sub="每天都有新发现" color="discover" onClick={() => navigateTo('discover')} />
         <GlassNavCard icon={<TrendingUp />} label="LEADERBOARD" title="排行榜" sub="时下最热单曲" color="leaderboard" onClick={() => navigateTo('leaderboards')} />
+        <GlassNavCard icon={<HardDrive />} label="LOCAL MUSIC" title="本地音乐" sub="无损曲库与扫描" color="local" onClick={() => navigateTo('local')} />
         <GlassNavCard icon={<Heart />} label="LIKED SONGS" title="我喜欢的音乐" sub="你的私人珍藏" color="liked" onClick={() => navigateTo('liked')} />
         <GlassNavCard icon={<History />} label="RECENT" title="最近播放" sub="时光机" color="recent" onClick={() => navigateTo('recent')} />
         <GlassNavCard icon={<Settings />} label="SETTINGS" title="设置" sub="应用偏好" color="settings" onClick={() => navigateTo('settings')} />
         <GlassNavCard icon={<Radio />} label="LISTEN TOGETHER" title="一起听" sub="和朋友同步听歌" color="listen" onClick={() => navigateTo('listen-together')} />
-       </div>
+      </div>
 
       {recentlyPlayed && recentlyPlayed.length > 0 && (
         <div className="home-rail">

@@ -6,6 +6,7 @@ import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
 import { resolveColor } from '../core/types';
 import { clamp01 } from '../core/easing';
+import { annotateFurigana } from '../../utils/lyrics/furiganaHelper';
 
 interface PopChar {
   obj: PIXI.Text;
@@ -17,12 +18,20 @@ interface PopChar {
   lineIdx: number;
 }
 
+interface PopRuby {
+  obj: PIXI.Text;
+  centerX: number;
+  baseY: number;
+  startGlobalIdx: number;
+  endGlobalIdx: number;
+}
+
 /**
  * 波普格子花边专属：美漫波普粗边框与漫画弹跳
  * 1. 经典 Pop Art 高饱和度撞色（黄色/粉红/青蓝/纯黑粗描边）
  * 2. 逐字美漫弹性着陆（到达时弹性挤压与反弹放大落地）
  * 3. 伴随波普波点网纹与爆炸徽章
- * 4. 超长歌词两行自适应与翻译副标题
+ * 4. 超长歌词两行自适应与平假名注音
  */
 export class PopComicText extends BaseEffect {
   readonly name = 'popComicText';
@@ -31,6 +40,7 @@ export class PopComicText extends BaseEffect {
   private burstGfx!: PIXI.Graphics;
   private translationText!: PIXI.Text;
   private chars: PopChar[] = [];
+  private rubies: PopRuby[] = [];
   private currentRaw = '';
   private fontSize = 54;
 
@@ -61,6 +71,14 @@ export class PopComicText extends BaseEffect {
     const raw = ctx.currentText || '';
     if (raw === this.currentRaw && this.chars.length > 0) return;
     this.currentRaw = raw;
+
+    for (const r of this.rubies) {
+      try {
+        this.textLayer.removeChild(r.obj);
+        r.obj.destroy();
+      } catch { /* safe */ }
+    }
+    this.rubies = [];
 
     for (const c of this.chars) {
       try {
@@ -108,6 +126,7 @@ export class PopComicText extends BaseEffect {
     const lineHeight = this.fontSize * 1.35;
     const lineCount = linesOfChars.length;
     let maxLineWidth = 0;
+    const globalCharSlots: Record<number, { slotX: number; charW: number; y: number; lineIdx: number }> = {};
 
     for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
       const lineData = linesOfChars[lineIdx];
@@ -163,11 +182,60 @@ export class PopComicText extends BaseEffect {
           lineIdx
         });
 
+        globalCharSlots[globalIdx] = { slotX, charW, y: yOffset, lineIdx };
         cursorX += charW;
       }
 
       if (cursorX > maxLineWidth) {
         maxLineWidth = cursorX;
+      }
+    }
+
+    // Furigana 平假名注音生成
+    if (ctx.showFurigana !== false) {
+      const segments = annotateFurigana(raw);
+      let charCursor = 0;
+      for (const seg of segments) {
+        const segLen = seg.text.length;
+        const startIdx = charCursor;
+        const endIdx = charCursor + segLen - 1;
+
+        if (seg.ruby && globalCharSlots[startIdx] && globalCharSlots[endIdx]) {
+          const sSlot = globalCharSlots[startIdx];
+          const eSlot = globalCharSlots[endIdx];
+
+          if (sSlot.lineIdx === eSlot.lineIdx) {
+            const leftEdge = sSlot.slotX - sSlot.charW / 2;
+            const rightEdge = eSlot.slotX + eSlot.charW / 2;
+            const compoundCenterX = (leftEdge + rightEdge) / 2;
+            const rubyY = sSlot.y - this.fontSize * 0.58;
+
+            const rubyObj = new PIXI.Text({
+              text: seg.ruby,
+              style: new PIXI.TextStyle({
+                fontFamily: '"Impact", "PingFang SC", sans-serif',
+                fontSize: Math.max(11, Math.round(this.fontSize * 0.28)),
+                fontWeight: '900',
+                fill: '#00f0ff',
+                stroke: { color: '#000000', width: 4 }
+              })
+            });
+            rubyObj.anchor.set(0.5, 0.5);
+            rubyObj.x = compoundCenterX;
+            rubyObj.y = rubyY;
+            rubyObj.alpha = 0;
+            this.textLayer.addChild(rubyObj);
+
+            this.rubies.push({
+              obj: rubyObj,
+              centerX: compoundCenterX,
+              baseY: rubyY,
+              startGlobalIdx: startIdx,
+              endGlobalIdx: endIdx
+            });
+          }
+        }
+        charCursor += segLen;
       }
     }
 
@@ -245,20 +313,36 @@ export class PopComicText extends BaseEffect {
         c.obj.y = 0;
       }
     }
+
+    // 假名注音同步显现
+    for (const r of this.rubies) {
+      const parentChar = this.chars[r.startGlobalIdx];
+      if (parentChar) {
+        if (now < parentChar.time) {
+          r.obj.alpha = 0.12;
+        } else {
+          r.obj.alpha = 1;
+        }
+      }
+    }
   }
 
   destroy(): void {
+    for (const r of this.rubies) {
+      try { r.obj.destroy(); } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const c of this.chars) {
       try { c.obj.destroy(); } catch { /* safe */ }
     }
     this.chars = [];
     try {
-      this.translationText.destroy();
-      this.burstGfx.destroy();
       this.bgGfx.destroy();
+      this.burstGfx.destroy();
+      this.translationText.destroy();
       this.textLayer.destroy({ children: true });
     } catch { /* safe */ }
     super.destroy();
   }
 }
-

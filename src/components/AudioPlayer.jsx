@@ -540,17 +540,37 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
-      setProgress(audioRef.current.currentTime);
+      const curTime = audioRef.current.currentTime || 0;
+      setProgress(curTime);
+
+      // 睡眠定时器：检查到期与最后 15 秒平滑音量渐弱 (Sleep Timer Fade Out)
+      const sleepState = (typeof window !== 'undefined' ? window.__ICHIGO_SLEEP_TIMER__ : null);
+      if (sleepState && sleepState.active && !sleepState.endOfSong && sleepState.targetTime) {
+        const remainingMs = sleepState.targetTime - Date.now();
+        if (remainingMs <= 0) {
+          window.__ICHIGO_SLEEP_TIMER__ = null;
+          audioRef.current.pause();
+          audioRef.current.volume = volume;
+          setIsPlaying(false);
+          return;
+        } else if (remainingMs <= 15000) {
+          const fadeFrac = Math.max(0.02, remainingMs / 15000);
+          audioRef.current.volume = volume * fadeFrac;
+        } else {
+          audioRef.current.volume = volume;
+        }
+      }
+
       if (currentSong?.id) {
         if (scrobbleRef.current.songId !== currentSong.id) {
           scrobbleRef.current = {
             songId: currentSong.id,
-            lastTime: audioRef.current.currentTime || 0,
+            lastTime: curTime,
             reported: false,
             inFlight: false
           };
         } else {
-          scrobbleRef.current.lastTime = Math.max(scrobbleRef.current.lastTime, audioRef.current.currentTime || 0);
+          scrobbleRef.current.lastTime = Math.max(scrobbleRef.current.lastTime, curTime);
         }
       }
     }
@@ -657,6 +677,15 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   const handleEnded = () => {
     reportScrobble(audioRef.current?.currentTime || audioRef.current?.duration || 0, true);
+    
+    // 睡眠定时器：播完本曲后停止
+    const sleepState = (typeof window !== 'undefined' ? window.__ICHIGO_SLEEP_TIMER__ : null);
+    if (sleepState && sleepState.active && sleepState.endOfSong) {
+      window.__ICHIGO_SLEEP_TIMER__ = null;
+      setIsPlaying(false);
+      return;
+    }
+
     if (!canControlPlayback) {
       setIsPlaying(false);
       return;

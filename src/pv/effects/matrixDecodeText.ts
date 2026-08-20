@@ -2,6 +2,7 @@ import * as PIXI from 'pixi.js';
 import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
 import { resolveColor } from '../core/types';
+import { annotateFurigana } from '../../utils/lyrics/furiganaHelper';
 
 // 混合矩阵暗码库：包含十六进制、片假名与终端乱码
 const CIPHER_HEX = '0123456789ABCDEFｦｱｳｴｵｶｷｹｺｻｼｽｾｿﾀﾂﾃﾅﾆﾇﾈﾊﾋﾎﾏﾐﾑﾒﾓﾔﾕﾗﾘﾜ';
@@ -17,6 +18,15 @@ interface MatrixChar {
   isCJK: boolean;
   cipherIndex: number;
   lineIdx: number;
+  globalIdx: number;
+}
+
+interface MatrixRuby {
+  obj: PIXI.Text;
+  centerX: number;
+  slotY: number;
+  startGlobalIdx: number;
+  endGlobalIdx: number;
 }
 
 /**
@@ -35,6 +45,7 @@ export class MatrixDecodeText extends BaseEffect {
   private translationText!: PIXI.Text;
   private hudLine!: PIXI.Graphics;
   private matrixChars: MatrixChar[] = [];
+  private rubies: MatrixRuby[] = [];
   private promptObjs: PIXI.Text[] = [];
   private currentRawText = '';
   private lastScrambleTime = 0;
@@ -105,7 +116,7 @@ export class MatrixDecodeText extends BaseEffect {
     if (raw === this.currentRawText && this.matrixChars.length > 0) return;
     this.currentRawText = raw;
 
-    // 清理旧字符与提示符
+    // 清理旧字符、注音与提示符
     for (const c of this.matrixChars) {
       try {
         this.textLayer.removeChild(c.obj);
@@ -114,6 +125,14 @@ export class MatrixDecodeText extends BaseEffect {
     }
     this.matrixChars = [];
 
+    for (const r of this.rubies) {
+      try {
+        this.textLayer.removeChild(r.obj);
+        r.obj.destroy();
+      } catch { /* safe */ }
+    }
+    this.rubies = [];
+
     for (const p of this.promptObjs) {
       try {
         this.textLayer.removeChild(p);
@@ -121,6 +140,8 @@ export class MatrixDecodeText extends BaseEffect {
       } catch { /* safe */ }
     }
     this.promptObjs = [];
+    this.textLayer.removeChildren();
+    this.textLayer.addChild(this.cursorObj);
 
     if (!raw.trim()) return;
 
@@ -133,12 +154,11 @@ export class MatrixDecodeText extends BaseEffect {
 
     const isCJK = (ch: string) => /[\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\u3400-\u4dbf]/.test(ch);
 
-    // 超长歌词两行拆分算法（超过 18 字符或总宽超出屏幕阈值时自动拆分）
+    // 超长歌词两行拆分算法（超过 20 字符或总宽超出屏幕阈值时自动拆分）
     const maxLineChars = 20;
     const linesOfChars: { char: string; globalIdx: number }[][] = [];
 
     if (chars.length > maxLineChars) {
-      // 寻找中点附近标点或空格分割
       const mid = Math.floor(chars.length / 2);
       let splitIdx = mid;
       for (let offset = 0; offset <= 5; offset++) {
@@ -159,6 +179,7 @@ export class MatrixDecodeText extends BaseEffect {
     const lineHeight = this.fontSize * 1.35;
     const lineCount = linesOfChars.length;
     let maxLineWidth = 0;
+    const globalCharPositions: Record<number, { slotX: number; slotY: number; charW: number }> = {};
 
     for (let lineIdx = 0; lineIdx < lineCount; lineIdx++) {
       const lineData = linesOfChars[lineIdx];
@@ -229,14 +250,59 @@ export class MatrixDecodeText extends BaseEffect {
           slotY: yOffset,
           isCJK: cjk,
           cipherIndex: Math.floor(Math.random() * pool.length),
-          lineIdx
+          lineIdx,
+          globalIdx
         });
 
+        globalCharPositions[globalIdx] = { slotX, slotY: yOffset, charW };
         cursorX += charW;
       }
 
       if (cursorX > maxLineWidth) {
         maxLineWidth = cursorX;
+      }
+    }
+
+    // Parse Furigana compounds
+    if (ctx.showFurigana !== false) {
+      const segments = annotateFurigana(raw);
+      let charCursor = 0;
+      for (const seg of segments) {
+        const segLen = seg.text.length;
+        const startIdx = charCursor;
+        const endIdx = charCursor + segLen - 1;
+
+        if (seg.ruby && globalCharPositions[startIdx] && globalCharPositions[endIdx]) {
+          const startP = globalCharPositions[startIdx];
+          const endP = globalCharPositions[endIdx];
+          if (startP.slotY === endP.slotY) {
+            const centerX = (startP.slotX - startP.charW / 2 + endP.slotX + endP.charW / 2) / 2;
+            const rubyObj = new PIXI.Text({
+              text: seg.ruby,
+              style: new PIXI.TextStyle({
+                fontFamily: '"Noto Sans JP", "Hiragino Kaku Gothic Pro", "PingFang SC", sans-serif',
+                fontSize: Math.max(11, Math.round(this.fontSize * 0.28)),
+                fontWeight: '600',
+                fill: '#20ff66',
+                alpha: 0.9
+              })
+            });
+            rubyObj.anchor.set(0.5, 0.5);
+            rubyObj.x = centerX;
+            rubyObj.y = startP.slotY - this.fontSize * 0.56;
+            rubyObj.alpha = 0;
+            this.textLayer.addChild(rubyObj);
+
+            this.rubies.push({
+              obj: rubyObj,
+              centerX,
+              slotY: startP.slotY,
+              startGlobalIdx: startIdx,
+              endGlobalIdx: endIdx
+            });
+          }
+        }
+        charCursor += segLen;
       }
     }
 
@@ -251,8 +317,14 @@ export class MatrixDecodeText extends BaseEffect {
     const cx = (this.config.x ?? 0.5) * ctx.screenWidth;
     const cy = (this.config.y ?? 0.5) * ctx.screenHeight;
 
-    this.textLayer.x = cx;
-    this.textLayer.y = cy;
+    const bass = ctx.audioReact?.bass ?? 0;
+    const isBeat = ctx.audioReact?.isBeat ?? false;
+    const beatShakeX = isBeat ? (Math.random() - 0.5) * 6 : 0;
+    const beatShakeY = isBeat ? (Math.random() - 0.5) * 6 : 0;
+
+    this.textLayer.x = cx + beatShakeX;
+    this.textLayer.y = cy + beatShakeY;
+    this.textLayer.scale.set(1.0 + bass * 0.05);
 
     // 更新头部 HUD
     this.headerText.x = cx - (this.textLayer.pivot.x || 150);
@@ -333,12 +405,26 @@ export class MatrixDecodeText extends BaseEffect {
       }
     }
 
+    // 复合词假名注音同步
+    for (const r of this.rubies) {
+      if (ctx.showFurigana === false) {
+        r.obj.visible = false;
+        continue;
+      }
+      r.obj.visible = true;
+      const startChar = this.matrixChars.find(m => m.globalIdx === r.startGlobalIdx);
+      if (startChar) {
+        r.obj.alpha = startChar.obj.alpha * 0.9;
+        r.obj.x = r.centerX;
+        r.obj.y = startChar.slotY - this.fontSize * 0.56;
+      }
+    }
+
     // 光标跟随当前解密头部
     const cursorBlink = Math.sin(now * 8) > 0;
     this.cursorObj.x = activeCursorX || (this.promptObjs[0]?.x ?? 0) + this.fontSize * 0.9;
     this.cursorObj.y = activeCursorY;
     this.cursorObj.alpha = cursorBlink ? 0.95 : 0.1;
-
   }
 
   destroy(): void {
@@ -346,6 +432,10 @@ export class MatrixDecodeText extends BaseEffect {
       try { c.obj.destroy(); } catch { /* safe */ }
     }
     this.matrixChars = [];
+    for (const r of this.rubies) {
+      try { r.obj.destroy(); } catch { /* safe */ }
+    }
+    this.rubies = [];
     for (const p of this.promptObjs) {
       try { p.destroy(); } catch { /* safe */ }
     }

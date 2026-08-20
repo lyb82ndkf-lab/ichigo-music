@@ -110,6 +110,8 @@ export const zh = {
   'tpl_popArt': '波普',
   'tpl_ruler': '几何',
   'tpl_silhouetteClean': '剪影极简',
+  'tpl_evaAlert': 'EVA 警报',
+  'tpl_cyberpunk2077': '赛博朋克 2077',
 
   // File picker
   'choose_file': '选择文件',

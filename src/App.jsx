@@ -35,6 +35,9 @@ const MyLiked = lazy(() => import('./views/MyLiked'));
 const RecentlyPlayed = lazy(() => import('./views/RecentlyPlayed'));
 const Settings = lazy(() => import('./views/Settings'));
 const ModernHome = lazy(() => import('./views/ModernHome'));
+const LocalMusic = lazy(() => import('./views/LocalMusic'));
+import LyricAdjusterModal from './components/LyricAdjusterModal';
+import SleepTimerModal from './components/SleepTimerModal';
 
 // Icons
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';
@@ -142,6 +145,8 @@ function AppContent() {
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isImmersiveSettingsOpen, setIsImmersiveSettingsOpen] = useState(false);
   const [immersiveSettingsTab, setImmersiveSettingsTab] = useState('lyrics');
+  const [isLyricAdjusterOpen, setIsLyricAdjusterOpen] = useState(false);
+  const [isSleepTimerOpen, setIsSleepTimerOpen] = useState(false);
 
   const updateAdvancedLyricConfig = (patch) => {
     saveAdvancedLyricConfig({
@@ -414,6 +419,8 @@ function AppContent() {
         return <Settings key="settings" />;
       case 'home':
         return <ModernHome key="home" />;
+      case 'local':
+        return <LocalMusic key="local" />;
       case 'listen-together':
         return <ListenTogether key="listen-together" listenState={listenState} currentSong={currentSong} lyrics={lyrics} currentTime={progress} />;
       default:
@@ -668,7 +675,79 @@ function AppContent() {
                         </select>
                       </label>
 
-                      {/* ================= KTV 文字 PV (talk) 专属设置置顶 ================= */}
+                      <div style={{ margin: '8px 0 12px', display: 'flex', gap: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setIsLyricAdjusterOpen(true)}
+                          style={{
+                            flex: 1,
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255, 64, 129, 0.4)',
+                            background: 'rgba(255, 64, 129, 0.15)',
+                            color: '#fff',
+                            fontSize: '12px',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          ⚡ 歌词时间轴微调 / 手动换源
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsSleepTimerOpen(true)}
+                          style={{
+                            padding: '8px 12px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255,255,255,0.18)',
+                            background: 'rgba(255,255,255,0.06)',
+                            color: '#fff',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: '4px'
+                          }}
+                        >
+                          🌙 睡眠定时
+                        </button>
+                      </div>
+
+                      <label className="setting-row-inline">
+                        <span>歌词时间偏移：{Number(advancedLyricConfig.globalOffset || 0).toFixed(2)} 秒</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button 
+                            className="modern-glass-btn" 
+                            style={{ padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}
+                            onClick={() => updateAdvancedLyricConfig({ globalOffset: (Number(advancedLyricConfig.globalOffset) || 0) - 0.5 })}
+                          >-0.5s</button>
+                          <input type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0}
+                            onChange={(e) => updateAdvancedLyricConfig({ globalOffset: Number(e.target.value) })} style={{ width: '100px' }} />
+                          <button 
+                            className="modern-glass-btn" 
+                            style={{ padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}
+                            onClick={() => updateAdvancedLyricConfig({ globalOffset: (Number(advancedLyricConfig.globalOffset) || 0) + 0.5 })}
+                          >+0.5s</button>
+                        </div>
+                      </label>
+                      <label className="setting-row-inline compact-toggle">
+                        <span>显示翻译</span>
+                        <input type="checkbox" checked={advancedLyricConfig.showTranslation !== false}
+                          onChange={(e) => updateAdvancedLyricConfig({ showTranslation: e.target.checked })} />
+                      </label>
+                      <label className="setting-row-inline compact-toggle">
+                        <span>显示假名注音（ルビ）</span>
+                        <input type="checkbox" checked={advancedLyricConfig.showFurigana !== false}
+                          onChange={(e) => updateAdvancedLyricConfig({ showFurigana: e.target.checked })} />
+                      </label>
+
+                      {/* ================= PV 歌词 (talk) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'talk' && (
                         <>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 8px' }}>
@@ -828,15 +907,11 @@ function AppContent() {
                             <span>显示歌曲开场标题卡</span>
                             <input type="checkbox" checked={advancedLyricConfig.ktvShowTitleCard !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvShowTitleCard: e.target.checked })} />
                           </label>
-                          <label className="setting-row-inline compact-toggle">
-                            <span>显示翻译 / 罗马音</span>
-                            <input type="checkbox" checked={advancedLyricConfig.ktvShowTranslation !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvShowTranslation: e.target.checked })} />
-                          </label>
                         </>
                       )}
 
-                      {/* ================= 常规滚动歌词参数 (非 talk 模式) ================= */}
-                      {advancedLyricConfig.lyricsMode !== 'talk' && (
+                      {/* ================= 常规滚动模式 (regular) 专属设置 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'regular' && (
                         <>
                           <label className="setting-row-inline">
                             <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
@@ -853,29 +928,90 @@ function AppContent() {
                             <input type="range" min="20" max="70" value={advancedLyricConfig.lyricsPositionY || 40}
                               onChange={(e) => updateAdvancedLyricConfig({ lyricsPositionY: Number(e.target.value) })} />
                           </label>
+                          <label className="setting-row-inline">
+                            <span>顶部标题字体</span>
+                            <select className="setting-select" value={advancedLyricConfig.titleFontFamily || 'Outfit'}
+                              onChange={(e) => updateAdvancedLyricConfig({ titleFontFamily: e.target.value })}>
+                              <option value="Inter">Inter / 思源黑体</option>
+                              <option value="Outfit">Outfit 标题字体</option>
+                              <option value="Noto Serif SC">思源宋体</option>
+                              <option value="Microsoft YaHei">微软雅黑</option>
+                              <option value="KaiTi">楷体</option>
+                            </select>
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>滚动歌词字体</span>
+                            <select className="setting-select" value={advancedLyricConfig.fontFamily || 'Inter'}
+                              onChange={(e) => updateAdvancedLyricConfig({ fontFamily: e.target.value })}>
+                              <option value="Inter">Inter / 思源黑体</option>
+                              <option value="Outfit">Outfit 标题字体</option>
+                              <option value="Noto Serif SC">思源宋体</option>
+                              <option value="Microsoft YaHei">微软雅黑</option>
+                              <option value="KaiTi">楷体</option>
+                            </select>
+                          </label>
+                          <label className="setting-row-inline compact-toggle">
+                            <span>歌词辉光效果</span>
+                            <input type="checkbox" checked={advancedLyricConfig.showGlow === true}
+                              onChange={(e) => updateAdvancedLyricConfig({ showGlow: e.target.checked })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>歌词辉光强度：{(advancedLyricConfig.lyricGlowIntensity ?? 1).toFixed(1)}x</span>
+                            <input type="range" min="0" max="2" step="0.1" value={advancedLyricConfig.lyricGlowIntensity ?? 1}
+                              onChange={(e) => updateAdvancedLyricConfig({ lyricGlowIntensity: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>非活动歌词模糊度：{(advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4).toFixed(1)}</span>
+                            <input type="range" min="0" max="3.0" step="0.2" value={advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4}
+                              onChange={(e) => updateAdvancedLyricConfig({ inactiveLyricBlur: Number(e.target.value) })} />
+                          </label>
                         </>
                       )}
 
+                      {/* ================= 气泡模式 (streamer) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'streamer' && (
-                        <label className="setting-row-inline">
-                          <span>气泡对齐方式</span>
-                          <select className="setting-select" value={advancedLyricConfig.bubbleAlign || 'alternate'}
-                            onChange={(e) => updateAdvancedLyricConfig({ bubbleAlign: e.target.value })}>
-                            <option value="alternate">交替对话</option>
-                            <option value="left">全左对齐</option>
-                            <option value="right">全右对齐</option>
-                          </select>
-                        </label>
+                        <>
+                          <label className="setting-row-inline">
+                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
+                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
+                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>气泡对齐方式</span>
+                            <select className="setting-select" value={advancedLyricConfig.bubbleAlign || 'alternate'}
+                              onChange={(e) => updateAdvancedLyricConfig({ bubbleAlign: e.target.value })}>
+                              <option value="alternate">交替对话</option>
+                              <option value="left">全左对齐</option>
+                              <option value="right">全右对齐</option>
+                            </select>
+                          </label>
+                        </>
                       )}
+
+                      {/* ================= 云阶模式 (cloudstep) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'cloudstep' && (
-                        <label className="setting-row-inline">
-                          <span>云阶行间距：{(advancedLyricConfig.cloudStepSpacing || 1).toFixed(1)}</span>
-                          <input type="range" min="0.5" max="3" step="0.1" value={advancedLyricConfig.cloudStepSpacing || 1}
-                            onChange={(e) => updateAdvancedLyricConfig({ cloudStepSpacing: Number(e.target.value) })} />
-                        </label>
+                        <>
+                          <label className="setting-row-inline">
+                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
+                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
+                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>云阶行间距：{(advancedLyricConfig.cloudStepSpacing || 1).toFixed(1)}</span>
+                            <input type="range" min="0.5" max="3" step="0.1" value={advancedLyricConfig.cloudStepSpacing || 1}
+                              onChange={(e) => updateAdvancedLyricConfig({ cloudStepSpacing: Number(e.target.value) })} />
+                          </label>
+                        </>
                       )}
+
+                      {/* ================= 黑胶光碟 (vinyl) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'vinyl' && (
                         <>
+                          <label className="setting-row-inline">
+                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
+                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
+                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
+                          </label>
                           <label className="setting-row-inline">
                             <span>黑胶倾斜角度：{advancedLyricConfig.vinylTiltAngle ?? 0}°</span>
                             <input type="range" min="0" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle ?? 0}
@@ -888,69 +1024,49 @@ function AppContent() {
                           </label>
                         </>
                       )}
-                      <label className="setting-row-inline">
-                        <span>歌词时间偏移：{Number(advancedLyricConfig.globalOffset || 0).toFixed(2)} 秒</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <button 
-                            className="modern-glass-btn" 
-                            style={{ padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}
-                            onClick={() => updateAdvancedLyricConfig({ globalOffset: (Number(advancedLyricConfig.globalOffset) || 0) - 0.5 })}
-                          >-0.5s</button>
-                          <input type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0}
-                            onChange={(e) => updateAdvancedLyricConfig({ globalOffset: Number(e.target.value) })} style={{ width: '100px' }} />
-                          <button 
-                            className="modern-glass-btn" 
-                            style={{ padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}
-                            onClick={() => updateAdvancedLyricConfig({ globalOffset: (Number(advancedLyricConfig.globalOffset) || 0) + 0.5 })}
-                          >+0.5s</button>
-                        </div>
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>顶部标题字体</span>
-                        <select className="setting-select" value={advancedLyricConfig.titleFontFamily || 'Outfit'}
-                          onChange={(e) => updateAdvancedLyricConfig({ titleFontFamily: e.target.value })}>
-                          <option value="Inter">Inter / 思源黑体</option>
-                          <option value="Outfit">Outfit 标题字体</option>
-                          <option value="Noto Serif SC">思源宋体</option>
-                          <option value="Microsoft YaHei">微软雅黑</option>
-                          <option value="KaiTi">楷体</option>
-                        </select>
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>滚动歌词字体</span>
-                        <select className="setting-select" value={advancedLyricConfig.fontFamily || 'Inter'}
-                          onChange={(e) => updateAdvancedLyricConfig({ fontFamily: e.target.value })}>
-                          <option value="Inter">Inter / 思源黑体</option>
-                          <option value="Outfit">Outfit 标题字体</option>
-                          <option value="Noto Serif SC">思源宋体</option>
-                          <option value="Microsoft YaHei">微软雅黑</option>
-                          <option value="KaiTi">楷体</option>
-                        </select>
-                      </label>
+
+                      {/* ================= 胶片模式 (filmstrip) 专属设置 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'filmstrip' && (
+                        <>
+                          <label className="setting-row-inline">
+                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
+                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
+                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>胶片帧间距：{advancedLyricConfig.filmFrameGap ?? 18}px</span>
+                            <input type="range" min="8" max="48" step="2" value={advancedLyricConfig.filmFrameGap ?? 18}
+                              onChange={(e) => updateAdvancedLyricConfig({ filmFrameGap: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>非当前帧透明度：{Math.round((advancedLyricConfig.filmOpacity ?? 0.22) * 100)}%</span>
+                            <input type="range" min="0.05" max="0.5" step="0.05" value={advancedLyricConfig.filmOpacity ?? 0.22}
+                              onChange={(e) => updateAdvancedLyricConfig({ filmOpacity: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>当前帧放大：{Math.round((advancedLyricConfig.filmActiveScale ?? 1.08) * 100)}%</span>
+                            <input type="range" min="1" max="1.2" step="0.01" value={advancedLyricConfig.filmActiveScale ?? 1.08}
+                              onChange={(e) => updateAdvancedLyricConfig({ filmActiveScale: Number(e.target.value) })} />
+                          </label>
+                        </>
+                      )}
+
+                      {/* ================= 空间画布 (spatial) 专属设置 ================= */}
+                      {advancedLyricConfig.lyricsMode === 'spatial' && (
+                        <>
+                          <label className="setting-row-inline">
+                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
+                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
+                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
+                          </label>
+                        </>
+                      )}
+
+                      {/* ================= 背景微粒装饰 ================= */}
                       <label className="setting-row-inline compact-toggle">
-                        <span>显示双语歌词</span>
-                        <input type="checkbox" checked={advancedLyricConfig.showTranslation !== false}
-                          onChange={(e) => updateAdvancedLyricConfig({ showTranslation: e.target.checked })} />
-                      </label>
-                      <label className="setting-row-inline compact-toggle">
-                        <span>歌词辉光效果</span>
-                        <input type="checkbox" checked={advancedLyricConfig.showGlow === true}
-                          onChange={(e) => updateAdvancedLyricConfig({ showGlow: e.target.checked })} />
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>歌词辉光强度：{(advancedLyricConfig.lyricGlowIntensity ?? 1).toFixed(1)}x</span>
-                        <input type="range" min="0" max="2" step="0.1" value={advancedLyricConfig.lyricGlowIntensity ?? 1}
-                          onChange={(e) => updateAdvancedLyricConfig({ lyricGlowIntensity: Number(e.target.value) })} />
-                      </label>
-                      <label className="setting-row-inline compact-toggle">
-                        <span>Floating decor</span>
+                        <span>背景悬浮微粒 (Floating decor)</span>
                         <input type="checkbox" checked={advancedLyricConfig.showDecor === true}
                           onChange={(e) => updateAdvancedLyricConfig({ showDecor: e.target.checked })} />
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>非活动歌词模糊度：{(advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4).toFixed(1)}</span>
-                        <input type="range" min="0" max="3.0" step="0.2" value={advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4}
-                          onChange={(e) => updateAdvancedLyricConfig({ inactiveLyricBlur: Number(e.target.value) })} />
                       </label>
                     </div>
                   )}
@@ -1263,6 +1379,15 @@ function AppContent() {
           <MiniQueuePopover isOpen={isQueueOpen} onClose={() => setIsQueueOpen(false)} />
         )}
         <ClosePromptModal />
+        <LyricAdjusterModal
+          isOpen={isLyricAdjusterOpen}
+          onClose={() => setIsLyricAdjusterOpen(false)}
+          currentSong={currentSong}
+        />
+        <SleepTimerModal
+          isOpen={isSleepTimerOpen}
+          onClose={() => setIsSleepTimerOpen(false)}
+        />
         <AnimatePresence>
           {updateInfo?.show && (
             <UpdatePromptModal

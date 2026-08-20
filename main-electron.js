@@ -1256,6 +1256,78 @@ function createWindow() {
     return true;
   });
 
+  ipcMain.removeHandler('select-local-music-folder');
+  ipcMain.handle('select-local-music-folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: '选择本地音乐文件夹',
+      properties: ['openDirectory']
+    });
+    if (result.canceled || !result.filePaths || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+
+  ipcMain.removeHandler('scan-local-music-folder');
+  ipcMain.handle('scan-local-music-folder', async (_event, folderPath) => {
+    if (!folderPath || typeof folderPath !== 'string') return [];
+    const supportedExts = new Set(['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.opus', '.ape', '.wma']);
+    const songs = [];
+
+    async function walk(dir, depth = 0) {
+      if (depth > 6) return;
+      try {
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+          if (entry.isDirectory()) {
+            await walk(fullPath, depth + 1);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (supportedExts.has(ext)) {
+              const baseName = path.basename(entry.name, ext);
+              let artist = '未知歌手';
+              let title = baseName;
+              if (baseName.includes(' - ')) {
+                const parts = baseName.split(' - ');
+                artist = parts[0].trim();
+                title = parts.slice(1).join(' - ').trim();
+              } else if (baseName.includes('-')) {
+                const parts = baseName.split('-');
+                artist = parts[0].trim();
+                title = parts.slice(1).join('-').trim();
+              }
+
+              const stats = await fs.promises.stat(fullPath).catch(() => null);
+              const fileUrl = 'file:///' + fullPath.replace(/\\/g, '/');
+              const songId = `local_${Buffer.from(fullPath).toString('hex').slice(0, 24)}`;
+
+              songs.push({
+                id: songId,
+                name: title,
+                title: title,
+                ar: [{ name: artist }],
+                artists: [{ name: artist }],
+                artist: artist,
+                al: { name: path.basename(dir), picUrl: '' },
+                album: path.basename(dir),
+                duration: 0,
+                durationMs: 0,
+                url: fileUrl,
+                localPath: fullPath,
+                fileSize: stats?.size || 0,
+                isLocal: true,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[LocalScanner] Failed to read dir:', dir, err);
+      }
+    }
+
+    await walk(folderPath);
+    return songs;
+  });
+
   // Load local Vite dev server or production build
   if (app.isPackaged) {
     mainWindow.loadURL(`http://127.0.0.1:${apiPort}`);

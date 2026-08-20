@@ -3,7 +3,6 @@
 
 import type { TemplateConfig } from '../core/types';
 import { cinemaTealTemplate } from './cinemaTeal';
-import { hakushiTemplate } from './hakushi';
 import { yozakuraTemplate } from './yozakura';
 import { suisaiTemplate } from './suisai';
 import { cityPopTemplate } from './cityPop';
@@ -13,10 +12,8 @@ import { monoTemplate } from './mono';
 import { tasogareTemplate } from './tasogare';
 import { shinkuuTemplate } from './shinkuu';
 import { zasshiTemplate } from './zasshi';
-import { akaiitoTemplate } from './akaiito';
 import { lemonSodaTemplate } from './lemonSoda';
 import { kiriTemplate } from './kiri';
-import { shinpakuTemplate } from './shinpaku';
 import { kawaiPixelTemplate } from './kawaiPixel';
 import { umiTemplate } from './umi';
 import { filmTemplate } from './film';
@@ -32,38 +29,39 @@ import { popArtTemplate } from './popArt';
 import { rulerTemplate } from './ruler';
 import { silhouetteCleanTemplate } from './silhouetteClean';
 import { sweetPinkTemplate } from './sweetPink';
+import { evaAlertTemplate } from './evaAlert';
+import { cyberpunk2077Template } from './cyberpunk2077';
 
 export const templates: TemplateConfig[] = [
   cinemaTealTemplate,        // 0  青蓝电影
-  hakushiTemplate,           // 1  白紙
-  yozakuraTemplate,          // 2  春日影 (秒速5厘米)
-  sweetPinkTemplate,         // 3  少女云朵
-  suisaiTemplate,            // 4  水彩
-  cityPopTemplate,           // 5  都市蓝调
-  rainCityTemplate,          // 6  黑客帝国
-  neonNightTemplate,         // 7  ネオン夜
-  monoTemplate,              // 8  白黒
-  tasogareTemplate,          // 9  黄昏
-  shinkuuTemplate,           // 10 深空 (Fly Me to the Moon)
-  zasshiTemplate,            // 11 雑誌
-  akaiitoTemplate,           // 12 赤い糸
-  lemonSodaTemplate,         // 13 檸檬ソーダ
-  kiriTemplate,              // 14 霧
-  shinpakuTemplate,          // 15 心拍
-  kawaiPixelTemplate,        // 16 Kawaii像素
-  umiTemplate,               // 17 海 (深海波澜)
-  filmTemplate,              // 18 フィルム
-  p5Template,                // 19 P5 怪盗
-  yorushikaTemplate,         // 20 夜色
-  blueInkTemplate,           // 21 蓝色构成
-  battleTemplate,            // 22 战场
-  cyberTemplate,             // 23 电脑/赛博
-  digitalImpressionTemplate, // 24 数字印象
-  glitchTemplate,            // 25 故障風
-  holoScopeTemplate,         // 26 全息
-  popArtTemplate,            // 27 波普
-  rulerTemplate,             // 28 几何
-  silhouetteCleanTemplate,   // 29 剪影极简
+  yozakuraTemplate,          // 1  春日影 (秒速5厘米)
+  sweetPinkTemplate,         // 2  少女云朵
+  suisaiTemplate,            // 3  水彩
+  cityPopTemplate,           // 4  都市蓝调
+  rainCityTemplate,          // 5  黑客帝国
+  neonNightTemplate,         // 6  ネオン夜
+  monoTemplate,              // 7  白黒
+  tasogareTemplate,          // 8  黄昏
+  shinkuuTemplate,           // 9  深空 (Fly Me to the Moon)
+  zasshiTemplate,            // 10 雑誌
+  lemonSodaTemplate,         // 11 檸檬ソーダ
+  kiriTemplate,              // 12 霧
+  kawaiPixelTemplate,        // 13 Kawaii像素
+  umiTemplate,               // 14 海 (深海波澜)
+  filmTemplate,              // 15 フィルム
+  p5Template,                // 16 P5 怪盗
+  yorushikaTemplate,         // 17 夜色
+  blueInkTemplate,           // 18 蓝色构成
+  battleTemplate,            // 19 战场
+  cyberTemplate,             // 20 电脑/赛博
+  digitalImpressionTemplate, // 21 数字印象
+  glitchTemplate,            // 22 故障風
+  holoScopeTemplate,         // 23 全息
+  popArtTemplate,            // 24 波普
+  rulerTemplate,             // 25 几何
+  silhouetteCleanTemplate,   // 26 剪影极简
+  evaAlertTemplate,          // 27 EVA 警报
+  cyberpunk2077Template,     // 28 赛博朋克 2077
 ];
 
 export function getTemplate(name: string): TemplateConfig | undefined {
@@ -74,15 +72,23 @@ export function getTemplate(name: string): TemplateConfig | undefined {
   const exact = templates.find(t => t.name === name || t.nameKey === name);
   if (exact) return exact;
 
-  // 2. 忽略 tpl_ 前缀与大小写/符号匹配（防止空字符串误匹配）
+  // 2. 清理前缀与特殊符号后的严格相等匹配
   const clean = name.toLowerCase().replace(/^tpl_/, '').replace(/[^a-z0-9]/g, '');
   if (!clean) return undefined;
-  return templates.find(t => {
+
+  const exactClean = templates.find(t => {
     const tKey = (t.nameKey || '').toLowerCase().replace(/^tpl_/, '').replace(/[^a-z0-9]/g, '');
     const tName = (t.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (!tKey && !tName) return false; // 防止空字符串 includes() 误匹配
-    return tKey === clean || tName === clean
-      || (tKey && (tKey.includes(clean) || clean.includes(tKey)))
-      || (tName && (tName.includes(clean) || clean.includes(tName)));
+    return tKey === clean || tName === clean;
+  });
+  if (exactClean) return exactClean;
+
+  // 3. 别名与模糊匹配（按关键词长度降序，杜绝 'cyber' 劫持 'cyberpunk2077'）
+  const sorted = [...templates].sort((a, b) => (b.nameKey?.length || 0) - (a.nameKey?.length || 0));
+  return sorted.find(t => {
+    const tKey = (t.nameKey || '').toLowerCase().replace(/^tpl_/, '').replace(/[^a-z0-9]/g, '');
+    const tName = (t.name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!tKey && !tName) return false;
+    return (tKey && tKey === clean) || (tName && tName === clean);
   });
 }

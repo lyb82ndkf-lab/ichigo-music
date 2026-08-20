@@ -639,9 +639,11 @@
 
 .layout-modern .glass-nav-card[data-tone="discover"]  { --tone-a: #ff3366; --tone-b: #ff66b2; }
 .layout-modern .glass-nav-card[data-tone="leaderboard"] { --tone-a: #ffb347; --tone-b: #ffcc33; }
-.layout-modern .glass-nav-card[data-tone="liked"]    { --tone-a: #ef4444; --tone-b: #f87171; }
-.layout-modern .glass-nav-card[data-tone="recent"]   { --tone-a: #42a5f5; --tone-b: #0d47a1; }
-.layout-modern .glass-nav-card[data-tone="settings"] { --tone-a: #9c27b0; --tone-b: #7c3aed; }
+.layout-modern .glass-nav-card[data-tone="local"]       { --tone-a: #00f0ff; --tone-b: #0088cc; }
+.layout-modern .glass-nav-card[data-tone="liked"]       { --tone-a: #ef4444; --tone-b: #f87171; }
+.layout-modern .glass-nav-card[data-tone="recent"]      { --tone-a: #42a5f5; --tone-b: #0d47a1; }
+.layout-modern .glass-nav-card[data-tone="settings"]    { --tone-a: #9c27b0; --tone-b: #7c3aed; }
+.layout-modern .glass-nav-card[data-tone="listen"]      { --tone-a: #10b981; --tone-b: #059669; }
 
 .layout-modern .home-section-title { font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 16px; }
 .layout-modern .home-tile-row { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 20px; }

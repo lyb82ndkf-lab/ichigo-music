@@ -99,6 +99,14 @@ export interface UpdateContext {
   };
   showTitleCard?: boolean;
   showTranslation?: boolean;
+  showFurigana?: boolean;
+  audioReact: {
+    bass: number;     // 0..1 low frequency energy
+    mid: number;      // 0..1 vocal / mid energy
+    treble: number;   // 0..1 high energy
+    energy: number;   // 0..1 overall RMS power
+    isBeat: boolean;  // transient peak trigger
+  };
 }
 
 

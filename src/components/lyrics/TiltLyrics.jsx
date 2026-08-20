@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useMemo } from 'react';
 import { splitGraphemes } from './MonetLyricsEngine';
 import { subscribeLyricClock } from '../../utils/lyricClock';
+import { toRubyHtml } from '../../utils/lyrics/furiganaHelper';
 
 function isWholeWord(text) {
   if (/[\u4e00-\u9fa5\u3040-\u30ff]/.test(text)) return false;
@@ -36,159 +37,116 @@ function buildFlatTimings(line) {
   } else {
     const graphemes = splitGraphemes(line.text);
     const duration = Math.max(0.4, Number(line.duration || 0) || 5);
-    const unitDuration = duration / Math.max(1, graphemes.length);
-    graphemes.forEach((text, index) => {
+    const timePerGrapheme = duration / Math.max(1, graphemes.length);
+    graphemes.forEach((g, i) => {
       timings.push({
-        text,
-        startTime: line.time + index * unitDuration,
-        endTime: line.time + (index + 1) * unitDuration
+        text: g,
+        startTime: line.time + i * timePerGrapheme,
+        endTime: line.time + (i + 1) * timePerGrapheme
       });
     });
   }
   return timings;
 }
 
-// Generate animation mode specific initial offsets
-function useAnimationMode(lineId, length, trackIndex) {
-  return useMemo(() => {
-    const offsets = [];
-    const mode = trackIndex % 4;
-    // mode 0: scatter from all directions
-    // mode 1: typewriter (scale up in place)
-    // mode 2: drop from above
-    // mode 3: slide from alternating sides
-    for (let i = 0; i < length; i++) {
-      let x = 0, y = 0, rot = 0, scale = 1;
-      if (mode === 0) {
-        const angle = Math.random() * Math.PI * 2;
-        const dist = 300 + Math.random() * 500;
-        x = Math.cos(angle) * dist;
-        y = Math.sin(angle) * dist;
-        rot = (Math.random() - 0.5) * 180;
-        scale = 0.2 + Math.random() * 0.8;
-      } else if (mode === 1) {
-        x = 0;
-        y = 0;
-        rot = 0;
-        scale = 0.3; // Just scale up
-      } else if (mode === 2) {
-        x = 0;
-        y = -200 - Math.random() * 300;
-        rot = 0;
-        scale = 0.8;
-      } else if (mode === 3) {
-        x = i % 2 === 0 ? -400 : 400;
-        y = 0;
-        rot = 0;
-        scale = 1;
-      }
-      offsets.push({ x, y, rot, scale, mode });
-    }
-    return offsets;
-  }, [lineId, length, trackIndex]);
-}
-
-const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, themeColor, showGlow, globalOffset, isActive, dist }) => {
+const TiltLyricLine = React.memo(({ line, engineRef, fontPx, fontStack, themeColor, showGlow, globalOffset, trackIndex, isActive, dist, glowIntensity = 1, showTranslation = true, showFurigana = true }) => {
   const flatTimings = useMemo(() => buildFlatTimings(line), [line]);
   const charRefs = useRef([]);
-  const containerRef = useRef(null);
   const translationRef = useRef(null);
-
-  const chaosOffsets = useAnimationMode(line.id || line.time, flatTimings.length, trackIndex);
+  const containerRef = useRef(null);
 
   useEffect(() => {
     charRefs.current = charRefs.current.slice(0, flatTimings.length);
   }, [flatTimings]);
 
+  // Generate a deterministic chaotic pseudo-random angle/offset based on line text & index
+  const chaosOffsets = useMemo(() => {
+    return flatTimings.map((_, i) => {
+      const seed = (line.text.charCodeAt(i % line.text.length) || 1) * (i + 1);
+      const angle = ((seed % 19) - 9) * 0.8; // -7.2 to 7.2 deg
+      const x = ((seed % 13) - 6) * 1.5;     // -9 to 9 px
+      const y = ((seed % 17) - 8) * 1.5;     // -12 to 12 px
+      return { angle, x, y };
+    });
+  }, [line.text, flatTimings]);
+
   useEffect(() => {
-    // Only the active line, its immediate predecessor and the next line need
-    // time-driven updates. Older retained lines stay visually settled and do
-    // not need a subscription on every lyric-clock frame.
     if (!isActive && Math.abs(dist) > 1) return undefined;
     const charElements = charRefs.current;
     const lastPaint = [];
     let lastTranslationOpacity = null;
-    
+    const lineEndTime = line.time + (line.duration || 5);
+
     const update = () => {
       const currentTime = (engineRef.current?.getCurrentTime() || 0) + globalOffset;
-      const lineEndTime = line.time + (line.duration || 5);
 
       flatTimings.forEach((timing, idx) => {
         const el = charElements[idx];
         if (!el) return;
 
         const { startTime, endTime } = timing;
-        const initial = chaosOffsets[idx];
+        const charDuration = Math.max(0.001, endTime - startTime);
         
         let opacity = 0;
-        let x = initial.x;
-        let y = initial.y;
-        let rot = initial.rot;
-        let scale = initial.scale;
-        let glowIntensity = 0;
-        
-        if (currentTime < startTime) {
-          // Hovering outside before starting
-          opacity = 0;
-        } else if (currentTime <= endTime) {
-          // Flying in!
-          const duration = Math.max(0.01, endTime - startTime);
-          const progress = (currentTime - startTime) / duration;
-          // Cubic ease-out
-          const easeOut = 1 - Math.pow(1 - progress, 3);
-          
-          opacity = progress;
-          x = initial.x * (1 - easeOut);
-          y = initial.y * (1 - easeOut);
-          rot = initial.rot * (1 - easeOut);
-          scale = initial.scale + (1 - initial.scale) * easeOut;
-          glowIntensity = progress;
-        } else {
-          // Arrived
-          opacity = 1.0;
-          x = 0;
-          y = 0;
-          rot = 0;
-          scale = 1;
+        let scale = 1;
+        let x = 0;
+        let y = 0;
+        let rot = 0;
+        let glowing = false;
 
-          // Decay the glow after landing
-          const decayElapsed = currentTime - endTime;
-          const decayLimit = Math.max(1.0, lineEndTime - endTime);
-          if (decayElapsed < decayLimit) {
-            glowIntensity = 1 - (decayElapsed / decayLimit);
+        if (currentTime < startTime) {
+          const timeUntilStart = startTime - currentTime;
+          if (timeUntilStart <= 0.6) {
+            const enterProgress = 1 - (timeUntilStart / 0.6);
+            opacity = enterProgress * 0.35;
+            scale = 0.85 + enterProgress * 0.15;
+            y = (1 - enterProgress) * 15;
+            rot = (chaosOffsets[idx]?.angle || 0) * (1 - enterProgress) * 2;
           } else {
-            // After decay, fade out if line is over
-            const postLineElapsed = currentTime - lineEndTime;
-            if (postLineElapsed > 0) {
-               opacity = Math.max(0, 1 - (postLineElapsed / 2.0));
-               // Slowly drift downwards and scale down as it fades
-               y = postLineElapsed * 20;
-               scale = 1 - (postLineElapsed * 0.1);
-            }
-            glowIntensity = 0;
+            opacity = 0;
+          }
+        } else if (currentTime <= endTime) {
+          const hitProgress = Math.max(0, Math.min(1, (currentTime - startTime) / charDuration));
+          const hitPulse = Math.sin(hitProgress * Math.PI);
+          opacity = 1;
+          scale = 1.0 + hitPulse * 0.35;
+          x = (chaosOffsets[idx]?.x || 0) * hitPulse * 0.5;
+          y = -hitPulse * (fontPx * 0.25) + (chaosOffsets[idx]?.y || 0) * hitPulse * 0.5;
+          rot = (chaosOffsets[idx]?.angle || 0) * (1 + hitPulse * 0.5);
+          glowing = true;
+        } else {
+          const timeSinceEnd = currentTime - endTime;
+          if (timeSinceEnd <= 2.5) {
+            const decay = timeSinceEnd / 2.5;
+            opacity = Math.max(0, 0.9 - decay * 0.9);
+            scale = 1.0 - decay * 0.1;
+            x = (chaosOffsets[idx]?.x || 0) * (1 - decay);
+            y = (chaosOffsets[idx]?.y || 0) * (1 - decay) + (decay * 8);
+            rot = (chaosOffsets[idx]?.angle || 0) * (1 - decay);
+          } else {
+            opacity = 0;
           }
         }
 
-        const glowing = glowIntensity > 0.05;
         const paintKey = `${Math.round(opacity * 240)}|${Math.round(x * 10)}|${Math.round(y * 10)}|${Math.round(rot * 10)}|${Math.round(scale * 1000)}|${glowing ? 'g' : 'n'}`;
-        if (lastPaint[idx] === paintKey) return;
-        lastPaint[idx] = paintKey;
-        el.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${scale})`;
-        el.style.opacity = opacity;
-        el.style.color = glowing ? themeColor : 'var(--text-main)';
-        el.style.textShadow = glowing
-          ? `0 0 ${fontPx * 0.15}px ${themeColor}, 0 0 ${fontPx * 0.35}px ${themeColor}`
-          : 'none';
+        if (lastPaint[idx] !== paintKey) {
+          lastPaint[idx] = paintKey;
+          el.style.transform = `translate(${x}px, ${y}px) rotate(${rot}deg) scale(${scale})`;
+          el.style.opacity = opacity;
+          el.style.color = glowing ? themeColor : 'var(--text-main)';
+          el.style.textShadow = glowing
+            ? `0 0 ${fontPx * 0.15}px ${themeColor}, 0 0 ${fontPx * 0.35}px ${themeColor}`
+            : 'none';
 
-        // Use dataset for fast GPU-accelerated CSS state transitions instead of rAF text-shadow mutation
-        if (glowing) {
-          if (el.dataset.state !== 'glowing') el.dataset.state = 'glowing';
-        } else {
-          if (el.dataset.state === 'glowing') el.dataset.state = 'normal';
+          if (glowing) {
+            if (el.dataset.state !== 'glowing') el.dataset.state = 'glowing';
+          } else {
+            if (el.dataset.state === 'glowing') el.dataset.state = 'normal';
+          }
         }
       });
 
-      // Handle translation opacity - only show during active time
+      // Handle translation opacity
       if (translationRef.current) {
         let nextTranslationOpacity;
         if (currentTime >= line.time && currentTime <= lineEndTime) {
@@ -205,45 +163,41 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
           translationRef.current.style.opacity = roundedTranslationOpacity;
         }
       }
-
     };
 
     update();
     return subscribeLyricClock(update);
-  }, [line, flatTimings, fontPx, themeColor, showGlow, globalOffset, engineRef, chaosOffsets, isActive, dist]);
+  }, [line, flatTimings, fontPx, themeColor, showGlow, globalOffset, engineRef, chaosOffsets, isActive, dist, glowIntensity]);
 
-  // Determine alignment based on the 4 tracks
   const trackStyles = [
-    { jc: 'flex-start', align: 'left' },   // Track 0
-    { jc: 'center', align: 'center' },     // Track 1
-    { jc: 'flex-end', align: 'right' },    // Track 2
-    { jc: 'center', align: 'center' }      // Track 3
+    { jc: 'flex-start', align: 'left' },
+    { jc: 'center', align: 'center' },
+    { jc: 'flex-end', align: 'right' },
+    { jc: 'center', align: 'center' }
   ];
-  const tStyle = trackStyles[trackIndex % 4];
+  const tStyle = trackStyles[trackIndex % trackStyles.length];
 
   return (
-    <div
+    <div 
       ref={containerRef}
       style={{
         position: 'absolute',
         top: '50%',
-        left: 0,
-        right: 0,
-        transform: `translateY(-50%) translateY(${dist * (fontPx * 4)}px)`,
+        left: '6%',
+        right: '6%',
+        transform: `translateY(-50%) translateY(${dist * fontPx * 2.6}px)`,
+        transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: tStyle.jc === 'center' ? 'center' : (tStyle.jc === 'flex-start' ? 'flex-start' : 'flex-end'),
-        width: '100%',
-        padding: '0 8vw',
-        boxSizing: 'border-box',
-        transition: 'transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1)',
-        zIndex: isActive ? 10 : 5 - Math.abs(dist)
+        alignItems: tStyle.align === 'left' ? 'flex-start' : tStyle.align === 'right' ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        pointerEvents: 'none'
       }}
     >
       <div
         style={{
           fontFamily: fontStack,
-          fontSize: `${fontPx * 1.4}px`,
+          fontSize: `${fontPx * (isActive ? 1.3 : 1.05)}px`,
           fontWeight: 700,
           display: 'flex',
           flexWrap: 'wrap',
@@ -282,15 +236,14 @@ const ChaosLine = React.memo(({ line, trackIndex, engineRef, fontPx, fontStack, 
               willChange: isActive || Math.abs(dist) <= 1 ? 'transform, opacity' : 'auto',
               whiteSpace: timing.text.trim() === '' ? 'pre' : 'normal',
               transformOrigin: 'center center',
-              opacity: 0 // Prevent initial flash before rAF hook takes over
+              opacity: 0
             }}
-          >
-            {timing.text}
-          </span>
+            dangerouslySetInnerHTML={{ __html: toRubyHtml(timing.text, showFurigana !== false) }}
+          />
         ))}
       </div>
 
-      {line.translation && (
+      {showTranslation && line.translation && (
         <div 
           ref={translationRef}
           style={{
@@ -318,23 +271,25 @@ export default function TiltLyrics({
   fontStack,
   themeColor = 'var(--primary)',
   showGlow = true,
-  globalOffset = 0
+  globalOffset = 0,
+  showTranslation = true,
+  showFurigana = true,
+  config = {}
 }) {
-  // We want to render up to 4 recent lines (the active one and previous ones that might still be fading out)
+  const effectiveShowTranslation = config?.showTranslation !== undefined ? config.showTranslation !== false : showTranslation !== false;
+  const effectiveShowFurigana = config?.showFurigana !== undefined ? config.showFurigana !== false : showFurigana !== false;
+
   const displayLines = useMemo(() => {
     if (!lyrics || lyrics.length === 0) return [];
-    // Render the active line, plus up to 3 previous lines
     const start = Math.max(0, activeLineIndex - 3);
-    const end = Math.min(lyrics.length - 1, activeLineIndex + 1); // Also render the NEXT line if it's about to start
-    
+    const end = Math.min(lyrics.length - 1, activeLineIndex + 1);
     const lines = [];
     for (let i = start; i <= end; i++) {
       lines.push({
         line: lyrics[i],
         index: i,
-        trackIndex: i % 4,
-        isActive: i === activeLineIndex,
-        dist: i - activeLineIndex
+        dist: i - activeLineIndex,
+        trackIndex: i % 4
       });
     }
     return lines;
@@ -345,21 +300,24 @@ export default function TiltLyrics({
       width: '100%',
       height: '100%',
       position: 'relative',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      perspective: '1200px'
     }}>
       {displayLines.map(item => (
-        <ChaosLine
-          key={`chaos-${item.line.time}-${item.index}`}
+        <TiltLyricLine
+          key={item.line.id || item.index}
           line={item.line}
-          trackIndex={item.trackIndex}
-          isActive={item.isActive}
-          dist={item.dist}
           engineRef={engineRef}
           fontPx={fontPx}
           fontStack={fontStack}
           themeColor={themeColor}
           showGlow={showGlow}
           globalOffset={globalOffset}
+          trackIndex={item.trackIndex}
+          isActive={item.index === activeLineIndex}
+          dist={item.dist}
+          showTranslation={effectiveShowTranslation}
+          showFurigana={effectiveShowFurigana}
         />
       ))}
     </div>

@@ -45,6 +45,7 @@ const CANONICAL_NAV_NAMES = {
   discover: '发现音乐',
   search: '搜索音乐',
   leaderboards: '排行榜',
+  local: '本地音乐',
   liked: '我喜欢的音乐',
   recent: '最近播放',
   settings: '设置'
@@ -73,6 +74,7 @@ export const DEFAULT_PROFILE = {
     { key: 'discover', name: '发现音乐', show: true },
     { key: 'search', name: '搜索音乐', show: true },
     { key: 'leaderboards', name: '排行榜', show: true },
+    { key: 'local', name: '本地音乐', show: true },
     { key: 'liked', name: '我喜欢的音乐', show: true },
     { key: 'recent', name: '最近播放', show: true },
     { key: 'listen-together', name: '一起听', show: true },
@@ -171,6 +173,7 @@ export const DEFAULT_PROFILE = {
     titleFontFamily: 'Outfit',
     lyricsPositionY: 61,
     showTranslation: true,
+    showFurigana: true,
     lyricsMode: 'regular',
     motionPreset: 'balanced',
     bubbleAlign: 'alternate',
@@ -587,6 +590,16 @@ function normalizeProfile(profile) {
       ...item,
       name: CANONICAL_NAV_NAMES[item?.key] || item.name
     }));
+
+  if (!normalized.navbarItems.some(item => item.key === 'local')) {
+    const insertIdx = normalized.navbarItems.findIndex(item => item.key === 'liked');
+    const targetIdx = insertIdx >= 0 ? insertIdx : Math.max(0, normalized.navbarItems.length - 1);
+    normalized.navbarItems.splice(targetIdx, 0, {
+      key: 'local',
+      name: CANONICAL_NAV_NAMES['local'] || '本地音乐',
+      show: true
+    });
+  }
 
   if (!normalized.navbarItems.some(item => item.key === 'listen-together')) {
     normalized.navbarItems.splice(Math.max(0, normalized.navbarItems.length - 1), 0, {

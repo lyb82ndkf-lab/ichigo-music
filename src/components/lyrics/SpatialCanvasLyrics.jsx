@@ -1,6 +1,7 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
 import { parseDisplayTokens } from './MonetLyricsEngine';
 import { subscribeLyricClock } from '../../utils/lyricClock';
+import { toRubyHtml } from '../../utils/lyrics/furiganaHelper';
 
 // Pre-compute seeded random positions so they stay stable during resizing
 function seededRandom(seed) {
@@ -8,7 +9,7 @@ function seededRandom(seed) {
   return x - Math.floor(x);
 }
 
-const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, globalOffset, fontPx, themeColor }) => {
+const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, globalOffset, fontPx, themeColor, showFurigana = true }) => {
   const tokens = useMemo(() => parseDisplayTokens(line), [line]);
   const tokenRefs = useRef([]);
 
@@ -33,7 +34,7 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
           el.style.color = themeColor;
           el.style.opacity = '1';
           el.style.transform = 'translateY(0) scale(1)';
-          el.style.textShadow = `0 0 ${fontPx * 0.45}px ${themeColor}`;
+          el.style.textShadow = `0 0 ${fontPx * 0.4}px ${themeColor}`;
         } else if (currentTime >= token.startTime) {
           const progress = Math.max(0, Math.min(1, (currentTime - token.startTime) / Math.max(0.001, token.endTime - token.startTime)));
           const paintProgress = Math.round(progress * 240) / 240;
@@ -62,7 +63,7 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
   }, [isActive, tokens, engineRef, globalOffset, fontPx, themeColor]);
 
   if (!isActive) {
-    return <>{line.text}</>;
+    return <span dangerouslySetInnerHTML={{ __html: toRubyHtml(line.text, showFurigana !== false) }} />;
   }
 
   return (
@@ -80,9 +81,8 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
             transition: 'opacity 0.18s ease, transform 0.18s ease, color 0.18s ease, text-shadow 0.18s ease',
             willChange: 'opacity, transform'
           }}
-        >
-          {token.text}
-        </span>
+          dangerouslySetInnerHTML={{ __html: toRubyHtml(token.text, showFurigana !== false) }}
+        />
       ))}
     </>
   );
@@ -381,8 +381,9 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
                 globalOffset={globalOffset}
                 fontPx={fontPx}
                 themeColor={themeColor}
+                showFurigana={config?.showFurigana !== false}
               />
-              {line.translation && (
+              {config?.showTranslation !== false && line.translation && (
                 <div style={{ 
                   fontSize: `${fontPx * 0.5}px`, 
                   marginTop: '10px', 

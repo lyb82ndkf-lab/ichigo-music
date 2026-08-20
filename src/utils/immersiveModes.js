@@ -26,14 +26,11 @@ export const KTV_TEMPLATE_GALLERY = [
   ['kawaiPixel', 'Kawaii 像素', 'linear-gradient(135deg, #d3f3fa 0%, #f6b9cf 100%)', '8-bit点阵·复古打字机', '像素字体与阶梯跳跃打印', ['#fef0f5', '#ffb3d9', '#5a3a5a']],
   ['zasshi', '纸艺剪贴', 'linear-gradient(135deg, #ffe5d4 0%, #ff753a 100%)', '日系杂志·拼贴剪报', '胶带纸片撕裂与杂志排版', ['#ffe5d4', '#ff753a', '#222222']],
   ['p5', 'P5怪盗红黑', 'linear-gradient(135deg, #1f0000 0%, #ED1C24 100%)', '红黑贴纸·漫画盖章', 'Persona 5 风格粗边贴纸与盖章拍击', ['#d6001c', '#ffea00', '#111111']],
-  ['akaiito', '命运红线', 'linear-gradient(135deg, #f7f3ee 0%, #b02820 100%)', '赤色缘线·纸艺交织', '细腻红线牵引与日式和纸质感', ['#f7f3ee', '#b02820', '#1a1a1a']],
   ['cityPop', '都市蓝调', 'linear-gradient(135deg, #1a0b2e 0%, #ff2975 100%)', '80s复古·日落落日', 'City Pop 太阳与霓虹晚霞', ['#1a0b2e', '#ff2975', '#ffd319']],
   ['neonNight', '霓虹夜市', 'linear-gradient(135deg, #080811 0%, #ff2a6d 100%)', '灯管闪烁·赛博雨夜', '霓虹通电打火闪烁与透视地网', ['#080811', '#ff2a6d', '#00f0ff']],
   ['tasogare', '黄昏晚霞', 'linear-gradient(135deg, #1f1424 0%, #ff7e5f 100%)', '黄昏暮色·暖光渐变', '落日紫橙渐变与暮光粒子', ['#1f1424', '#ff7e5f', '#feb47b']],
-  ['hakushi', '白紙极简', 'linear-gradient(135deg, #f8f8f6 0%, #2a2a2a 100%)', '极简留白·纯粹阅读', '高洁素雅白纸与纯净黑字', ['#f8f8f6', '#2a2a2a', '#888888']],
   ['lemonSoda', '柠檬苏打', 'linear-gradient(135deg, #0e1e24 0%, #f5d847 100%)', '清爽气泡·夏日黄绿', '苏打上升气泡与柠檬明黄', ['#0e1e24', '#f5d847', '#50e3c2']],
   ['kiri', '晨雾迷朦', 'linear-gradient(135deg, #1c2024 0%, #8ea0a8 100%)', '薄雾轻拂·清冷意境', '雾气弥漫与空灵冷灰', ['#1c2024', '#8ea0a8', '#ffffff']],
-  ['shinpaku', '心跳声波', 'linear-gradient(135deg, #0c0c12 0%, #e84050 100%)', '心电示波·脉冲跳动', '心电图波形与脉冲红光', ['#0c0c12', '#e84050', '#ffffff']],
   ['umi', '深海波澜', 'linear-gradient(135deg, #040e1a 0%, #20a0b0 100%)', '幽蓝深海·光影涟漪', '深海光柱与水流波动', ['#040e1a', '#20a0b0', '#00e5ff']],
   ['film', '复古胶片', 'linear-gradient(135deg, #1a1816 0%, #d8c4a0 100%)', '暖调噪点·老电影院', '复古胶片齿孔与暖黄颗粒', ['#1a1816', '#d8c4a0', '#ffffff']],
   ['battle', '战场冲击', 'linear-gradient(135deg, #1a1a1e 0%, #5577aa 100%)', '金属重装·战术目视', '机械蓝灰与重装装甲质感', ['#1a1a1e', '#5577aa', '#ffcc00']],
@@ -42,6 +39,8 @@ export const KTV_TEMPLATE_GALLERY = [
   ['glitch', '故障艺术', 'linear-gradient(135deg, #0a0a0a 0%, #ff00ff 100%)', 'RGB色散·信号撕裂', '高频 RGB 通道位移与数码切片', ['#0a0a0a', '#00f0ff', '#ff003c']],
   ['holoScope', '全息目镜', 'linear-gradient(135deg, #0a0a14 0%, #00f0ff 100%)', '科幻准星·全息 HUD', '瞄准标线与全息扫描光环', ['#04121a', '#00d4ff', '#00ffcc']],
   ['silhouetteClean', '极简剪影', 'linear-gradient(135deg, #ffffff 0%, #333333 100%)', '宽银幕留白·纯粹电影', '2.35:1 电影遮罩与极简十字标', ['#0d0d0d', '#ffffff', '#888888']],
+  ['evaAlert', 'EVA 警报', 'linear-gradient(135deg, #180a0e 0%, #ff1836 100%)', '红色蜂窝·紧急事态', '新世纪福音战士黑红高对比与战术封条', ['#180a0e', '#ff1836', '#ffffff']],
+  ['cyberpunk2077', '赛博朋克 2077', 'linear-gradient(135deg, #080811 0%, #fcee0a 100%)', '夜之城·极速公路', '荧光黄与创伤小组青、透视公路与数码解密', ['#080811', '#fcee0a', '#00f0ff']],
   ['cinemaTeal', 'Custom 自定义', 'linear-gradient(135deg, #1d172e 0%, #5044dc 100%)', '青蓝电影·宽屏颗粒', '宽画幅青蓝电影感底图', ['#0b141c', '#79a8b8', '#d8c9a3']]
 ];
 
@@ -50,7 +49,7 @@ export const KTV_TEMPLATE_GALLERY = [
 
 export const IMMERSIVE_MODE_OPTIONS = [
   { value: 'regular', label: '常规滚动' },
-  { value: 'talk', label: 'KTV · 文字 PV' },
+  { value: 'talk', label: 'PV 歌词' },
   { value: 'streamer', label: '气泡模式' },
   { value: 'cloudstep', label: '云阶模式' },
   { value: 'spatial', label: '空间画布' },
