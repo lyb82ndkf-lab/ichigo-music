@@ -50,6 +50,141 @@ const findActiveLineIndex = (lines = [], currentTime = 0, preferredIndex = -1) =
   return result;
 };
 
+const DesktopLyricLine = React.memo(({
+  line,
+  status,
+  offset,
+  yOffset,
+  scale,
+  opacity,
+  lyricSlotHeight,
+  config,
+  activeAccent,
+  unplayedColor,
+  stroke,
+  shadow,
+  glow,
+  fontFamily,
+  textAlign,
+  alignItems,
+  onRegisterToken
+}) => {
+  const tokens = useMemo(() => parseDisplayTokens(line), [line]);
+  const isChorus = line.isChorus || false;
+  const isActive = status === 'active';
+  const isPassed = status === 'passed';
+  const clipBleedPx = getSweepClipBleedPx(config.fontSize || 36);
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        top: '50%',
+        left: 0,
+        right: 0,
+        height: `${lyricSlotHeight}px`,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems,
+        transform: `translateY(calc(-50% + ${yOffset}px)) scale(${scale})`,
+        opacity,
+        transformOrigin: config.alignment === 'left' ? 'center left' : (config.alignment === 'right' ? 'center right' : 'center center'),
+        transition: 'transform 0.52s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.42s ease',
+        pointerEvents: 'none',
+        boxSizing: 'border-box'
+      }}
+    >
+      <div
+        style={{
+          position: 'relative',
+          fontSize: `${config.fontSize || 36}px`,
+          fontWeight: isActive ? (config.fontWeight || 700) : Math.max(300, (config.fontWeight || 700) - 100),
+          fontFamily: `"${fontFamily}", "Microsoft YaHei", "Noto Sans SC", sans-serif`,
+          textAlign,
+          whiteSpace: 'nowrap',
+          textShadow: `${shadow}${glow}`,
+          WebkitTextStroke: stroke
+        }}
+      >
+        {/* Non-active lines: render clean single layer to avoid DOM churn */}
+        {!isActive ? (
+          <div style={{ position: 'relative' }}>
+            <span
+              style={{
+                display: 'block',
+                minHeight: `${(config.fontSize || 36) * 1.12}px`,
+                whiteSpace: 'nowrap',
+                color: isPassed ? activeAccent : unplayedColor
+              }}
+            >
+              {line.text}
+            </span>
+          </div>
+        ) : (
+          /* Active line: dual-layer with background unplayed base & foreground sweep */
+          <div style={{ position: 'relative' }}>
+            {/* Base unplayed layer */}
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <span
+                style={{
+                  display: 'block',
+                  minHeight: `${(config.fontSize || 36) * 1.12}px`,
+                  whiteSpace: 'nowrap',
+                  opacity: 0.65,
+                  color: unplayedColor
+                }}
+              >
+                {line.text}
+              </span>
+            </div>
+            {/* Foreground sweeping layer */}
+            <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}>
+              <span style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap' }}>
+                {tokens.map((token, tokenIdx) => (
+                  <span
+                    key={`fg-${token.key || tokenIdx}`}
+                    ref={el => onRegisterToken(tokenIdx, el)}
+                    style={{
+                      display: 'inline-block',
+                      whiteSpace: 'pre',
+                      color: activeAccent,
+                      textShadow: config.glow?.enabled ? `${shadow}${glow}, 0 0 12px ${activeAccent}88` : shadow,
+                      clipPath: 'inset(0 100% 0 100%)',
+                      WebkitClipPath: 'inset(0 100% 0 100%)',
+                      transformOrigin: 'center bottom'
+                    }}
+                  >
+                    {token.text}
+                  </span>
+                ))}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Active Line Translation */}
+      {isActive && config.showTranslation !== false && line.translation && (
+        <div
+          style={{
+            fontSize: `${config.translationSize || Math.max(16, (config.fontSize || 36) * 0.6)}px`,
+            fontWeight: config.fontWeight || 700,
+            fontFamily: `"${fontFamily}", "Microsoft YaHei", "Noto Sans SC", sans-serif`,
+            color: activeAccent,
+            marginTop: 2,
+            textShadow: `${shadow}${glow}`,
+            WebkitTextStroke: stroke,
+            textAlign
+          }}
+        >
+          {line.translation}
+        </div>
+      )}
+    </div>
+  );
+});
+
 export default function DesktopLyrics() {
   const [syncData, setSyncData] = useState({
     isPlaying: false,
@@ -83,20 +218,16 @@ export default function DesktopLyrics() {
     lineCount: 3
   });
   const [windowSize, setWindowSize] = useState({ width: 1000, height: 150 });
-  const wordsRefs = useRef([]);
+  const activeWordsMapRef = useRef(new Map());
   const innerRef = useRef(null);
   const unlockHotZoneRef = useRef(false);
   const syncDataRef = useRef(syncData);
   const configRef = useRef(config);
-  const activeTokensRef = useRef([]);
+  const lastActiveIndexRef = useRef(-1);
   const lastClipPathsRef = useRef([]);
-  const renderedSyncRef = useRef({ linesSignature: '0', activeIndex: -1, globalOffset: 0 });
 
   configRef.current = config;
-
-  useEffect(() => {
-    syncDataRef.current = { ...syncDataRef.current, ...syncData };
-  }, [syncData]);
+  syncDataRef.current = syncData;
 
   const colorPresets = {
     strawberry: { played: '#ff3366', unplayed: '#ffffff', stroke: '#4a0e1c' },
@@ -140,9 +271,6 @@ export default function DesktopLyrics() {
   const isHoveredRef = useRef(false);
   isHoveredRef.current = isHovered;
 
-  // Track absolute mouse coordinates relative to the inner bounding box.
-  // When locked, only the small area around the top-center unlock pill should
-  // reveal controls/border and temporarily accept mouse events.
   const handleGlobalMouseMove = (e) => {
     if (!innerRef.current) return;
     const rect = innerRef.current.getBoundingClientRect();
@@ -161,28 +289,29 @@ export default function DesktopLyrics() {
       e.clientY <= rect.bottom
     );
 
-    if (configRef.current.locked && isInUnlockHotZone !== unlockHotZoneRef.current) {
-      unlockHotZoneRef.current = isInUnlockHotZone;
-      window.electronAPI?.setDesktopLyricsLock?.(!isInUnlockHotZone);
-    }
-
-    const shouldShowControls = configRef.current.locked
-      ? isInUnlockHotZone
-      : (isInUnlockHotZone || isInsideDragSurface);
-
-    if (shouldShowControls) {
-      if (!isHoveredRef.current) setIsHovered(true);
+    if (configRef.current.locked) {
+      if (isInUnlockHotZone !== unlockHotZoneRef.current) {
+        unlockHotZoneRef.current = isInUnlockHotZone;
+        window.electronAPI?.setDesktopLyricsLock?.(!isInUnlockHotZone);
+        if (isInUnlockHotZone !== isHoveredRef.current) {
+          setIsHovered(isInUnlockHotZone);
+        }
+      }
     } else {
-      if (isHoveredRef.current) setIsHovered(false);
+      const shouldShowControls = isInUnlockHotZone || isInsideDragSurface;
+      if (shouldShowControls !== isHoveredRef.current) {
+        setIsHovered(shouldShowControls);
+      }
     }
   };
 
-  // Reset hover state when cursor leaves the window boundary or window loses focus
   useEffect(() => {
     const handleMouseLeaveWindow = () => {
-      setIsHovered(false);
-      unlockHotZoneRef.current = false;
-      if (configRef.current.locked) window.electronAPI?.setDesktopLyricsLock?.(true);
+      if (isHoveredRef.current) setIsHovered(false);
+      if (unlockHotZoneRef.current) {
+        unlockHotZoneRef.current = false;
+        if (configRef.current.locked) window.electronAPI?.setDesktopLyricsLock?.(true);
+      }
     };
     document.addEventListener('mouseleave', handleMouseLeaveWindow);
     window.addEventListener('blur', handleMouseLeaveWindow);
@@ -192,7 +321,6 @@ export default function DesktopLyrics() {
     };
   }, []);
 
-  // Sync actual window lock state with config.locked
   useEffect(() => {
     if (config.locked) {
       window.electronAPI?.setDesktopLyricsLock?.(true);
@@ -205,23 +333,24 @@ export default function DesktopLyrics() {
     const cleanupFns = [];
     if (window.electronAPI?.onLyricsUpdate) {
       const cleanup = window.electronAPI.onLyricsUpdate((data) => {
-        const next = { ...syncDataRef.current, ...data };
+        const prev = syncDataRef.current;
+        const next = { ...prev, ...data };
         let packetTime = Number(next.audioTime || 0) + Number(next.globalOffset || 0);
         if (next.isPlaying) packetTime += Math.max(0, Date.now() - Number(next.systemTime || Date.now())) / 1000;
-        next.activeIndex = findActiveLineIndex(next.lines, packetTime, syncDataRef.current.activeIndex);
+        
+        const calculatedActiveIndex = findActiveLineIndex(next.lines, packetTime, prev.activeIndex);
+        next.activeIndex = calculatedActiveIndex;
         syncDataRef.current = next;
+
         const linesSignature = getLinesSignature(next.lines);
-        const rendered = renderedSyncRef.current;
-        if (
-          rendered.linesSignature !== linesSignature ||
-          rendered.activeIndex !== next.activeIndex ||
-          rendered.globalOffset !== next.globalOffset
-        ) {
-          renderedSyncRef.current = {
-            linesSignature,
-            activeIndex: next.activeIndex,
-            globalOffset: next.globalOffset
-          };
+        const linesChanged = linesSignature !== getLinesSignature(prev.lines);
+        const indexChanged = calculatedActiveIndex !== prev.activeIndex;
+        const offsetChanged = next.globalOffset !== prev.globalOffset;
+
+        if (linesChanged || indexChanged || offsetChanged) {
+          if (indexChanged || linesChanged) {
+            lastClipPathsRef.current = [];
+          }
           setSyncData(next);
         }
       });
@@ -251,7 +380,6 @@ export default function DesktopLyrics() {
     window.electronAPI?.resizeDesktopLyrics?.({ ...windowSize, height: effectiveWindowHeight });
   }, [windowSize, effectiveWindowHeight]);
 
-  // Dynamically calculate constrained viewport height based on window height
   const viewportHeight = Math.max(60, effectiveWindowHeight - 100);
   const localActiveIdx = syncData.activeIndex;
   const activeLineForTokens = syncData.lines?.[syncData.activeIndex] || null;
@@ -259,22 +387,32 @@ export default function DesktopLyrics() {
     activeLineForTokens ? parseDisplayTokens(activeLineForTokens) : []
   ), [activeLineForTokens]);
 
-  useEffect(() => {
-    activeTokensRef.current = activeTokens;
-    lastClipPathsRef.current = [];
-  }, [activeTokens]);
-
-  // Keep every lyric on a fixed-height rail slot. Measuring the active DOM node
-  // caused the coordinate origin to change whenever hidden rows were mounted.
   const hasActiveTranslation = config.showTranslation !== false && !!activeLineForTokens?.translation;
   const { lyricSlotHeight, getLineOffset } = calculateDesktopLyricLayout({
     fontSize: config.fontSize || 36,
     translationSize: config.translationSize || 22,
     hasTranslation: hasActiveTranslation
   });
-  // Shared token-level sweep animation loop. It uses the same display-token
-  // model as immersive lyrics, so YRC/QRC/KRC and fallback LRC all reveal on the
-  // same per-grapheme timing path.
+
+  const handleRegisterToken = (tokenIdx, el) => {
+    if (el) {
+      activeWordsMapRef.current.set(tokenIdx, el);
+      const cached = lastClipPathsRef.current[tokenIdx];
+      if (cached) {
+        el.style.clipPath = cached;
+        el.style.webkitClipPath = cached;
+      }
+    } else {
+      activeWordsMapRef.current.delete(tokenIdx);
+    }
+  };
+
+  useEffect(() => {
+    lastClipPathsRef.current = [];
+    activeWordsMapRef.current.clear();
+  }, [localActiveIdx]);
+
+  // Unified high-rate animation loop: advances active line and word sweeps without thrashing
   useEffect(() => {
     let rafId;
     const loop = () => {
@@ -287,39 +425,41 @@ export default function DesktopLyrics() {
         }
         const adjustedTime = virtualTime + currentSync.globalOffset;
         const localActiveIndex = findActiveLineIndex(currentSync.lines, adjustedTime, currentSync.activeIndex);
+        
         if (localActiveIndex !== currentSync.activeIndex) {
+          lastClipPathsRef.current = [];
+          activeWordsMapRef.current.clear();
           const nextSync = { ...currentSync, activeIndex: localActiveIndex };
           syncDataRef.current = nextSync;
-          renderedSyncRef.current = {
-            ...renderedSyncRef.current,
-            activeIndex: localActiveIndex,
-            linesSignature: getLinesSignature(nextSync.lines)
-          };
           setSyncData(nextSync);
           rafId = requestAnimationFrame(loop);
           return;
         }
-        const tokens = activeTokensRef.current;
-        if (tokens.length > 0) {
+
+        const activeLine = currentSync.lines[localActiveIndex];
+        if (activeLine) {
+          const tokens = parseDisplayTokens(activeLine);
+          const clipBleedPx = getSweepClipBleedPx(currentConfig.fontSize || 36);
+          
           for (let i = 0; i < tokens.length; i += 1) {
             const token = tokens[i];
-            const el = wordsRefs.current[i];
+            const el = activeWordsMapRef.current.get(i);
             if (!el) continue;
-            
-            let progress = 1; // Untimed gap tokens (like spaces) are always fully revealed to preserve width
+
+            let progress = 1;
             if (token.timed) {
               const duration = Math.max(0.001, token.endTime - token.startTime);
               if (adjustedTime >= token.endTime) progress = 1;
               else if (adjustedTime > token.startTime) progress = (adjustedTime - token.startTime) / duration;
               else progress = 0;
             }
-            
+
             const pct = Math.max(0, Math.min(1, progress));
-            const clipBleedPx = getSweepClipBleedPx(currentConfig.fontSize || 36);
             const clipPath = pct <= 0
               ? 'inset(0 100% 0 100%)'
               : `inset(0 ${100 - pct * 100}% 0 -${clipBleedPx}px)`;
-            if (lastClipPathsRef.current[i] !== clipPath) {
+
+            if (lastClipPathsRef.current[i] !== clipPath || el.style.clipPath !== clipPath) {
               lastClipPathsRef.current[i] = clipPath;
               el.style.clipPath = clipPath;
               el.style.webkitClipPath = clipPath;
@@ -330,6 +470,7 @@ export default function DesktopLyrics() {
       }
       rafId = requestAnimationFrame(loop);
     };
+
     rafId = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(rafId);
   }, []);
@@ -384,7 +525,7 @@ export default function DesktopLyrics() {
           whiteSpace: 'nowrap'
         }}
       >
-        {config.locked ? '\uD83D\uDD12 \u89e3\u9501' : '\uD83D\uDD13 \u4e0a\u9501'}
+        {config.locked ? '🔒 解锁' : '🔓 上锁'}
       </button>
     </div>
   ), [isHovered, config.locked, activeAccent]);
@@ -397,7 +538,7 @@ export default function DesktopLyrics() {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: alignItems,
+        alignItems,
         justifyContent: 'center',
         WebkitAppRegion: config.locked ? 'no-drag' : 'drag',
         overflow: 'hidden',
@@ -466,116 +607,39 @@ export default function DesktopLyrics() {
               }}
             >
               {syncData.lines.map((line, idx) => {
-                const isActive = idx === localActiveIdx;
-                
-                // Calculate line visibility based on lineCount settings
                 const count = Number(config.lineCount ?? 3);
                 const before = count === 1 ? 0 : 1;
                 const after = count === 3 ? 1 : 0;
                 const isVisible = idx >= localActiveIdx - before && idx <= localActiveIdx + after;
-                
-                // Shrink non-active lines more aggressively so they fit in 150px height
-                const scale = isActive ? 1 : 0.62;
-                const opacity = isActive ? 1 : (isVisible ? 0.38 : 0);
-                const blur = isActive ? 0 : (isVisible ? 0.8 : 4);
-                const pointerEvents = isVisible ? 'auto' : 'none';
                 if (!isVisible) return null;
+
                 const relativeIndex = idx - localActiveIdx;
-                
+                const status = relativeIndex === 0 ? 'active' : (relativeIndex < 0 ? 'passed' : 'upcoming');
+                const scale = status === 'active' ? 1 : 0.65;
+                const opacity = status === 'active' ? 1 : 0.42;
                 const yOffset = getLineOffset(relativeIndex);
-                
+
                 return (
-                  <div 
-                    key={`desktop-lyric-${line.time}-${idx}`} 
-                    style={{
-                      position: 'absolute',
-                      top: '50%',
-                      left: 0,
-                      height: `${lyricSlotHeight}px`,
-                      padding: 0,
-                      boxSizing: 'border-box',
-                      '--desktop-line-transform': `translateY(calc(-50% + ${yOffset}px)) scale(${scale})`,
-                      transition: 'transform 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.28s ease',
-                      animation: relativeIndex > 0 ? 'desktopLyricEnter 0.38s cubic-bezier(0.16, 1, 0.3, 1)' : undefined,
-                      transform: 'var(--desktop-line-transform)',
-                      transformOrigin: config.alignment === 'left' ? 'center left' : (config.alignment === 'right' ? 'center right' : 'center center'),
-                      opacity, 
-                      filter: 'none',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      justifyContent: 'center',
-                      alignItems,
-                      width: '100%',
-                      pointerEvents
-                    }}
-                  >
-                    {isVisible && (
-                    <>
-                    <div style={{
-                      position: 'relative', fontSize: `${config.fontSize || 36}px`,
-                      fontWeight: isActive ? (config.fontWeight || 700) : Math.max(300, (config.fontWeight || 700) - 100),
-                      fontFamily: `"${fontFamily}", "Microsoft YaHei", "Noto Sans SC", sans-serif`, textAlign,
-                      whiteSpace: 'nowrap', color: unplayedColor,
-                      textShadow: `${shadow}${glow}`,
-                      WebkitTextStroke: stroke
-                    }}>
-                      {(() => {
-                        const displayTokens = parseDisplayTokens(line);
-                        const rows = [displayTokens];
-                        const clipBleedPx = getSweepClipBleedPx(config.fontSize || 36);
-                        const tokenStyle = (token) => ({
-                          display: 'inline-block',
-                          marginRight: 0,
-                          whiteSpace: 'pre'
-                        });
-                        let tokenCounter = 0;
-                        if (isActive) {
-                          wordsRefs.current = [];
-                        }
-                        return (
-                        <div style={{ position: 'relative' }}>
-                          <div style={{ position: 'relative', zIndex: 1 }}>
-                            <span style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap', opacity: isActive ? 0.68 : 1, color: !isActive && idx < localActiveIdx ? activeAccent : unplayedColor }}>
-                              {line.text}
-                            </span>
-                          </div>
-                          <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none', display: isActive ? 'block' : 'none' }}>
-                            {rows.map((row, rowIdx) => (
-                              <span key={`fg-row-${rowIdx}`} style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap' }}>
-                                {row.map((token) => {
-                                  const currentIdx = tokenCounter++;
-                                  return (
-                                  <span key={`fg-${token.key}`} ref={el => { if (isActive) wordsRefs.current[currentIdx] = el; }}
-                                    style={{ ...tokenStyle(token), color: activeAccent, textShadow: config.glow?.enabled ? `${shadow}${glow}, 0 0 12px ${activeAccent}88` : shadow, clipPath: isActive ? 'inset(0 100% 0 100%)' : (idx < localActiveIdx ? `inset(0 0 0 -${clipBleedPx}px)` : 'inset(0 100% 0 100%)'), WebkitClipPath: isActive ? 'inset(0 100% 0 100%)' : (idx < localActiveIdx ? `inset(0 0 0 -${clipBleedPx}px)` : 'inset(0 100% 0 100%)'), transformOrigin: 'center bottom' }}>
-                                    {token.text}
-                                  </span>
-                                  );
-                                })}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                        );
-                      })()}
-                    </div>
-                    {/* Render translations for the active line ONLY to prevent vertical overflow clipping */}
-                    {isActive && config.showTranslation !== false && line.translation && (
-                      <div style={{
-                        fontSize: `${config.translationSize || Math.max(16, (config.fontSize || 36) * 0.6)}px`,
-                        fontWeight: config.fontWeight || 700,
-                        fontFamily: `"${fontFamily}", "Microsoft YaHei", "Noto Sans SC", sans-serif`,
-                        color: activeAccent,
-                        marginTop: 2,
-                        textShadow: `${shadow}${glow}`,
-                        WebkitTextStroke: stroke,
-                        textAlign
-                      }}>
-                        {line.translation}
-                      </div>
-                    )}
-                    </>
-                    )}
-                  </div>
+                  <DesktopLyricLine
+                    key={`desktop-line-${line.time}-${idx}`}
+                    line={line}
+                    status={status}
+                    offset={relativeIndex}
+                    yOffset={yOffset}
+                    scale={scale}
+                    opacity={opacity}
+                    lyricSlotHeight={lyricSlotHeight}
+                    config={config}
+                    activeAccent={activeAccent}
+                    unplayedColor={unplayedColor}
+                    stroke={stroke}
+                    shadow={shadow}
+                    glow={glow}
+                    fontFamily={fontFamily}
+                    textAlign={textAlign}
+                    alignItems={alignItems}
+                    onRegisterToken={handleRegisterToken}
+                  />
                 );
               })}
             </div>

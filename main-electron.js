@@ -785,6 +785,8 @@ function toggleDesktopLyrics() {
       }
     } else {
       desktopLyricsWindow.show();
+      desktopLyricsWindow.setAlwaysOnTop(true, 'screen-saver');
+      desktopLyricsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('desktop-lyrics-visibility-change', true);
       }
@@ -807,15 +809,21 @@ function toggleDesktopLyrics() {
     skipTaskbar: true,
     hasShadow: false,
     resizable: true,
+    focusable: false,
+    fullscreenable: false,
+    type: process.platform === 'win32' ? 'toolbar' : 'panel',
     minWidth: 420,
     minHeight: 90,
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'preload-electron.cjs')
     }
   });
 
+  desktopLyricsWindow.setAlwaysOnTop(true, 'screen-saver');
+  desktopLyricsWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   desktopLyricsWindow.setIgnoreMouseEvents(true, { forward: true });
 
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -995,6 +1003,7 @@ function createWindow() {
   ipcMain.on('set-desktop-lyrics-lock', (event, locked) => {
     if (desktopLyricsWindow && !desktopLyricsWindow.isDestroyed()) {
       desktopLyricsWindow.setIgnoreMouseEvents(locked, { forward: true });
+      desktopLyricsWindow.setAlwaysOnTop(true, 'screen-saver');
       if (event.sender !== desktopLyricsWindow.webContents) {
         desktopLyricsWindow.webContents.send('desktop-lyrics-config-reply', { locked });
       }
