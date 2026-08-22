@@ -1,5 +1,5 @@
 // main-electron.js - Electron main desktop application process
-import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard, net as electronNet, protocol } from 'electron';
+import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard, net as electronNet, protocol, globalShortcut } from 'electron';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import net from 'net';
@@ -809,7 +809,7 @@ function toggleDesktopLyrics() {
     skipTaskbar: true,
     hasShadow: false,
     resizable: true,
-    focusable: false,
+    movable: true,
     fullscreenable: false,
     type: process.platform === 'win32' ? 'toolbar' : 'panel',
     minWidth: 420,
@@ -1002,14 +1002,17 @@ function createWindow() {
   
   ipcMain.on('set-desktop-lyrics-lock', (event, locked) => {
     if (desktopLyricsWindow && !desktopLyricsWindow.isDestroyed()) {
-      desktopLyricsWindow.setIgnoreMouseEvents(locked, { forward: true });
+      if (locked) {
+        desktopLyricsWindow.setIgnoreMouseEvents(true, { forward: true });
+      } else {
+        desktopLyricsWindow.setIgnoreMouseEvents(false);
+      }
       desktopLyricsWindow.setAlwaysOnTop(true, 'screen-saver');
       if (event.sender !== desktopLyricsWindow.webContents) {
         desktopLyricsWindow.webContents.send('desktop-lyrics-config-reply', { locked });
       }
     }
   });
-
   ipcMain.on('update-desktop-lyrics-config', (event, data) => {
     if (desktopLyricsWindow && !desktopLyricsWindow.isDestroyed()) {
       if (event.sender !== desktopLyricsWindow.webContents) {
@@ -1063,8 +1066,44 @@ function createWindow() {
   ipcMain.on('set-playback-controls-locked', (event, locked) => {
     updateMediaControls(isPlayingState, Boolean(locked));
   });
+  function registerGlobalMediaShortcuts(enabled = true) {
+    try {
+      globalShortcut.unregisterAll();
+      if (!enabled) return;
 
-  // Profile Storage IPC
+      globalShortcut.register('MediaPlayPause', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-play-pause');
+      });
+      globalShortcut.register('MediaTrackNext', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-next');
+      });
+      globalShortcut.register('MediaTrackPrevious', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-prev');
+      });
+      globalShortcut.register('Alt+Shift+Space', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-play-pause');
+      });
+      globalShortcut.register('Alt+Shift+Right', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-next');
+      });
+      globalShortcut.register('Alt+Shift+Left', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-prev');
+      });
+    } catch (err) {
+      console.warn('Failed to register global shortcut:', err);
+    }
+  }
+
+  registerGlobalMediaShortcuts(true);
+
+  ipcMain.on('set-global-shortcuts-enabled', (event, enabled) => {
+    registerGlobalMediaShortcuts(Boolean(enabled));
+  });
+
+  app.on('will-quit', () => {
+    globalShortcut.unregisterAll();
+  });
+
   ipcMain.on('read-profile', (event) => {
     try {
       const p = path.join(app.getPath('userData'), 'ichigomusic-profile.json');
@@ -1245,12 +1284,41 @@ function createWindow() {
   ipcMain.removeHandler('get-cache-stats');
   ipcMain.handle('get-cache-stats', async (_event, { cacheDir }) => {
     const root = safeCacheDir(cacheDir);
-    const files = await collectCacheFiles(root);
+    const audioFiles = await collectCacheFiles(path.join(root, 'audio'));
+    const lyricFiles = await collectCacheFiles(path.join(root, 'lyrics'));
+    const coverFiles = await collectCacheFiles(path.join(root, 'covers'));
+    const audioSize = audioFiles.reduce((sum, f) => sum + f.size, 0);
+    const lyricsSize = lyricFiles.reduce((sum, f) => sum + f.size, 0);
+    const coversSize = coverFiles.reduce((sum, f) => sum + f.size, 0);
     return {
       dir: root,
-      size: files.reduce((sum, file) => sum + file.size, 0),
-      files: files.length
+      size: audioSize + lyricsSize + coversSize,
+      files: audioFiles.length + lyricFiles.length + coverFiles.length,
+      audioSize,
+      audioFiles: audioFiles.length,
+      lyricsSize,
+      lyricsFiles: lyricFiles.length,
+      coversSize,
+      coversFiles: coverFiles.length
     };
+  });
+
+  ipcMain.removeHandler('clear-specific-cache');
+  ipcMain.handle('clear-specific-cache', async (_event, { cacheDir, type }) => {
+    const root = safeCacheDir(cacheDir);
+    if (type === 'audio' || type === 'all') {
+      await fs.promises.rm(path.join(root, 'audio'), { recursive: true, force: true }).catch(() => {});
+      await ensureDir(path.join(root, 'audio'));
+    }
+    if (type === 'lyrics' || type === 'all') {
+      await fs.promises.rm(path.join(root, 'lyrics'), { recursive: true, force: true }).catch(() => {});
+      await ensureDir(path.join(root, 'lyrics'));
+    }
+    if (type === 'covers' || type === 'all') {
+      await fs.promises.rm(path.join(root, 'covers'), { recursive: true, force: true }).catch(() => {});
+      await ensureDir(path.join(root, 'covers'));
+    }
+    return true;
   });
 
   ipcMain.removeHandler('clear-app-cache');
@@ -1264,7 +1332,6 @@ function createWindow() {
     await ensureDir(path.join(root, 'covers'));
     return true;
   });
-
   ipcMain.removeHandler('select-local-music-folder');
   ipcMain.handle('select-local-music-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {

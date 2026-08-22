@@ -33,26 +33,42 @@ function SetupPanel({ listenState }) {
   };
 
   return (
-    <div className="listen-empty-state">
-      <div className="listen-empty-orb"><Radio size={32} /></div>
-      <span className="listen-eyebrow">LISTEN TOGETHER</span>
-      <h2>和朋友一起听</h2>
-      <p>同步播放进度，分享正在听的歌，也可以在房间里实时聊天。</p>
-      {message && <div className="listen-status-message">{message}</div>}
-      <div className="listen-setup-actions">
-        <button className="listen-primary-btn" onClick={createRoom} disabled={isConnecting}><Radio size={17} />{isConnecting ? '正在创建...' : '创建听歌房间'}</button>
-        <div className="listen-join-row">
-          <input value={roomInput} onChange={event => setRoomInput(event.target.value)} placeholder="输入房间 ID" aria-label="房间 ID" />
-          <input value={roomTokenInput} onChange={event => setRoomTokenInput(event.target.value)} placeholder="Room Token" aria-label="Room Token" />
-          <input value={inviterInput} onChange={event => setInviterInput(event.target.value)} placeholder="邀请者 ID（可选）" aria-label="邀请者 ID" />
-          <button className="listen-secondary-btn" onClick={() => joinRoom(roomInput.trim(), inviterInput.trim(), roomTokenInput.trim())} disabled={!roomInput.trim() || isConnecting}><LogIn size={16} />加入</button>
-        </div>
+    <div style={{
+      padding: '24px',
+      borderRadius: '16px',
+      background: 'rgba(255, 255, 255, 0.03)',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      backdropFilter: 'blur(20px)',
+      boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '16px'
+    }}>
+      <div style={{ fontSize: '15px', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <LogIn size={18} color="var(--primary)" />
+        <span>加入已有听歌房间</span>
       </div>
-      {getShareUrl() && <button className="listen-copy-btn" onClick={copyRoomLink}><Copy size={14} />{copied ? '已复制房间链接' : '复制房间链接'}</button>}
+      <div className="listen-join-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '10px' }}>
+        <input value={roomInput} onChange={event => setRoomInput(event.target.value)} placeholder="输入房间 ID" aria-label="房间 ID" />
+        <input value={roomTokenInput} onChange={event => setRoomTokenInput(event.target.value)} placeholder="Room Token (可选)" aria-label="Room Token" />
+        <input value={inviterInput} onChange={event => setInviterInput(event.target.value)} placeholder="邀请者 ID (可选)" aria-label="邀请者 ID" />
+        <button className="listen-secondary-btn" onClick={() => joinRoom(roomInput.trim(), inviterInput.trim(), roomTokenInput.trim())} disabled={!roomInput.trim() || isConnecting}>
+          <LogIn size={16} />
+          加入房间
+        </button>
+      </div>
+      {message && <div className="listen-status-message" style={{ margin: 0 }}>{message}</div>}
+      {getShareUrl() && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="listen-copy-btn" style={{ margin: 0 }} onClick={copyRoomLink}>
+            <Copy size={14} />
+            {copied ? '已复制房间链接' : '复制房间链接'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
-
 function ChatPanel({ listenState }) {
   const [draft, setDraft] = useState('');
   const send = async (event) => {
@@ -95,9 +111,59 @@ export default function ListenTogether({ listenState, currentSong, lyrics = [], 
 
   return (
     <div className="listen-together-page">
-      <div className="listen-page-header">
-        <div><span className="listen-eyebrow">SOCIAL LISTENING</span><h1>{roomTitle}</h1><p>{roomId ? '播放状态会自动同步给房间里的每个人。' : '创建一个房间，和朋友一起分享一段音乐时光。'}</p></div>
-        {roomId && <div className={`listen-connection ${syncStatus === 'error' ? 'is-error' : ''}`}><span />{connectionLabel}</div>}
+      {/* Header Banner (LocalMusic Style) */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '24px',
+        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(20, 35, 45, 0.45) 100%)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderRadius: '16px',
+        backdropFilter: 'blur(20px)',
+        marginBottom: '20px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{
+            width: '56px',
+            height: '56px',
+            borderRadius: '14px',
+            background: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 8px 20px rgba(16, 185, 129, 0.35)',
+            flexShrink: 0
+          }}>
+            <Radio size={28} color="#fff" />
+          </div>
+          <div>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>{roomTitle}</h2>
+            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', marginTop: '4px' }}>
+              {roomId ? '播放状态会自动同步给房间里的每个人' : '创建一个房间，和朋友一起同步音乐与实时聊天'}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {!roomId ? (
+            <button
+              type="button"
+              className="listen-primary-btn"
+              style={{ width: 'auto', padding: '10px 20px', borderRadius: '10px' }}
+              onClick={listenState.createRoom}
+              disabled={listenState.isConnecting}
+            >
+              <Radio size={16} />
+              {listenState.isConnecting ? '正在创建…' : '创建听歌房间'}
+            </button>
+          ) : (
+            <div className={`listen-connection ${syncStatus === 'error' ? 'is-error' : ''}`}>
+              <span />
+              {connectionLabel}
+            </div>
+          )}
+        </div>
       </div>
 
       {!roomId ? <SetupPanel listenState={listenState} /> : (

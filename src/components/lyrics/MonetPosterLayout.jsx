@@ -143,17 +143,10 @@ function MonetPosterLayout({
     return buildVisibleWindow(
       displayLyrics,
       effectiveActiveIndex,
-      dimensions.fontPx,
-      dimensions.transPx,
-      dimensions.maxWidthPx,
-      fontStack,
-      dimensions.railHeight,
-      6,
-      advancedLyricConfig?.showTranslation !== false,
-      isRegularMode ? 0.5 : 0.48
+      0,
+      { before: 5, after: 6 }
     );
-  }, [displayLyrics, effectiveActiveIndex, dimensions, fontStack, isRegularMode, advancedLyricConfig?.showTranslation]);
-
+  }, [displayLyrics, effectiveActiveIndex]);
   const fallbackSong = currentSong || {
     title: 'ICHIGOMusic',
     artist: 'High-Fidelity Audio',

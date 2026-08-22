@@ -52,6 +52,7 @@ const findActiveLineIndex = (lines = [], currentTime = 0, preferredIndex = -1) =
 
 const DesktopLyricLine = React.memo(({
   line,
+  lineIndex,
   status,
   offset,
   yOffset,
@@ -73,7 +74,6 @@ const DesktopLyricLine = React.memo(({
   const isChorus = line.isChorus || false;
   const isActive = status === 'active';
   const isPassed = status === 'passed';
-  const clipBleedPx = getSweepClipBleedPx(config.fontSize || 36);
 
   return (
     <div
@@ -107,61 +107,43 @@ const DesktopLyricLine = React.memo(({
           WebkitTextStroke: stroke
         }}
       >
-        {/* Non-active lines: render clean single layer to avoid DOM churn */}
-        {!isActive ? (
-          <div style={{ position: 'relative' }}>
+        {/* Stable dual-layer: never unmounts/remounts spans during line transitions */}
+        <div style={{ position: 'relative' }}>
+          {/* Base layer (unplayed color for upcoming/active, played color for passed) */}
+          <div style={{ position: 'relative', zIndex: 1 }}>
             <span
               style={{
                 display: 'block',
                 minHeight: `${(config.fontSize || 36) * 1.12}px`,
                 whiteSpace: 'nowrap',
+                opacity: isPassed ? 1 : 0.65,
                 color: isPassed ? activeAccent : unplayedColor
               }}
             >
               {line.text}
             </span>
           </div>
-        ) : (
-          /* Active line: dual-layer with background unplayed base & foreground sweep */
-          <div style={{ position: 'relative' }}>
-            {/* Base unplayed layer */}
-            <div style={{ position: 'relative', zIndex: 1 }}>
-              <span
-                style={{
-                  display: 'block',
-                  minHeight: `${(config.fontSize || 36) * 1.12}px`,
-                  whiteSpace: 'nowrap',
-                  opacity: 0.65,
-                  color: unplayedColor
-                }}
-              >
-                {line.text}
-              </span>
-            </div>
-            {/* Foreground sweeping layer */}
-            <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}>
-              <span style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap' }}>
-                {tokens.map((token, tokenIdx) => (
-                  <span
-                    key={`fg-${token.key || tokenIdx}`}
-                    ref={el => onRegisterToken(tokenIdx, el)}
-                    style={{
-                      display: 'inline-block',
-                      whiteSpace: 'pre',
-                      color: activeAccent,
-                      textShadow: config.glow?.enabled ? `${shadow}${glow}, 0 0 12px ${activeAccent}88` : shadow,
-                      clipPath: 'inset(0 100% 0 100%)',
-                      WebkitClipPath: 'inset(0 100% 0 100%)',
-                      transformOrigin: 'center bottom'
-                    }}
-                  >
-                    {token.text}
-                  </span>
-                ))}
-              </span>
-            </div>
+          {/* Foreground sweeping layer (persistent per token, driven directly by high-rate rAF) */}
+          <div style={{ position: 'absolute', inset: 0, zIndex: 2, pointerEvents: 'none' }}>
+            <span style={{ display: 'block', minHeight: `${(config.fontSize || 36) * 1.12}px`, whiteSpace: 'nowrap' }}>
+              {tokens.map((token, tokenIdx) => (
+                <span
+                  key={`fg-${token.key || tokenIdx}`}
+                  ref={el => onRegisterToken(lineIndex, tokenIdx, el, token)}
+                  style={{
+                    display: 'inline-block',
+                    whiteSpace: 'pre',
+                    color: activeAccent,
+                    textShadow: config.glow?.enabled ? `${shadow}${glow}, 0 0 12px ${activeAccent}88` : shadow,
+                    transformOrigin: 'center bottom'
+                  }}
+                >
+                  {token.text}
+                </span>
+              ))}
+            </span>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Active Line Translation */}
@@ -184,7 +166,6 @@ const DesktopLyricLine = React.memo(({
     </div>
   );
 });
-
 export default function DesktopLyrics() {
   const [syncData, setSyncData] = useState({
     isPlaying: false,
@@ -329,14 +310,75 @@ export default function DesktopLyrics() {
     }
   }, [config.locked]);
 
+  const getExactCurrentTime = () => {
+    const current = syncDataRef.current;
+    let virtualTime = Number(current.audioTime || 0);
+    if (current.isPlaying && virtualTime > 0) {
+      virtualTime += Math.max(0, Date.now() - Number(current.systemTime || Date.now())) / 1000;
+    }
+    return virtualTime + Number(current.globalOffset || 0);
+  };
+
+  const computeTokenClipPath = (token, currentTime, fontSize = 36) => {
+    if (!token) return 'inset(0 100% 0 100%)';
+    const clipBleedPx = getSweepClipBleedPx(fontSize);
+    let progress = 1;
+    if (token.timed) {
+      const duration = Math.max(0.001, token.endTime - token.startTime);
+      if (currentTime >= token.endTime) progress = 1;
+      else if (currentTime > token.startTime) progress = (currentTime - token.startTime) / duration;
+      else progress = 0;
+    }
+    const pct = Math.max(0, Math.min(1, progress));
+    return pct <= 0
+      ? 'inset(0 100% 0 100%)'
+      : `inset(0 ${100 - pct * 100}% 0 -${clipBleedPx}px)`;
+  };
+
+  const paintTokensAtTime = (adjustedTime) => {
+    const currentSync = syncDataRef.current;
+    const currentConfig = configRef.current;
+    if (!currentSync.lines || currentSync.lines.length === 0) return;
+
+    const activeIdx = currentSync.activeIndex >= 0 ? currentSync.activeIndex : 0;
+    const fontSize = currentConfig.fontSize || 36;
+    const clipBleedPx = getSweepClipBleedPx(fontSize);
+
+    for (const item of activeWordsMapRef.current.values()) {
+      const { el, token, lineIndex } = item;
+      if (!el) continue;
+
+      let clipPath;
+      if (lineIndex < activeIdx) {
+        clipPath = `inset(0 0% 0 -${clipBleedPx}px)`;
+      } else if (lineIndex > activeIdx) {
+        clipPath = 'inset(0 100% 0 100%)';
+      } else {
+        clipPath = computeTokenClipPath(token, adjustedTime, fontSize);
+      }
+
+      if (el._lastClipPath !== clipPath || el.style.clipPath !== clipPath) {
+        el._lastClipPath = clipPath;
+        el.style.clipPath = clipPath;
+        el.style.webkitClipPath = clipPath;
+        el.style.transform = 'none';
+      }
+    }
+  };
+
   useEffect(() => {
     const cleanupFns = [];
     if (window.electronAPI?.onLyricsUpdate) {
       const cleanup = window.electronAPI.onLyricsUpdate((data) => {
         const prev = syncDataRef.current;
+        const isPlayingChanged = prev.isPlaying !== data.isPlaying;
+        const timeJump = Math.abs(Number(data.audioTime || 0) - Number(prev.audioTime || 0)) > 0.35;
         const next = { ...prev, ...data };
+        
         let packetTime = Number(next.audioTime || 0) + Number(next.globalOffset || 0);
-        if (next.isPlaying) packetTime += Math.max(0, Date.now() - Number(next.systemTime || Date.now())) / 1000;
+        if (next.isPlaying) {
+          packetTime += Math.max(0, Date.now() - Number(next.systemTime || Date.now())) / 1000;
+        }
         
         const calculatedActiveIndex = findActiveLineIndex(next.lines, packetTime, prev.activeIndex);
         next.activeIndex = calculatedActiveIndex;
@@ -347,12 +389,12 @@ export default function DesktopLyrics() {
         const indexChanged = calculatedActiveIndex !== prev.activeIndex;
         const offsetChanged = next.globalOffset !== prev.globalOffset;
 
-        if (linesChanged || indexChanged || offsetChanged) {
-          if (indexChanged || linesChanged) {
-            lastClipPathsRef.current = [];
-          }
+        if (linesChanged || indexChanged || offsetChanged || isPlayingChanged || timeJump) {
           setSyncData(next);
         }
+
+        // Immediately freeze/paint exact frame on pause or packet update
+        paintTokensAtTime(packetTime);
       });
       if (typeof cleanup === 'function') cleanupFns.push(cleanup);
     }
@@ -394,79 +436,51 @@ export default function DesktopLyrics() {
     hasTranslation: hasActiveTranslation
   });
 
-  const handleRegisterToken = (tokenIdx, el) => {
+  // Scoped Token Registration: Each token is registered with its lineIndex & tokenIdx
+  const handleRegisterToken = (lineIndex, tokenIdx, el, token) => {
+    const key = `${lineIndex}-${tokenIdx}`;
     if (el) {
-      activeWordsMapRef.current.set(tokenIdx, el);
-      const cached = lastClipPathsRef.current[tokenIdx];
-      if (cached) {
-        el.style.clipPath = cached;
-        el.style.webkitClipPath = cached;
+      activeWordsMapRef.current.set(key, { el, token, lineIndex, tokenIdx });
+      const currentTime = getExactCurrentTime();
+      const activeIdx = syncDataRef.current.activeIndex >= 0 ? syncDataRef.current.activeIndex : 0;
+      const clipBleedPx = getSweepClipBleedPx(configRef.current.fontSize || 36);
+      
+      let clipPath;
+      if (lineIndex < activeIdx) {
+        clipPath = `inset(0 0% 0 -${clipBleedPx}px)`;
+      } else if (lineIndex > activeIdx) {
+        clipPath = 'inset(0 100% 0 100%)';
+      } else {
+        clipPath = computeTokenClipPath(token, currentTime, configRef.current.fontSize || 36);
       }
+      
+      el._lastClipPath = clipPath;
+      el.style.clipPath = clipPath;
+      el.style.webkitClipPath = clipPath;
     } else {
-      activeWordsMapRef.current.delete(tokenIdx);
+      activeWordsMapRef.current.delete(key);
     }
   };
 
-  useEffect(() => {
-    lastClipPathsRef.current = [];
-    activeWordsMapRef.current.clear();
-  }, [localActiveIdx]);
-
-  // Unified high-rate animation loop: advances active line and word sweeps without thrashing
+  // High-rate animation loop: zero frame drops on line switches
   useEffect(() => {
     let rafId;
     const loop = () => {
       const currentSync = syncDataRef.current;
-      const currentConfig = configRef.current;
       if (currentSync.lines && currentSync.lines.length > 0) {
-        let virtualTime = currentSync.audioTime;
-        if (currentSync.isPlaying && currentSync.audioTime > 0) {
-          virtualTime += (Date.now() - currentSync.systemTime) / 1000;
-        }
-        const adjustedTime = virtualTime + currentSync.globalOffset;
+        const adjustedTime = getExactCurrentTime();
         const localActiveIndex = findActiveLineIndex(currentSync.lines, adjustedTime, currentSync.activeIndex);
         
         if (localActiveIndex !== currentSync.activeIndex) {
-          lastClipPathsRef.current = [];
-          activeWordsMapRef.current.clear();
           const nextSync = { ...currentSync, activeIndex: localActiveIndex };
           syncDataRef.current = nextSync;
           setSyncData(nextSync);
+          paintTokensAtTime(adjustedTime);
           rafId = requestAnimationFrame(loop);
           return;
         }
 
-        const activeLine = currentSync.lines[localActiveIndex];
-        if (activeLine) {
-          const tokens = parseDisplayTokens(activeLine);
-          const clipBleedPx = getSweepClipBleedPx(currentConfig.fontSize || 36);
-          
-          for (let i = 0; i < tokens.length; i += 1) {
-            const token = tokens[i];
-            const el = activeWordsMapRef.current.get(i);
-            if (!el) continue;
-
-            let progress = 1;
-            if (token.timed) {
-              const duration = Math.max(0.001, token.endTime - token.startTime);
-              if (adjustedTime >= token.endTime) progress = 1;
-              else if (adjustedTime > token.startTime) progress = (adjustedTime - token.startTime) / duration;
-              else progress = 0;
-            }
-
-            const pct = Math.max(0, Math.min(1, progress));
-            const clipPath = pct <= 0
-              ? 'inset(0 100% 0 100%)'
-              : `inset(0 ${100 - pct * 100}% 0 -${clipBleedPx}px)`;
-
-            if (lastClipPathsRef.current[i] !== clipPath || el.style.clipPath !== clipPath) {
-              lastClipPathsRef.current[i] = clipPath;
-              el.style.clipPath = clipPath;
-              el.style.webkitClipPath = clipPath;
-              el.style.transform = 'none';
-            }
-          }
-        }
+        paintTokensAtTime(adjustedTime);
       }
       rafId = requestAnimationFrame(loop);
     };
@@ -497,18 +511,12 @@ export default function DesktopLyrics() {
         backdropFilter: 'blur(16px)',
         zIndex: 1000,
         WebkitAppRegion: 'no-drag',
-        pointerEvents: isHovered ? 'auto' : 'none',
-        opacity: isHovered ? 1 : 0,
+        pointerEvents: 'auto',
+        opacity: (isHovered || !config.locked) ? 1 : 0,
         transition: 'opacity 0.2s ease'
       }}
     >
       <button
-        onMouseEnter={() => {
-          if (config.locked) window.electronAPI?.setDesktopLyricsLock?.(false);
-        }}
-        onMouseLeave={() => {
-          if (config.locked) window.electronAPI?.setDesktopLyricsLock?.(true);
-        }}
         onClick={(e) => { 
           e.stopPropagation(); 
           pushConfig({ locked: !config.locked }); 
@@ -522,7 +530,9 @@ export default function DesktopLyrics() {
           cursor: 'pointer',
           fontWeight: 800,
           fontSize: 12,
-          whiteSpace: 'nowrap'
+          whiteSpace: 'nowrap',
+          WebkitAppRegion: 'no-drag',
+          pointerEvents: 'auto'
         }}
       >
         {config.locked ? '🔒 解锁' : '🔓 上锁'}
@@ -572,7 +582,8 @@ export default function DesktopLyrics() {
           boxSizing: 'border-box',
           padding: '16px 28px',
           position: 'relative',
-          WebkitAppRegion: config.locked ? 'no-drag' : 'inherit',
+          WebkitAppRegion: config.locked ? 'no-drag' : 'drag',
+          cursor: config.locked ? 'default' : 'move',
           overflow: 'visible'
         }}
       >
@@ -623,6 +634,7 @@ export default function DesktopLyrics() {
                   <DesktopLyricLine
                     key={`desktop-line-${line.time}-${idx}`}
                     line={line}
+                    lineIndex={idx}
                     status={status}
                     offset={relativeIndex}
                     yOffset={yOffset}

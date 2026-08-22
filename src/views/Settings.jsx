@@ -1,116 +1,332 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useApp, APP_VERSION } from '../context/AppContext';
 import { api } from '../utils/api';
 import Login from './Login';
 import ShortcutRow from '../components/ShortcutRow';
 import { DEFAULT_PROFILE, EQ_PRESETS, exportProfile, importProfile, resetProfile } from '../utils/settingsProfile';
-import { Airplay, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu, Monitor, Music4, Palette, Power, Sliders, Trash2, UserCheck } from 'lucide-react';
+import {
+  Airplay, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu,
+  Monitor, Music4, Palette, Power, Sliders, Trash2, UserCheck, Sparkles,
+  Volume2, Eye, RefreshCw, Layers, ShieldCheck, Zap
+} from 'lucide-react';
 import { IMMERSIVE_MODE_OPTIONS, IMMERSIVE_MODE_PARAMETER_KEYS, normalizeImmersiveMode, KTV_TEMPLATE_GALLERY } from '../utils/immersiveModes';
-
 import { IMMERSIVE_PRESETS, IMMERSIVE_PRESET_MAP } from '../utils/immersivePresets';
 import { clearRuntimeLogs, formatRuntimeLogs, getRuntimeLogs, subscribeRuntimeLogs } from '../utils/runtimeLog';
-import { SegmentedControl, SegmentedControlItem, Switch } from '../components/ui';
 
 const T = {
-  title: 'ICHIGOMusic \u8bbe\u7f6e',
-  themeTab: '\u754c\u9762\u4e0e\u4e3b\u9898', desktopTab: '\u684c\u9762\u6b4c\u8bcd', immersiveTab: '\u6c89\u6d78\u6b4c\u8bcd', audioTab: '\u97f3\u9891', shortcutsTab: '\u5feb\u6377\u952e', navbarTab: '\u5bfc\u822a\u680f', accountTab: '\u8d26\u53f7',
-  layoutColor: '\u5e03\u5c40\u4e0e\u8272\u5f69', layout: '\u6574\u4f53\u5e03\u5c40', classic: '\u7ecf\u5178\u5e03\u5c40', modern: '\u73b0\u4ee3\u5e03\u5c40', colorMode: '\u8272\u5f69\u6a21\u5f0f', dark: '\u6df1\u8272', light: '\u6d45\u8272', system: '\u8ddf\u968f\u7cfb\u7edf', accent: '\u5f3a\u8c03\u8272', customTheme: '\u81ea\u5b9a\u4e49\u4e3b\u9898', primary: '\u4e3b\u8272', bgStart: '\u80cc\u666f\u8d77\u70b9', bgEnd: '\u80cc\u666f\u7ec8\u70b9', applyCustom: '\u5e94\u7528\u81ea\u5b9a\u4e49\u4e3b\u9898',
-  profile: '\u914d\u7f6e\u6587\u4ef6\u7ba1\u7406', export: '\u5bfc\u51fa\u914d\u7f6e', import: '\u5bfc\u5165\u914d\u7f6e', reset: '\u91cd\u7f6e\u6240\u6709\u8bbe\u7f6e', profileDesc: '\u5bfc\u51fa\u6216\u5bfc\u5165\u6240\u6709\u8bbe\u7f6e\uff0c\u5305\u542b\u4e3b\u9898\u3001\u6b4c\u8bcd\u3001\u97f3\u9891\u3001\u5feb\u6377\u952e\u548c\u64ad\u653e\u72b6\u6001\u3002',
-  desktopWindow: '\u684c\u9762\u6b4c\u8bcd\u7a97\u53e3', floatingLyrics: '\u60ac\u6d6e\u6b4c\u8bcd', running: '\u6b63\u5728\u8fd0\u884c\uff08\u70b9\u51fb\u5173\u95ed\uff09', startNow: '\u7acb\u5373\u5f00\u542f', lockWindow: '\u9501\u5b9a\u7a97\u53e3', topMost: '\u59cb\u7ec8\u7f6e\u9876', opacity: '\u7a97\u53e3\u900f\u660e\u5ea6', fontLayoutColor: '\u5b57\u4f53\u3001\u5e03\u5c40\u4e0e\u989c\u8272', fontFamily: '\u5b57\u4f53\u65cf', fontSize: '\u5b57\u53f7', fontWeight: '\u5b57\u91cd', align: '\u5bf9\u9f50\u65b9\u5f0f', left: '\u5de6', center: '\u4e2d', right: '\u53f3', lineCount: '\u663e\u793a\u884c\u6570', oneLine: '\u5355\u884c', twoLines: '\u53cc\u884c', threeLines: '\u4e09\u884c', showTranslation: '\u663e\u793a\u7ffb\u8bd1', translationSize: '\u7ffb\u8bd1\u5b57\u53f7', playedColor: '\u5df2\u64ad\u653e\u989c\u8272', unplayedColor: '\u672a\u64ad\u653e\u989c\u8272', stroke: '\u6587\u5b57\u63cf\u8fb9', strokeWidth: '\u63cf\u8fb9\u5bbd\u5ea6', shadow: '\u6587\u5b57\u9634\u5f71', shadowBlur: '\u9634\u5f71\u6a21\u7cca', glow: '\u53d1\u5149\u6548\u679c',
-  immersive: '\u6c89\u6d78\u6b4c\u8bcd', lyricSize: '\u6b4c\u8bcd\u5b57\u53f7', visibleLines: '\u663e\u793a\u884c\u6570', position: '\u4f4d\u7f6e', top: '\u9876\u90e8', curve: '\u52a8\u753b\u66f2\u7ebf', smooth: '\u987a\u6ed1', rapid: '\u8fc5\u6377', gentle: '\u67d4\u548c', fade: '\u6de1\u5165\u6de1\u51fa', scale: '\u7f29\u653e\u52a8\u753b', lyricGlow: '\u8f89\u5149\u6548\u679c', offset: '\u6b4c\u8bcd\u65f6\u95f4\u504f\u79fb', coverBgViz: '\u5c01\u9762\u3001\u80cc\u666f\u4e0e\u53ef\u89c6\u5316', showCover: '\u663e\u793a\u5c01\u9762', showSongInfo: '\u663e\u793a\u6b4c\u66f2\u4fe1\u606f', coverShape: '\u5c01\u9762\u5f62\u72b6', square: '\u6b63\u65b9\u5f62', rounded: '\u5706\u89d2', bgBlur: '\u80cc\u666f\u6a21\u7cca', bgMode: '\u80cc\u666f\u6a21\u5f0f', cover: '\u5c01\u9762', gradient: '\u6e10\u53d8', solid: '\u7eaf\u8272', none: '\u65e0', visualizer: '\u53ef\u89c6\u5316\u6837\u5f0f', bars: '\u5f8b\u52a8\u6761', waveform: '\u6ce2\u5f62', particle: '\u7c92\u5b50', circular: '\u73af\u5f62', off: '\u5173\u95ed',
-  qualityEq: '\u97f3\u8d28\u4e0e\u5747\u8861\u5668', quality: '\u97f3\u8d28\u4f18\u5148\u7ea7', standard: '\u6807\u51c6', higher: '\u8f83\u9ad8', exhigh: '\u6781\u9ad8', lossless: '\u65e0\u635f', master: '\u8d85\u6e05\u6bcd\u5e26', enableEq: '\u542f\u7528 EQ', eqPreset: 'EQ \u9884\u8bbe', reverbRender: '\u6df7\u54cd\u3001\u538b\u7f29\u4e0e\u6e32\u67d3', reverb: '\u6df7\u54cd', reverbPreset: '\u6df7\u54cd\u9884\u8bbe', mix: '\u5e72\u6e7f\u6bd4', decay: '\u8870\u51cf', compressor: '\u52a8\u6001\u538b\u7f29', spatial: '\u7a7a\u95f4\u6a21\u5f0f', stereo: '\u7acb\u4f53\u58f0', crossfeed: '\u4ea4\u53c9\u9988\u9001', mono: '\u5355\u58f0\u9053', backend: '\u97f3\u9891\u540e\u7aef', decoder: '\u89e3\u7801\u6a21\u5f0f', fps: '\u53ef\u89c6\u5316 FPS',
-  shortcutsTitle: '\u5feb\u6377\u952e\u7ed1\u5b9a', resetShortcuts: '\u91cd\u7f6e\u5168\u90e8\u5feb\u6377\u952e', navItems: '\u4fa7\u8fb9\u5bfc\u822a\u9879\u76ee', account: '\u8d26\u53f7', uid: '\u8d26\u53f7 UID', logout: '\u9000\u51fa\u767b\u5f55', cookieLogin: '\u5907\u7528\u767b\u5f55\uff1a\u7c98\u8d34 Cookie', cookieDesc: '\u5982\u679c\u626b\u7801\u5f02\u5e38\uff0c\u53ef\u7c98\u8d34\u7f51\u6613\u4e91\u97f3\u4e50 Cookie\uff08\u987b\u5305\u542b MUSIC_U\uff09\u5efa\u7acb\u957f\u6548\u767b\u5f55\u3002', importCookie: '\u5bfc\u5165 Cookie \u9a8c\u8bc1\u767b\u5f55'
+  title: '系统设置与偏好',
+  themeTab: '界面与外观',
+  desktopTab: '桌面歌词',
+  immersiveTab: '沉浸歌词',
+  audioTab: '音频与音效',
+  cacheTab: '存储与缓存',
+  shortcutsTab: '快捷键',
+  navbarTab: '侧边导航',
+  logsTab: '运行日志',
+  accountTab: '账号中心',
 };
 
 const themeOptions = [
-  { id: 'strawberry', name: '\u8349\u8393\u7ea2', color: '#ff4081' },
-  { id: 'sakura', name: '\u6a31\u82b1\u7c89', color: '#f48fb1' },
-  { id: 'matcha', name: '\u62b9\u8336\u7eff', color: '#8bc34a' },
-  { id: 'ocean', name: '\u6d77\u6d0b\u84dd', color: '#03a9f4' },
-  { id: 'purple', name: '\u8d5b\u535a\u7d2b', color: '#9c27b0' },
-  { id: 'dark', name: '\u6781\u5ba2\u7070', color: '#9e9e9e' },
-  { id: 'custom', name: '\u81ea\u5b9a\u4e49', color: 'conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)' }
+  { id: 'strawberry', name: '草莓红', color: '#ff3366' },
+  { id: 'sakura', name: '樱花粉', color: '#ff66b2' },
+  { id: 'matcha', name: '抹茶绿', color: '#4caf50' },
+  { id: 'ocean', name: '海洋蓝', color: '#00b0ff' },
+  { id: 'purple', name: '赛博紫', color: '#ab47bc' },
+  { id: 'dark', name: '极客灰', color: '#9e9e9e' },
+  { id: 'custom', name: '自定义', color: 'conic-gradient(from 0deg, red, yellow, lime, aqua, blue, magenta, red)' }
 ];
-const swatches = ['#ff3366', '#ff66b2', '#4caf50', '#00b0ff', '#ab47bc', '#111827', '#ffffff', '#f4d28a'];
-const eqBands = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
+
+const desktopColorPresets = {
+  strawberry: { label: '草莓红', played: '#ff3366', unplayed: '#ffffff', stroke: '#4a0e1c' },
+  aurora: { label: '极光绿', played: '#00e676', unplayed: '#e0f7fa', stroke: '#003300' },
+  ocean: { label: '海洋蓝', played: '#00b0ff', unplayed: '#e1f5fe', stroke: '#0d47a1' },
+  purple: { label: '紫罗兰', played: '#ab47bc', unplayed: '#f3e5f5', stroke: '#310d3f' },
+  gold: { label: '黑金', played: '#ffb300', unplayed: '#fffde7', stroke: '#3e2723' },
+  sakura: { label: '樱花粉', played: '#ff66b2', unplayed: '#fff0f5', stroke: '#4d0026' },
+  dark: { label: '极客暗灰', played: '#e0e0e0', unplayed: '#757575', stroke: '#1a1a1a' },
+  custom: { label: '自定义配色' }
+};
+
 const shortcutLabels = [
-  ['playPause', '\u64ad\u653e / \u6682\u505c', '\u5207\u6362\u5f53\u524d\u6b4c\u66f2\u64ad\u653e\u72b6\u6001'], ['nextTrack', '\u4e0b\u4e00\u9996', '\u8df3\u5230\u64ad\u653e\u961f\u5217\u4e0b\u4e00\u9996'], ['prevTrack', '\u4e0a\u4e00\u9996', '\u8df3\u5230\u64ad\u653e\u961f\u5217\u4e0a\u4e00\u9996'], ['volumeUp', '\u97f3\u91cf\u589e\u52a0', '\u6bcf\u6b21\u589e\u52a0 5%'], ['volumeDown', '\u97f3\u91cf\u964d\u4f4e', '\u6bcf\u6b21\u964d\u4f4e 5%'], ['toggleMute', '\u9759\u97f3\u5207\u6362', '\u9759\u97f3\u6216\u6062\u590d\u9ed8\u8ba4\u97f3\u91cf'], ['toggleLyrics', '\u6c89\u6d78\u6b4c\u8bcd', '\u6253\u5f00 / \u5173\u95ed\u5168\u5c4f\u6b4c\u8bcd'], ['toggleDesktopLyrics', '\u684c\u9762\u6b4c\u8bcd', '\u6253\u5f00 / \u5173\u95ed\u60ac\u6d6e\u6b4c\u8bcd\u7a97\u53e3'], ['toggleSearch', '\u641c\u7d22', '\u5feb\u901f\u8fdb\u5165\u641c\u7d22\u9875'], ['seekForward', '\u5feb\u8fdb', '\u5411\u540e\u8df3\u8f6c 5 \u79d2'], ['seekBack', '\u5feb\u9000', '\u5411\u524d\u8df3\u8f6c 5 \u79d2'], ['likeTrack', '\u559c\u6b22\u6b4c\u66f2', '\u6536\u85cf / \u53d6\u6d88\u6536\u85cf\u5f53\u524d\u6b4c\u66f2'], ['cyclePlayMode', '\u5faa\u73af\u64ad\u653e\u6a21\u5f0f', '\u987a\u5e8f / \u968f\u673a / \u5355\u66f2 / \u5fc3\u52a8'], ['goHome', '\u56de\u5230\u9996\u9875', '\u8fdb\u5165\u53d1\u73b0\u97f3\u4e50\u6216\u73b0\u4ee3\u9996\u9875']
+  ['playPause', '播放 / 暂停', '切换当前歌曲播放状态'],
+  ['nextTrack', '下一首', '跳到播放队列下一首'],
+  ['prevTrack', '上一首', '跳到播放队列上一首'],
+  ['volumeUp', '音量增加', '每次增加 5%'],
+  ['volumeDown', '音量降低', '每次降低 5%'],
+  ['toggleMute', '静音切换', '静音或恢复默认音量'],
+  ['toggleLyrics', '沉浸歌词', '打开 / 关闭全屏歌词'],
+  ['toggleDesktopLyrics', '桌面歌词', '打开 / 关闭悬浮歌词窗口'],
+  ['seekForward', '快进 5 秒', '向前步进播放进度'],
+  ['seekBack', '快退 5 秒', '向后回退播放进度']
 ];
 
 function SettingRow({ label, hint, children }) {
-  return <div className="settings-field"><div className="settings-field-label"><strong>{label}</strong>{hint && <span>{hint}</span>}</div><div className="settings-field-control">{children}</div></div>;
+  return (
+    <div className="settings-field">
+      <div className="settings-field-label">
+        <strong>{label}</strong>
+        {hint && <span>{hint}</span>}
+      </div>
+      <div className="settings-field-control">{children}</div>
+    </div>
+  );
 }
-function Toggle({ checked, onChange }) { return <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} style={{ width: 20, height: 20, cursor: 'pointer' }} />; }
-function Segment({ options, value, onChange }) { return <div className="segmented-control">{options.map((item) => { const optionValue = typeof item === 'object' ? item.value : item; const label = typeof item === 'object' ? item.label : item; return <button key={String(optionValue)} type="button" className={value === optionValue ? 'active' : ''} onClick={() => onChange(optionValue)}>{label}</button>; })}</div>; }
 
+function SmoothSwitch({ checked, onChange, disabled = false }) {
+  return (
+    <div
+      className={`smooth-switch ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}`}
+      onClick={() => !disabled && onChange(!checked)}
+      role="switch"
+      aria-checked={checked}
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); !disabled && onChange(!checked); } }}
+    >
+      <div className="smooth-switch-thumb" />
+    </div>
+  );
+}
+
+function Segment({ options, value, onChange }) {
+  return (
+    <div className="segmented-control">
+      {options.map((item) => {
+        const optionValue = typeof item === 'object' ? item.value : item;
+        const label = typeof item === 'object' ? item.label : item;
+        return (
+          <button
+            key={String(optionValue)}
+            type="button"
+            className={value === optionValue ? 'active' : ''}
+            onClick={() => onChange(optionValue)}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ==========================================================================
+   WYSIWYG DESKTOP LYRICS SANDBOX
+   ========================================================================== */
+function DesktopLyricsSandbox({ config }) {
+  const [sweepProgress, setSweepProgress] = useState(0);
+  const preset = desktopColorPresets[config.colorPreset || 'strawberry'] || desktopColorPresets.strawberry;
+  const playedColor = config.colorPreset === 'custom' ? (config.playedColor || '#ff3366') : preset.played;
+  const unplayedColor = config.colorPreset === 'custom' ? (config.unplayedColor || '#ffffff') : preset.unplayed;
+  const strokeColor = config.colorPreset === 'custom' ? (config.textStroke?.color || '#000000') : preset.stroke;
+  const isStroke = config.textStroke?.enabled !== false;
+  const stroke = isStroke ? `${config.textStroke?.width || 0.6}px ${strokeColor}` : 'none';
+  const shadow = config.textShadow?.enabled === false ? 'none' : `${config.textShadow?.offsetX || 0}px ${config.textShadow?.offsetY || 2}px ${config.textShadow?.blur || 12}px ${config.textShadow?.color || '#000000cc'}`;
+  const glow = config.glow?.enabled ? `, 0 0 ${Math.round((config.glow?.intensity || 0.6) * 28)}px ${playedColor}aa` : '';
+
+  // Mock preview loop
+  useEffect(() => {
+    let raf;
+    let start = performance.now();
+    const loop = (now) => {
+      const elapsed = (now - start) % 4000;
+      const p = Math.min(1, elapsed / 2800);
+      setSweepProgress(p);
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const sampleText = "沉醉在旋律里，每一刻都心动";
+  const sampleTrans = "Drunk in the melody, touched every moment";
+  const clipPct = Math.round((1 - sweepProgress) * 100);
+
+  return (
+    <div className="desktop-lyrics-sandbox">
+      <div className="sandbox-glow-bg" />
+      <div style={{ position: 'relative', zIndex: 2, textAlign: config.alignment || 'center', width: '100%', padding: '0 20px' }}>
+        <div
+          style={{
+            position: 'relative',
+            display: 'inline-block',
+            fontSize: `${Math.min(38, Math.max(22, config.fontSize || 36))}px`,
+            fontWeight: config.fontWeight || 700,
+            fontFamily: `"${config.fontFamily || 'Inter'}", "Microsoft YaHei", sans-serif`,
+            whiteSpace: 'nowrap',
+            color: unplayedColor,
+            textShadow: `${shadow}${glow}`,
+            WebkitTextStroke: stroke
+          }}
+        >
+          {/* Base Unplayed */}
+          <span style={{ opacity: 0.65 }}>{sampleText}</span>
+          {/* Sweeping Foreground */}
+          <span
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              color: playedColor,
+              clipPath: `inset(0 ${clipPct}% 0 0)`,
+              WebkitClipPath: `inset(0 ${clipPct}% 0 0)`
+            }}
+          >
+            {sampleText}
+          </span>
+        </div>
+
+        {config.showTranslation !== false && (
+          <div
+            style={{
+              fontSize: `${Math.min(22, Math.max(14, config.translationSize || 20))}px`,
+              fontWeight: 600,
+              color: playedColor,
+              marginTop: '4px',
+              opacity: 0.9,
+              textShadow: `${shadow}${glow}`
+            }}
+          >
+            {sampleTrans}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   STORAGE VISUALIZER BREAKDOWN COMPONENT
+   ========================================================================== */
+function StorageVisualizer({ stats, onClear, onSelectDir }) {
+  const total = stats?.size || 0;
+  const audio = stats?.audioSize || 0;
+  const lyrics = stats?.lyricsSize || 0;
+  const covers = stats?.coversSize || 0;
+
+  const audioPct = total > 0 ? (audio / total) * 100 : 0;
+  const lyricsPct = total > 0 ? (lyrics / total) * 100 : 0;
+  const coversPct = total > 0 ? (covers / total) * 100 : 0;
+
+  const formatBytes = (bytes = 0) => {
+    if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${bytes} B`;
+  };
+
+  return (
+    <div className="storage-visual-wrapper">
+      {/* Multi-segment progress track */}
+      <div className="storage-bar-track">
+        <div className="storage-segment-audio" style={{ width: `${Math.max(total > 0 ? 3 : 0, audioPct)}%` }} title={`音频文件: ${formatBytes(audio)}`} />
+        <div className="storage-segment-lyrics" style={{ width: `${Math.max(total > 0 ? 2 : 0, lyricsPct)}%` }} title={`歌词缓存: ${formatBytes(lyrics)}`} />
+        <div className="storage-segment-cover" style={{ width: `${Math.max(total > 0 ? 2 : 0, coversPct)}%` }} title={`封面图片: ${formatBytes(covers)}`} />
+      </div>
+
+      {/* Discrete 3-card stats */}
+      <div className="storage-cards-grid">
+        <div className="storage-card">
+          <div className="storage-card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="storage-card-dot" style={{ background: '#3b82f6' }} />
+              <span>音频缓存</span>
+            </div>
+            <button className="setting-btn danger ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onClear('audio')}>清理</button>
+          </div>
+          <div className="storage-card-val">{formatBytes(audio)}</div>
+        </div>
+
+        <div className="storage-card">
+          <div className="storage-card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="storage-card-dot" style={{ background: '#10b981' }} />
+              <span>逐字歌词</span>
+            </div>
+            <button className="setting-btn danger ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onClear('lyrics')}>清理</button>
+          </div>
+          <div className="storage-card-val">{formatBytes(lyrics)}</div>
+        </div>
+
+        <div className="storage-card">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="storage-card-dot" style={{ background: '#f59e0b' }} />
+              <span>封面图库</span>
+            </div>
+            <button className="setting-btn danger ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onClear('covers')}>清理</button>
+          </div>
+          <div className="storage-card-val">{formatBytes(covers)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ==========================================================================
+   MAIN SETTINGS COMPONENT
+   ========================================================================== */
 export default function Settings() {
-  const { user, logout, profile, theme, setTheme, colorMode, setColorMode, layoutMode, setLayoutMode, customThemeColors, saveCustomThemeColors, navbarConfig, saveNavbarConfig, advancedLyricConfig, saveAdvancedLyricConfig, coverConfig, saveCoverConfig, desktopLyricsConfig, saveDesktopLyricsConfig, audioConfig, saveAudioConfig, cacheConfig, saveCacheConfig, renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts, audioQuality, setAudioQuality, viewData, appearanceConfig, saveAppearanceConfig } = useApp();
+  const {
+    user, logout, profile, theme, setTheme, colorMode, setColorMode,
+    layoutMode, setLayoutMode, customThemeColors, saveCustomThemeColors,
+    navbarConfig, saveNavbarConfig, advancedLyricConfig, saveAdvancedLyricConfig,
+    coverConfig, saveCoverConfig, desktopLyricsConfig, saveDesktopLyricsConfig,
+    audioConfig, saveAudioConfig, cacheConfig, saveCacheConfig,
+    renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts,
+    audioQuality, setAudioQuality, viewData, checkForUpdates,
+    appearanceConfig, saveAppearanceConfig
+  } = useApp();
+
   const [activeTab, setActiveTab] = useState(() => viewData?.tab || (user ? 'theme' : 'account'));
   const [runtimeLogs, setRuntimeLogs] = useState(() => getRuntimeLogs());
   const [logCopyState, setLogCopyState] = useState('');
-
-  useEffect(() => {
-    if (viewData?.tab) {
-      setActiveTab(viewData.tab);
-    }
-  }, [viewData]);
-
-  useEffect(() => subscribeRuntimeLogs(setRuntimeLogs), []);
-
+  const [checking, setChecking] = useState(false);
+  const [cacheStats, setCacheStats] = useState(null);
+  const [defaultCacheDir, setDefaultCacheDir] = useState('');
   const [customPrimary, setCustomPrimary] = useState(customThemeColors.primary);
   const [customBgStart, setCustomBgStart] = useState(customThemeColors.bgStart);
   const [customBgEnd, setCustomBgEnd] = useState(customThemeColors.bgEnd);
   const [cookieInput, setCookieInput] = useState('');
+
+  useEffect(() => {
+    if (viewData?.tab) setActiveTab(viewData.tab);
+  }, [viewData]);
+
+  useEffect(() => subscribeRuntimeLogs(setRuntimeLogs), []);
+
+  useEffect(() => {
+    window.electronAPI?.getDefaultCacheDirectory?.().then(dir => {
+      setDefaultCacheDir(dir || '');
+    }).catch(() => {});
+  }, []);
+
+  const refreshCacheStats = async () => {
+    const stats = await window.electronAPI?.getCacheStats?.({ cacheDir: cacheConfig?.directory || '' }).catch(() => null);
+    if (stats) setCacheStats(stats);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'cache') refreshCacheStats();
+  }, [activeTab, cacheConfig?.directory]);
+
   const updateDesktop = (patch) => saveDesktopLyricsConfig({ ...desktopLyricsConfig, ...patch });
   const updateImmersive = (patch) => saveAdvancedLyricConfig({ ...advancedLyricConfig, ...patch });
-  const selectedImmersiveMode = IMMERSIVE_MODE_OPTIONS.find(item => item.value === normalizeImmersiveMode(advancedLyricConfig.lyricsMode)) || IMMERSIVE_MODE_OPTIONS[0];
-  const resetImmersiveModeDefaults = () => {
-    const keys = IMMERSIVE_MODE_PARAMETER_KEYS[selectedImmersiveMode.value] || [];
-    const defaults = Object.fromEntries(keys.map(key => [key, DEFAULT_PROFILE.immersiveLyrics[key]]).filter(([, value]) => value !== undefined));
-    updateImmersive(defaults);
-  };
-  const applyImmersivePreset = (value) => {
-    const preset = IMMERSIVE_PRESET_MAP[value] || IMMERSIVE_PRESET_MAP.balanced;
-    updateImmersive({ ...preset.values, motionPreset: preset.value });
-  };
   const updateCover = (patch) => saveCoverConfig({ ...coverConfig, ...patch });
   const updateAudio = (patch) => saveAudioConfig({ ...audioConfig, ...patch });
   const updateCache = (patch) => saveCacheConfig({ ...(cacheConfig || DEFAULT_PROFILE.audio.cache), ...patch });
-  const updateRendering = (patch) => saveRenderingConfig({ ...renderingConfig, ...patch });
-  const tabs = [{ key: 'theme', label: T.themeTab, icon: Palette }, { key: 'desktop', label: T.desktopTab, icon: Airplay }, { key: 'audio', label: T.audioTab, icon: Sliders }, { key: 'cache', label: '缓存', icon: HardDrive }, { key: 'shortcuts', label: T.shortcutsTab, icon: Command }, { key: 'navbar', label: T.navbarTab, icon: Menu }, { key: 'logs', label: '运行日志', icon: FileText }, { key: 'account', label: T.accountTab, icon: UserCheck }];
 
-  const handleApplyCustomTheme = () => { setTheme('custom'); saveCustomThemeColors({ primary: customPrimary, bgStart: customBgStart, bgEnd: customBgEnd }); };
-  const handleToggleNavbarItem = (index) => { const next = [...navbarConfig]; next[index] = { ...next[index], show: !next[index].show }; saveNavbarConfig(next); };
-  const handleToggleDesktopLyrics = () => { window.electronAPI?.toggleDesktopLyrics?.(); updateDesktop({ show: !desktopLyricsConfig.show }); };
-  const handleCookieLogin = async () => { if (!cookieInput.trim()) { alert('\u8bf7\u8f93\u5165\u6709\u6548\u7684 Cookie \u5b57\u7b26\u4e32'); return; } try { cookieInput.split(';').forEach(item => { const index = item.indexOf('='); if (index !== -1) { const key = item.substring(0, index).trim(); const val = item.substring(index + 1).trim(); if (key && val) document.cookie = `${key}=${val}; path=/; max-age=31536000`; } }); alert('\u624b\u52a8 Cookie \u5199\u5165\u6210\u529f\uff01\u6b63\u5728\u540c\u6b65\u9a8c\u8bc1\u72b6\u6001...'); await checkUserLogin(); setCookieInput(''); } catch (error) { console.error(error); alert('Cookie \u5199\u5165\u5931\u8d25\uff0c\u8bf7\u68c0\u67e5\u683c\u5f0f'); } };
-  const handleImportProfile = (event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => { try { importProfile(reader.result); alert('\u914d\u7f6e\u5bfc\u5165\u6210\u529f\uff0c\u5373\u5c06\u5237\u65b0\u5e94\u7528\u3002'); window.location.reload(); } catch (err) { console.error(err); alert('\u914d\u7f6e\u6587\u4ef6\u683c\u5f0f\u9519\u8bef\uff0c\u5bfc\u5165\u5931\u8d25\u3002'); } }; reader.readAsText(file); event.target.value = ''; };
-  const resetAll = () => { if (window.confirm('\u786e\u8ba4\u91cd\u7f6e\u6240\u6709\u8bbe\u7f6e\u4e3a\u9ed8\u8ba4\u503c\uff1f\u6b64\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\u3002')) { resetProfile(); window.location.reload(); } };
+  const selectedImmersiveMode = IMMERSIVE_MODE_OPTIONS.find(item => item.value === normalizeImmersiveMode(advancedLyricConfig.lyricsMode)) || IMMERSIVE_MODE_OPTIONS[0];
 
-  const { checkForUpdates } = useApp();
-  const [checking, setChecking] = useState(false);
-  const [defaultCacheDir, setDefaultCacheDir] = useState('');
-  const [cacheStats, setCacheStats] = useState(null);
-
-  useEffect(() => {
-    let mounted = true;
-    window.electronAPI?.getDefaultCacheDirectory?.().then(dir => {
-      if (mounted) setDefaultCacheDir(dir || '');
-    }).catch(() => {});
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (activeTab !== 'cache') return;
-    let mounted = true;
-    window.electronAPI?.getCacheStats?.({ cacheDir: cacheConfig?.directory || '' }).then(stats => {
-      if (mounted) setCacheStats(stats);
-    }).catch(() => {});
-    return () => {
-      mounted = false;
-    };
-  }, [activeTab, cacheConfig?.directory, cacheConfig?.enabled, cacheConfig?.maxSizeGb]);
+  const tabs = [
+    { key: 'theme', label: T.themeTab, icon: Palette, badge: 'tab-badge-theme' },
+    { key: 'desktop', label: T.desktopTab, icon: Airplay, badge: 'tab-badge-desktop' },
+    { key: 'immersive', label: T.immersiveTab, icon: Music4, badge: 'tab-badge-immersive' },
+    { key: 'audio', label: T.audioTab, icon: Sliders, badge: 'tab-badge-audio' },
+    { key: 'cache', label: T.cacheTab, icon: HardDrive, badge: 'tab-badge-cache' },
+    { key: 'shortcuts', label: T.shortcutsTab, icon: Command, badge: 'tab-badge-shortcuts' },
+    { key: 'navbar', label: T.navbarTab, icon: Menu, badge: 'tab-badge-navbar' },
+    { key: 'logs', label: '运行日志', icon: FileText, badge: 'tab-badge-logs' },
+    { key: 'account', label: T.accountTab, icon: UserCheck, badge: 'tab-badge-account' }
+  ];
 
   const handleManualCheck = async () => {
     setChecking(true);
@@ -123,591 +339,570 @@ export default function Settings() {
     if (dir) updateCache({ directory: dir });
   };
 
-  const handleClearCache = async () => {
-    if (!window.confirm('确认清空音频和歌词缓存吗？')) return;
-    await window.electronAPI?.clearAppCache?.({ cacheDir: cacheConfig?.directory || '' });
-    const stats = await window.electronAPI?.getCacheStats?.({ cacheDir: cacheConfig?.directory || '' }).catch(() => null);
-    setCacheStats(stats);
+  const handleClearSpecificCache = async (type) => {
+    const label = type === 'audio' ? '音频' : type === 'lyrics' ? '歌词' : type === 'covers' ? '封面' : '全部';
+    if (!window.confirm(`确认清空${label}缓存吗？`)) return;
+    if (window.electronAPI?.clearSpecificCache) {
+      await window.electronAPI.clearSpecificCache({ cacheDir: cacheConfig?.directory || '', type });
+    } else {
+      await window.electronAPI?.clearAppCache?.({ cacheDir: cacheConfig?.directory || '' });
+    }
+    refreshCacheStats();
   };
 
-  const formatBytes = (bytes = 0) => {
-    if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
-    if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${bytes} B`;
+  const handleToggleGlobalShortcuts = (enabled) => {
+    saveShortcuts({ ...shortcuts, globalEnabled: enabled });
+    window.electronAPI?.setGlobalShortcutsEnabled?.(enabled);
   };
 
-  const renderVersionUpdateSection = () => (
-    <div className="settings-section">
-      <h3 className="settings-title">
-        <CheckCircle size={18} /> 应用版本与更新
-      </h3>
-      <div className="settings-content">
-        <SettingRow label="当前应用版本">
-          <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-main)' }}>{APP_VERSION}</span>
-        </SettingRow>
-        <SettingRow label="检查最新更新" hint="在软件内检查、下载并安装新版">
-          <button 
-            className={`setting-btn ${checking ? '' : 'active'}`} 
-            onClick={handleManualCheck}
-            disabled={checking}
-          >
-            {checking ? '正在检查…' : '立即检查更新'}
-          </button>
-        </SettingRow>
+  /* ================= 1. TAB: 界面与外观 ================= */
+  const renderThemeTab = () => (
+    <div className="settings-stack">
+      <div className="settings-section">
+        <h3 className="settings-title"><Monitor size={18} />界面布局与外观</h3>
+        <div className="settings-content">
+          <SettingRow label="整体布局模式" hint="选择经典紧凑侧边栏布局或现代化晶透 Bento 布局">
+            <Segment
+              options={[
+                { value: 'modern', label: '现代化 Bento 布局' },
+                { value: 'classic', label: '经典侧栏布局' }
+              ]}
+              value={layoutMode}
+              onChange={setLayoutMode}
+            />
+          </SettingRow>
+          <SettingRow label="色彩外观模式" hint="深色沉浸、清爽浅色或智能跟随系统">
+            <Segment
+              options={[
+                { value: 'dark', label: '深色' },
+                { value: 'light', label: '浅色' },
+                { value: 'system', label: '跟随系统' }
+              ]}
+              value={colorMode}
+              onChange={setColorMode}
+            />
+          </SettingRow>
+          <SettingRow label="界面材质质感" hint="选择晶透毛玻璃质感或纯色扁平卡片质感">
+            <Segment
+              options={[
+                { value: 'glass', label: '晶透毛玻璃 (Glass)' },
+                { value: 'flat', label: '纯色扁平 (Flat)' }
+              ]}
+              value={appearanceConfig?.surfaceStyle || 'glass'}
+              onChange={(v) => saveAppearanceConfig({ surfaceStyle: v })}
+            />
+          </SettingRow>
+          <SettingRow label="关闭窗口行为" hint="点击主窗口右上角关闭按钮时的默认处理方式">
+            <Segment
+              options={[
+                { value: 'prompt', label: '弹出提示' },
+                { value: 'hide', label: '最小化到托盘' },
+                { value: 'close', label: '直接退出' }
+              ]}
+              value={profile.appearance?.closeBehavior || 'prompt'}
+              onChange={(v) => saveAppearanceConfig({ closeBehavior: v })}
+            />
+          </SettingRow>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-title"><Palette size={18} />主题配色与色彩风格</h3>
+        <div className="settings-content">
+          <SettingRow label="预设强调色" hint="选择预设品牌色彩或开启自定义渐变色">
+            <div className="color-row">
+              {themeOptions.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className="swatch"
+                  style={{ background: opt.color, borderColor: theme === opt.id ? '#ffffff' : 'rgba(255,255,255,0.18)' }}
+                  onClick={() => setTheme(opt.id)}
+                  title={opt.name}
+                />
+              ))}
+            </div>
+          </SettingRow>
+
+          {theme === 'custom' && (
+            <div className="settings-grid-3" style={{ marginTop: 12 }}>
+              <SettingRow label="主品牌强调色">
+                <input type="color" value={customPrimary} onChange={(e) => { setCustomPrimary(e.target.value); saveCustomThemeColors({ primary: e.target.value }); }} />
+              </SettingRow>
+              <SettingRow label="背景渐变起点">
+                <input type="color" value={customBgStart} onChange={(e) => { setCustomBgStart(e.target.value); saveCustomThemeColors({ bgStart: e.target.value }); }} />
+              </SettingRow>
+              <SettingRow label="背景渐变终点">
+                <input type="color" value={customBgEnd} onChange={(e) => { setCustomBgEnd(e.target.value); saveCustomThemeColors({ bgEnd: e.target.value }); }} />
+              </SettingRow>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-title"><CheckCircle size={18} />应用版本与更新</h3>
+        <div className="settings-content">
+          <SettingRow label="当前应用版本">
+            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--primary)' }}>{APP_VERSION}</span>
+          </SettingRow>
+          <SettingRow label="软件在线更新" hint="检查最新发布版本并一键升级">
+            <button className={`setting-btn ${checking ? '' : 'active'}`} onClick={handleManualCheck} disabled={checking}>
+              {checking ? '正在检查…' : '立即检查更新'}
+            </button>
+          </SettingRow>
+        </div>
       </div>
     </div>
   );
 
-  const renderProfileTools = () => <div className="settings-section"><h3 className="settings-title"><CheckCircle size={18} />{T.profile}</h3><div className="settings-content"><p className="settings-desc">{T.profileDesc}</p><div className="settings-actions-row"><button className="setting-btn" onClick={exportProfile}>{T.export}</button><button className="setting-btn" onClick={() => document.getElementById('import-file-input')?.click()}>{T.import}</button><button className="setting-btn danger" onClick={resetAll}>{T.reset}</button><input id="import-file-input" type="file" accept=".json,application/json" hidden onChange={handleImportProfile} /></div><p className="settings-desc">{`\u5f53\u524d\u914d\u7f6e\u7248\u672c\uff1av${profile.version}\uff0c\u5b58\u50a8 Key\uff1a`}<code>ichigomusic_profile_v2</code></p></div></div>;
-  const renderThemeTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Monitor size={18} />{T.layoutColor}</h3><div className="settings-content"><SettingRow label={T.layout} hint="Classic / Modern"><Segment options={[{ value: 'classic', label: T.classic }, { value: 'modern', label: T.modern }]} value={layoutMode} onChange={setLayoutMode} /></SettingRow><SettingRow label={T.colorMode}><Segment options={[{ value: 'dark', label: T.dark }, { value: 'light', label: T.light }, { value: 'system', label: T.system }]} value={colorMode} onChange={setColorMode} /></SettingRow><SettingRow label="关闭主面板"><Segment options={[{ value: 'prompt', label: '弹出提示' }, { value: 'hide', label: '隐藏到托盘' }, { value: 'close', label: '退出应用' }]} value={appearanceConfig.closeBehavior || 'prompt'} onChange={(v) => saveAppearanceConfig({ ...appearanceConfig, closeBehavior: v })} /></SettingRow><SettingRow label="界面质感" hint="现代布局支持玻璃与平面两种表面"><Segment options={[{ value: 'glass', label: '玻璃' }, { value: 'flat', label: '平面' }]} value={appearanceConfig.surfaceStyle || 'glass'} onChange={(v) => saveAppearanceConfig({ ...appearanceConfig, surfaceStyle: v })} /></SettingRow></div></div><div className="settings-section"><h3 className="settings-title"><Palette size={18} />{T.accent}</h3><div className="theme-selector">{themeOptions.map(t => <button key={t.id} className={`theme-btn ${theme === t.id ? 'active' : ''}`} onClick={() => setTheme(t.id)} style={{ background: t.color }} title={t.name} />)}</div></div><div className="settings-section"><h3 className="settings-title"><Palette size={18} />{T.customTheme}</h3><div className="settings-content settings-grid-3"><SettingRow label={T.primary}><input type="color" value={customPrimary} onChange={(e) => setCustomPrimary(e.target.value)} /></SettingRow><SettingRow label={T.bgStart}><input type="color" value={customBgStart} onChange={(e) => setCustomBgStart(e.target.value)} /></SettingRow><SettingRow label={T.bgEnd}><input type="color" value={customBgEnd} onChange={(e) => setCustomBgEnd(e.target.value)} /></SettingRow></div><button className="setting-btn active" onClick={handleApplyCustomTheme}>{T.applyCustom}</button></div>{renderProfileTools()}{renderVersionUpdateSection()}</div>;
-  const renderDesktopTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Airplay size={18} />{T.desktopWindow}</h3><div className="settings-content"><SettingRow label={T.floatingLyrics} hint="Electron"><button className={`setting-btn ${desktopLyricsConfig.show ? 'active' : ''}`} onClick={handleToggleDesktopLyrics}>{desktopLyricsConfig.show ? T.running : T.startNow}</button></SettingRow><SettingRow label={T.lockWindow}><Toggle checked={desktopLyricsConfig.locked} onChange={(v) => updateDesktop({ locked: v })} /></SettingRow><SettingRow label={T.topMost}><Toggle checked={desktopLyricsConfig.alwaysOnTop !== false} onChange={(v) => updateDesktop({ alwaysOnTop: v })} /></SettingRow><SettingRow label={`${T.opacity}\uff1a${Number(desktopLyricsConfig.opacity ?? 1).toFixed(2)}`}><input className="setting-slider" type="range" min="0.3" max="1" step="0.05" value={desktopLyricsConfig.opacity ?? 1} onChange={(e) => updateDesktop({ opacity: Number(e.target.value) })} /></SettingRow></div></div><div className="settings-section"><h3 className="settings-title"><Palette size={18} />{T.fontLayoutColor}</h3><div className="settings-content"><SettingRow label={T.fontFamily}><select className="setting-select" value={desktopLyricsConfig.fontFamily || 'Inter'} onChange={(e) => updateDesktop({ fontFamily: e.target.value })}><option value="Inter">Inter</option><option value="Noto Sans SC">Noto Sans SC</option><option value="Outfit">Outfit</option><option value="JetBrains Mono">JetBrains Mono</option><option value="system-ui">system-ui</option><option value="Microsoft YaHei">Microsoft YaHei</option></select></SettingRow><SettingRow label={`${T.fontSize}\uff1a${desktopLyricsConfig.fontSize || 36}px`}><input className="setting-slider" type="range" min="24" max="72" value={desktopLyricsConfig.fontSize || 36} onChange={(e) => updateDesktop({ fontSize: Number(e.target.value) })} /></SettingRow><SettingRow label={`${T.fontWeight}\uff1a${desktopLyricsConfig.fontWeight || 700}`}><Segment options={[300,400,500,600,700,800,900]} value={desktopLyricsConfig.fontWeight || 700} onChange={(v) => updateDesktop({ fontWeight: v, bold: v >= 700 })} /></SettingRow><SettingRow label={T.align}><Segment options={[{value:'left',label:T.left},{value:'center',label:T.center},{value:'right',label:T.right}]} value={desktopLyricsConfig.alignment || 'center'} onChange={(v)=>updateDesktop({alignment:v})}/></SettingRow><SettingRow label={T.lineCount}><Segment options={[{value:1,label:T.oneLine},{value:2,label:T.twoLines},{value:3,label:T.threeLines}]} value={desktopLyricsConfig.lineCount || 3} onChange={(v)=>updateDesktop({lineCount:v})}/></SettingRow><SettingRow label={T.showTranslation}><Toggle checked={desktopLyricsConfig.showTranslation !== false} onChange={(v)=>updateDesktop({showTranslation:v})}/></SettingRow><SettingRow label={`${T.translationSize}\uff1a${desktopLyricsConfig.translationSize || 22}px`}><input className="setting-slider" type="range" min="12" max="36" value={desktopLyricsConfig.translationSize || 22} onChange={(e)=>updateDesktop({translationSize:Number(e.target.value)})}/></SettingRow><SettingRow label="配色方案"><select className="setting-select" value={desktopLyricsConfig.colorPreset || 'strawberry'} onChange={(e) => updateDesktop({ colorPreset: e.target.value })}><option value="strawberry">草莓甜心</option><option value="aurora">极光绿野</option><option value="ocean">深海晴空</option><option value="purple">霓虹紫梦</option><option value="gold">灿烂暖金</option><option value="sakura">玫瑰樱粉</option><option value="dark">极简暗黑</option><option value="custom">自定义颜色</option></select></SettingRow>{(desktopLyricsConfig.colorPreset === 'custom') && (<><SettingRow label={T.playedColor}><div className="color-row"><input type="color" value={desktopLyricsConfig.playedColor || '#ff3366'} onChange={(e)=>updateDesktop({playedColor:e.target.value,color:e.target.value})}/>{swatches.map(c=><button key={`p-${c}`} className="swatch" style={{background:c}} onClick={()=>updateDesktop({playedColor:c,color:c})}/>)}</div></SettingRow><SettingRow label={T.unplayedColor}><div className="color-row"><input type="color" value={desktopLyricsConfig.unplayedColor || '#ffffff'} onChange={(e)=>updateDesktop({unplayedColor:e.target.value})}/>{swatches.map(c=><button key={`u-${c}`} className="swatch" style={{background:c}} onClick={()=>updateDesktop({unplayedColor:c})}/>)}</div></SettingRow><SettingRow label="描边颜色"><div className="color-row"><input type="color" value={desktopLyricsConfig.textStroke?.color || '#000000'} onChange={(e)=>updateDesktop({textStroke:{...(desktopLyricsConfig.textStroke || {}),color:e.target.value}})}/>{swatches.map(c=><button key={`s-${c}`} className="swatch" style={{background:c}} onClick={()=>updateDesktop({textStroke:{...(desktopLyricsConfig.textStroke || {}),color:c}})}/>)}</div></SettingRow></>)}<SettingRow label={T.stroke}><Toggle checked={desktopLyricsConfig.textStroke?.enabled} onChange={(v)=>updateDesktop({textStroke:{...desktopLyricsConfig.textStroke,enabled:v}})}/></SettingRow><SettingRow label={`${T.strokeWidth}\uff1a${desktopLyricsConfig.textStroke?.width ?? 0.5}px`}><input className="setting-slider" type="range" min="0" max="3" step="0.1" value={desktopLyricsConfig.textStroke?.width ?? 0.5} onChange={(e)=>updateDesktop({textStroke:{...desktopLyricsConfig.textStroke,width:Number(e.target.value)}})}/></SettingRow><SettingRow label={T.shadow}><Toggle checked={desktopLyricsConfig.textShadow?.enabled !== false} onChange={(v)=>updateDesktop({textShadow:{...desktopLyricsConfig.textShadow,enabled:v}})}/></SettingRow><SettingRow label={`${T.shadowBlur}\uff1a${desktopLyricsConfig.textShadow?.blur ?? 12}px`}><input className="setting-slider" type="range" min="0" max="30" value={desktopLyricsConfig.textShadow?.blur ?? 12} onChange={(e)=>updateDesktop({textShadow:{...desktopLyricsConfig.textShadow,blur:Number(e.target.value)}})}/></SettingRow><SettingRow label={T.glow}><Toggle checked={desktopLyricsConfig.glow?.enabled} onChange={(v)=>updateDesktop({glow:{...desktopLyricsConfig.glow,enabled:v}})}/></SettingRow></div></div></div>;
+  /* ================= 2. TAB: 桌面歌词 ================= */
+  const renderDesktopTab = () => (
+    <div className="settings-stack">
+      {/* WYSIWYG Live Preview Sandbox */}
+      <DesktopLyricsSandbox config={desktopLyricsConfig} />
+
+      <div className="settings-section">
+        <h3 className="settings-title"><Airplay size={18} />桌面悬浮窗控制</h3>
+        <div className="settings-content">
+          <SettingRow label="桌面歌词开关" hint="在桌面任意位置显示透明悬浮歌词">
+            <button className={`setting-btn ${desktopLyricsConfig.show ? 'active' : ''}`} onClick={() => { window.electronAPI?.toggleDesktopLyrics?.(); updateDesktop({ show: !desktopLyricsConfig.show }); }}>
+              {desktopLyricsConfig.show ? '已开启（点击关闭）' : '立即开启'}
+            </button>
+          </SettingRow>
+          <SettingRow label="锁定歌词窗口" hint="锁定后鼠标完全穿透至下层窗口或游戏，不影响游戏操作">
+            <SmoothSwitch checked={desktopLyricsConfig.locked} onChange={(v) => updateDesktop({ locked: v })} />
+          </SettingRow>
+          <SettingRow label="始终置顶 (Screen-Saver 级)" hint="覆盖在无边框全屏游戏与窗口最前端">
+            <SmoothSwitch checked={desktopLyricsConfig.alwaysOnTop !== false} onChange={(v) => updateDesktop({ alwaysOnTop: v })} />
+          </SettingRow>
+          <SettingRow label={`窗口透明度：${Math.round((desktopLyricsConfig.opacity ?? 1) * 100)}%`}>
+            <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={desktopLyricsConfig.opacity ?? 1} onChange={(e) => updateDesktop({ opacity: Number(e.target.value) })} />
+          </SettingRow>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-title"><Eye size={18} />排版、字号与对齐</h3>
+        <div className="settings-content">
+          <SettingRow label="字体选择">
+            <select className="setting-select" value={desktopLyricsConfig.fontFamily || 'Inter'} onChange={(e) => updateDesktop({ fontFamily: e.target.value })}>
+              <option value="Inter">Inter (现代无衬线)</option>
+              <option value="Outfit">Outfit (圆润几何)</option>
+              <option value="Microsoft YaHei">微软雅黑</option>
+              <option value="Noto Serif SC">思源宋体</option>
+              <option value="KaiTi">楷体</option>
+            </select>
+          </SettingRow>
+          <SettingRow label={`主歌词字号：${desktopLyricsConfig.fontSize || 36}px`}>
+            <input className="setting-slider" type="range" min="20" max="56" step="2" value={desktopLyricsConfig.fontSize || 36} onChange={(e) => updateDesktop({ fontSize: Number(e.target.value) })} />
+          </SettingRow>
+          <SettingRow label="文字对齐">
+            <Segment
+              options={[
+                { value: 'left', label: '居左' },
+                { value: 'center', label: '居中' },
+                { value: 'right', label: '居右' }
+              ]}
+              value={desktopLyricsConfig.alignment || 'center'}
+              onChange={(v) => updateDesktop({ alignment: v })}
+            />
+          </SettingRow>
+          <SettingRow label="显示行数">
+            <Segment
+              options={[
+                { value: 1, label: '单行模式' },
+                { value: 2, label: '双行模式' },
+                { value: 3, label: '三行模式' }
+              ]}
+              value={Number(desktopLyricsConfig.lineCount || 3)}
+              onChange={(v) => updateDesktop({ lineCount: Number(v) })}
+            />
+          </SettingRow>
+          <SettingRow label="显示歌词翻译" hint="在主歌词下方显示对应翻译文本">
+            <SmoothSwitch checked={desktopLyricsConfig.showTranslation !== false} onChange={(v) => updateDesktop({ showTranslation: v })} />
+          </SettingRow>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-title"><Palette size={18} />色彩与发光特效</h3>
+        <div className="settings-content">
+          <SettingRow label="配色方案预设">
+            <select className="setting-select" value={desktopLyricsConfig.colorPreset || 'strawberry'} onChange={(e) => updateDesktop({ colorPreset: e.target.value })}>
+              {Object.entries(desktopColorPresets).map(([key, item]) => (
+                <option key={key} value={key}>{item.label}</option>
+              ))}
+            </select>
+          </SettingRow>
+          <SettingRow label="文字发光辉光" hint="开启柔和霓虹文字光效">
+            <SmoothSwitch checked={desktopLyricsConfig.glow?.enabled === true} onChange={(v) => updateDesktop({ glow: { ...desktopLyricsConfig.glow, enabled: v } })} />
+          </SettingRow>
+          <SettingRow label="文字深色描边" hint="提高在浅色壁纸下的可读性">
+            <SmoothSwitch checked={desktopLyricsConfig.textStroke?.enabled !== false} onChange={(v) => updateDesktop({ textStroke: { ...desktopLyricsConfig.textStroke, enabled: v } })} />
+          </SettingRow>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ================= 3. TAB: 沉浸歌词 ================= */
   const renderImmersiveTab = () => {
     const currentMode = normalizeImmersiveMode(advancedLyricConfig.lyricsMode);
-    const modeName = selectedImmersiveMode.label || '当前模式';
-
     return (
       <div className="settings-stack">
-        {/* ================= 1. 通用基础配置 ================= */}
         <div className="settings-section">
-          <h3 className="settings-title"><Music4 size={18} />{T.immersive}</h3>
+          <h3 className="settings-title"><Music4 size={18} />沉浸式全屏歌词模式</h3>
           <div className="settings-content">
-            <SettingRow label="歌词模式">
-              <Segment options={IMMERSIVE_MODE_OPTIONS} value={currentMode} onChange={(v) => updateImmersive({ lyricsMode: v })} />
-            </SettingRow>
-            <p className="settings-desc" style={{ marginTop: -4 }}>{selectedImmersiveMode.description}</p>
-            <SettingRow label="沉浸效果预设" hint={(IMMERSIVE_PRESET_MAP[advancedLyricConfig.motionPreset || 'balanced'] || IMMERSIVE_PRESET_MAP.balanced).description}>
-              <select className="setting-select" value={advancedLyricConfig.motionPreset || 'balanced'} onChange={(e)=>applyImmersivePreset(e.target.value)}>
-                {IMMERSIVE_PRESETS.map(preset => <option key={preset.value} value={preset.value}>{preset.label}</option>)}
+            <SettingRow label="视觉渲染模式" hint={selectedImmersiveMode.description}>
+              <select
+                className="setting-select"
+                value={currentMode}
+                onChange={(e) => updateImmersive({ lyricsMode: e.target.value })}
+                style={{ minWidth: 200 }}
+              >
+                {IMMERSIVE_MODE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
               </select>
             </SettingRow>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-              <button type="button" className="setting-btn compact" onClick={resetImmersiveModeDefaults}>恢复当前模式默认参数</button>
-            </div>
-            <SettingRow label="歌词来源" hint="优先匹配时长接近的逐字歌词，必要时回退到原文歌词">
-              <select className="setting-select" value={advancedLyricConfig.lyricSources || 'amll,qq,kugou'} onChange={(e)=>updateImmersive({lyricSources:e.target.value})}>
-                <option value="amll,qq,kugou">自动匹配：时长优先 + 逐字优先</option>
+            <SettingRow label="歌词数据来源" hint="自动优先获取 AMLL/QQ/酷狗 高精逐字歌词">
+              <select className="setting-select" value={advancedLyricConfig.lyricSources || 'amll,qq,kugou'} onChange={(e) => updateImmersive({ lyricSources: e.target.value })}>
+                <option value="amll,qq,kugou">自动推荐：时长匹配 + 逐字优先</option>
                 <option value="netease">网易云原始歌词</option>
                 <option value="amll">AMLL TTML 逐字</option>
                 <option value="qq">QQ 音乐逐字</option>
-                <option value="kugou">酷狗逐字</option>
-                <option value="qq,kugou">QQ / 酷狗逐字</option>
+                <option value="kugou">酷狗音乐逐字</option>
               </select>
             </SettingRow>
-            <SettingRow label={`${T.lyricSize}：${advancedLyricConfig.fontSize || 28}px`}>
-              <input className="setting-slider" type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 28} onChange={(e)=>updateImmersive({fontSize:Number(e.target.value)})}/>
+            <SettingRow label={`主歌词字号：${advancedLyricConfig.fontSize || 28}px`}>
+              <input className="setting-slider" type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 28} onChange={(e) => updateImmersive({ fontSize: Number(e.target.value) })} />
             </SettingRow>
-            <SettingRow label="显示翻译" hint="在主歌词下方显示歌词译文（全沉浸模式通用）">
-              <Toggle checked={advancedLyricConfig.showTranslation !== false} onChange={(v)=>updateImmersive({showTranslation:v})}/>
+            <SettingRow label="显示翻译" hint="在主歌词下方呈现译文">
+              <SmoothSwitch checked={advancedLyricConfig.showTranslation !== false} onChange={(v) => updateImmersive({ showTranslation: v })} />
             </SettingRow>
-            <SettingRow label="显示假名注音（ルビ）" hint="在日文汉字上方显示平假名发音标注（全沉浸模式通用）">
-              <Toggle checked={advancedLyricConfig.showFurigana !== false} onChange={(v)=>updateImmersive({showFurigana:v})}/>
+            <SettingRow label="日文假名注音 (ルビ)" hint="在日文汉字上方标注读音">
+              <SmoothSwitch checked={advancedLyricConfig.showFurigana !== false} onChange={(v) => updateImmersive({ showFurigana: v })} />
             </SettingRow>
-            <SettingRow label={`${T.offset}：${Number(advancedLyricConfig.globalOffset || 0).toFixed(2)}s`}>
-              <input className="setting-slider" type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0} onChange={(e)=>updateImmersive({globalOffset:Number(e.target.value)})}/>
+            <SettingRow label={`时间微调偏移：${Number(advancedLyricConfig.globalOffset || 0).toFixed(2)}s`}>
+              <input className="setting-slider" type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0} onChange={(e) => updateImmersive({ globalOffset: Number(e.target.value) })} />
             </SettingRow>
-          </div>
-        </div>
-
-        {/* ================= 2. 当前模式专属配置 ================= */}
-        <div className="settings-section">
-          <h3 className="settings-title"><Sliders size={18} />{modeName}专属配置</h3>
-          <div className="settings-content">
-            {/* 常规滚动模式 (regular) */}
-            {currentMode === 'regular' && (
-              <>
-                <SettingRow label={T.position}><Segment options={[{value:'top',label:T.top},{value:'center',label:T.center}]} value={advancedLyricConfig.position || 'center'} onChange={(v)=>updateImmersive({position:v})}/></SettingRow>
-                <SettingRow label={T.curve}><Segment options={[{value:'smooth',label:T.smooth},{value:'rapid',label:T.rapid},{value:'gentle',label:T.gentle}]} value={advancedLyricConfig.animationCurve || 'smooth'} onChange={(v)=>updateImmersive({animationCurve:v})}/></SettingRow>
-                <SettingRow label={T.fade}><Toggle checked={advancedLyricConfig.fade !== false} onChange={(v)=>updateImmersive({fade:v})}/></SettingRow>
-                <SettingRow label={T.scale}><Toggle checked={advancedLyricConfig.scale !== false} onChange={(v)=>updateImmersive({scale:v})}/></SettingRow>
-                <SettingRow label={T.lyricGlow}><Toggle checked={advancedLyricConfig.showGlow === true} onChange={(v)=>updateImmersive({showGlow:v})}/></SettingRow>
-                
-                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '20px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>封面与背景呈现</h4>
-                <SettingRow label={T.showCover}><Toggle checked={coverConfig.showCover !== false && advancedLyricConfig.showCover !== false} onChange={(v)=>{updateCover({showCover:v}); updateImmersive({showCover:v});}}/></SettingRow>
-                <SettingRow label={T.showSongInfo}><Toggle checked={advancedLyricConfig.showSongInfo !== false} onChange={(v)=>updateImmersive({showSongInfo:v})}/></SettingRow>
-                <SettingRow label={T.coverShape}><Segment options={[{value:true,label:T.square},{value:false,label:T.rounded}]} value={coverConfig.squareCover !== false} onChange={(v)=>updateCover({squareCover:v})}/></SettingRow>
-                <SettingRow label={`${T.bgBlur}：${advancedLyricConfig.backgroundBlur || 32}`}><input className="setting-slider" type="range" min="0" max="60" value={advancedLyricConfig.backgroundBlur || 32} onChange={(e)=>updateImmersive({backgroundBlur:Number(e.target.value)})}/></SettingRow>
-                <SettingRow label={T.bgMode}><Segment options={[{value:'cover',label:T.cover},{value:'gradient',label:T.gradient},{value:'solid',label:T.solid},{value:'none',label:T.none}]} value={advancedLyricConfig.backgroundMode || 'cover'} onChange={(v)=>updateImmersive({backgroundMode:v})}/></SettingRow>
-
-                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '20px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>环形频谱可视化（封面后方）</h4>
-                <SettingRow label="环形样式">
-                  <Segment 
-                    options={[
-                      { value: 'radial', label: '辐射线条' },
-                      { value: 'particle', label: '发光粒子' },
-                      { value: 'wave', label: '连续波环' }
-                    ]} 
-                    value={advancedLyricConfig.ringStyle || 'radial'} 
-                    onChange={(v) => updateImmersive({ ringStyle: v })} 
-                  />
-                </SettingRow>
-                <SettingRow label={`采样精度 (线条/粒子数)：${advancedLyricConfig.ringBarCount ?? 180}`}>
-                  <input className="setting-slider" type="range" min="60" max="360" step="10" value={advancedLyricConfig.ringBarCount ?? 180} onChange={(e) => updateImmersive({ ringBarCount: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`最大延伸振幅：${advancedLyricConfig.ringMaxAmplitude ?? 80}px`}>
-                  <input className="setting-slider" type="range" min="20" max="200" step="5" value={advancedLyricConfig.ringMaxAmplitude ?? 80} onChange={(e) => updateImmersive({ ringMaxAmplitude: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`唱片边缘间距偏差：${advancedLyricConfig.ringInnerOffset ?? 5}px`}>
-                  <input className="setting-slider" type="range" min="-50" max="100" step="1" value={advancedLyricConfig.ringInnerOffset ?? 5} onChange={(e) => updateImmersive({ ringInnerOffset: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`画笔/粒子线宽：${advancedLyricConfig.ringLineWidth ?? 2.5}px`}>
-                  <input className="setting-slider" type="range" min="1.0" max="8.0" step="0.5" value={advancedLyricConfig.ringLineWidth ?? 2.5} onChange={(e) => updateImmersive({ ringLineWidth: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label="配色方案">
-                  <Segment 
-                    options={[
-                      { value: 'adaptive', label: '封面自适应' },
-                      { value: 'theme', label: '主题单色' },
-                      { value: 'custom', label: '双色渐变' }
-                    ]} 
-                    value={advancedLyricConfig.ringColorMode || 'adaptive'} 
-                    onChange={(v) => updateImmersive({ ringColorMode: v })} 
-                  />
-                </SettingRow>
-                {advancedLyricConfig.ringColorMode === 'custom' && (
-                  <SettingRow label="自定义渐变色">
-                    <div style={{ display: 'flex', gap: '16px' }}>
-                      <input type="color" value={advancedLyricConfig.ringCustomColor1 || '#17f700'} onChange={(e) => updateImmersive({ ringCustomColor1: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                      <input type="color" value={advancedLyricConfig.ringCustomColor2 || '#00d4ff'} onChange={(e) => updateImmersive({ ringCustomColor2: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                    </div>
-                  </SettingRow>
-                )}
-                <SettingRow label={`自转慢速慢转角：${advancedLyricConfig.ringRotationSpeed ?? 15}°/分钟`}>
-                  <input className="setting-slider" type="range" min="0" max="120" step="5" value={advancedLyricConfig.ringRotationSpeed ?? 15} onChange={(e) => updateImmersive({ ringRotationSpeed: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label="慢转角随声浪脉冲加速">
-                  <Toggle checked={advancedLyricConfig.ringRotationBeatSync === true} onChange={(v) => updateImmersive({ ringRotationBeatSync: v })} />
-                </SettingRow>
-                <SettingRow label={`发光辉光强度：${advancedLyricConfig.ringGlowIntensity ?? 0.6}`}>
-                  <input className="setting-slider" type="range" min="0.0" max="1.5" step="0.1" value={advancedLyricConfig.ringGlowIntensity ?? 0.6} onChange={(e) => updateImmersive({ ringGlowIntensity: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label="发光伴随节奏闪烁">
-                  <Toggle checked={advancedLyricConfig.ringGlowPulse !== false} onChange={(v) => updateImmersive({ ringGlowPulse: v })} />
-                </SettingRow>
-                <SettingRow label={`频谱上升平滑：${advancedLyricConfig.ringSmoothing ?? 0.25}`}>
-                  <input className="setting-slider" type="range" min="0.05" max="0.6" step="0.05" value={advancedLyricConfig.ringSmoothing ?? 0.25} onChange={(e) => updateImmersive({ ringSmoothing: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`残影回落时间：${advancedLyricConfig.ringTrailDecay ?? 0.85}`}>
-                  <input className="setting-slider" type="range" min="0.5" max="0.98" step="0.02" value={advancedLyricConfig.ringTrailDecay ?? 0.85} onChange={(e) => updateImmersive({ ringTrailDecay: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`频谱不透明度：${advancedLyricConfig.ringOpacity ?? 0.85}`}>
-                  <input className="setting-slider" type="range" min="0.1" max="1.0" step="0.05" value={advancedLyricConfig.ringOpacity ?? 0.85} onChange={(e) => updateImmersive({ ringOpacity: Number(e.target.value) })} />
-                </SettingRow>
-              </>
-            )}
-
-            {/* PV 歌词模式 (talk) */}
-            {currentMode === 'talk' && (
-              <>
-                <SettingRow label="PV 模板选择" hint="点击缩略图直接切换，或选择智能匹配/多选轮播">
-                  <select className="setting-select" value={advancedLyricConfig.ktvPreset || 'auto'}
-                    onChange={(e) => updateImmersive({ ktvPreset: e.target.value })}>
-                    <option value="auto">自动：按歌曲与封面智能匹配</option>
-                    <option value="multi">多选：随机轮播模板池</option>
-                    {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([val, label]) => (
-                      <option key={val} value={val}>{label}</option>
-                    ))}
-                  </select>
-                </SettingRow>
-
-                <div style={{ margin: '8px 0 18px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)' }}>全部 30 款独立视觉 MV 模板画廊：</div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>点击卡片即时切换生效</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '8px', maxHeight: '340px', overflowY: 'auto', paddingRight: '4px' }}>
-                    {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([value, label, background, tag, desc, palette]) => {
-                      const selected = (advancedLyricConfig.ktvPreset || 'auto') === value;
-                      return (
-                        <div
-                          key={value}
-                          onClick={() => updateImmersive({ ktvPreset: value })}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            border: selected ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.12)',
-                            background: selected ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.03)',
-                            boxShadow: selected ? '0 0 16px rgba(255,255,255,0.3)' : '0 2px 6px rgba(0,0,0,0.2)',
-                            cursor: 'pointer',
-                            transition: 'all 0.15s ease'
-                          }}
-                        >
-                          <div style={{
-                            width: '60px',
-                            height: '38px',
-                            borderRadius: '6px',
-                            background,
-                            boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35), 0 2px 4px rgba(0,0,0,0.3)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            fontSize: '11px',
-                            fontWeight: 800,
-                            color: '#ffffff',
-                            textShadow: '0 1px 2px rgba(0,0,0,0.8)'
-                          }}>
-                            PV
-                          </div>
-
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                              <span style={{ fontSize: '13px', fontWeight: 800, color: selected ? '#ffffff' : 'rgba(255,255,255,0.9)' }}>{label}</span>
-                              <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.12)', color: 'var(--primary)' }}>{tag || '独立'}</span>
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {desc || '专属排版与动效'}
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                            <div style={{ display: 'flex', gap: '3px' }}>
-                              {Array.isArray(palette) && palette.slice(0, 3).map((c, i) => (
-                                <span key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: c, border: '1px solid rgba(255,255,255,0.3)' }} />
-                              ))}
-                            </div>
-                            <span style={{
-                              fontSize: '10px',
-                              padding: '2px 6px',
-                              borderRadius: '4px',
-                              background: selected ? 'var(--primary)' : 'rgba(255,255,255,0.06)',
-                              color: selected ? '#ffffff' : 'rgba(255,255,255,0.6)',
-                              fontWeight: selected ? 800 : 500
-                            }}>
-                              {selected ? '使用中' : '应用'}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {advancedLyricConfig.ktvPreset === 'multi' && (
-                  <div style={{ margin: '0 0 16px', padding: '12px', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', background: 'rgba(255,255,255,0.03)' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: 'var(--primary)' }}>随机轮播模板池（勾选参与随机的模板）</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
-                      {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([value, label]) => {
-                        const pool = Array.isArray(advancedLyricConfig.ktvPresetPool) ? advancedLyricConfig.ktvPresetPool : [];
-                        const checked = pool.includes(value);
-                        return (
-                          <label key={`settings-multi-${value}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: checked ? 'var(--primary)' : 'var(--text-muted)', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={checked} onChange={() => {
-                              const next = checked ? pool.filter(i => i !== value) : [...pool, value];
-                              updateImmersive({ ktvPresetPool: next });
-                            }} />
-                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <SettingRow label={`动画游走速度：${(advancedLyricConfig.ktvSpeed ?? 2.0).toFixed(1)}x`}>
-                  <input className="setting-slider" type="range" min="0.2" max="4.0" step="0.1" value={advancedLyricConfig.ktvSpeed ?? 2.0} onChange={(e) => updateImmersive({ ktvSpeed: Number(e.target.value) })} />
-                </SettingRow>
-
-                <SettingRow label={`动效与爆发强度：${(advancedLyricConfig.ktvMotion ?? 1.0).toFixed(1)}x`}>
-                  <input className="setting-slider" type="range" min="0.1" max="2.0" step="0.1" value={advancedLyricConfig.ktvMotion ?? 1.0} onChange={(e) => updateImmersive({ ktvMotion: Number(e.target.value) })} />
-                </SettingRow>
-
-                <SettingRow label={`背景不透明度：${Math.round((advancedLyricConfig.ktvBgOpacity ?? 1.0) * 100)}%`}>
-                  <input className="setting-slider" type="range" min="0" max="1" step="0.05" value={advancedLyricConfig.ktvBgOpacity ?? 1.0} onChange={(e) => updateImmersive({ ktvBgOpacity: Number(e.target.value) })} />
-                </SettingRow>
-
-                <SettingRow label="显示歌曲开场标题卡" hint="在歌曲刚开始播放时展现全息/电影风格的歌曲标题卡片">
-                  <Toggle checked={advancedLyricConfig.ktvShowTitleCard !== false} onChange={(v) => updateImmersive({ ktvShowTitleCard: v })} />
-                </SettingRow>
-              </>
-            )}
-
-            {/* 气泡模式 (streamer) */}
-            {currentMode === 'streamer' && (
-              <>
-                <SettingRow label="气泡对齐方式">
-                  <Segment options={[{value:'alternate',label:'左右交替'},{value:'left',label:'全局居左'},{value:'right',label:'全局居右'}]} value={advancedLyricConfig.bubbleAlign || 'alternate'} onChange={(v)=>updateImmersive({bubbleAlign:v})}/>
-                </SettingRow>
-                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '20px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>底部流光氛围脉冲灯带</h4>
-                <SettingRow label={`灯带基础高度：${advancedLyricConfig.streamerBarHeight ?? 16}px`}>
-                  <input className="setting-slider" type="range" min="5" max="80" step="1" value={advancedLyricConfig.streamerBarHeight ?? 16} onChange={(e) => updateImmersive({ streamerBarHeight: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`脉冲波动高度：${advancedLyricConfig.streamerBarMaxHeight ?? 80}px`}>
-                  <input className="setting-slider" type="range" min="20" max="250" step="2" value={advancedLyricConfig.streamerBarMaxHeight ?? 80} onChange={(e) => updateImmersive({ streamerBarMaxHeight: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`灯带不透明度：${advancedLyricConfig.streamerBarOpacity ?? 0.75}`}>
-                  <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.streamerBarOpacity ?? 0.75} onChange={(e) => updateImmersive({ streamerBarOpacity: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`霓虹辉光扩散半径：${advancedLyricConfig.streamerBarGlowSpread ?? 20}px`}>
-                  <input className="setting-slider" type="range" min="0" max="50" step="2" value={advancedLyricConfig.streamerBarGlowSpread ?? 20} onChange={(e) => updateImmersive({ streamerBarGlowSpread: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`流光游动速度：${advancedLyricConfig.streamerBarFlowSpeed ?? 1.0}`}>
-                  <input className="setting-slider" type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.streamerBarFlowSpeed ?? 1.0} onChange={(e) => updateImmersive({ streamerBarFlowSpeed: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label="配色模式">
-                  <Segment 
-                    options={[
-                      { value: 'theme', label: '应用主题' },
-                      { value: 'custom', label: '自定义颜色' }
-                    ]} 
-                    value={advancedLyricConfig.streamerBarColorMode || 'theme'} 
-                    onChange={(v) => updateImmersive({ streamerBarColorMode: v })} 
-                  />
-                </SettingRow>
-                {advancedLyricConfig.streamerBarColorMode === 'custom' && (
-                  <SettingRow label="自定义灯带颜色">
-                    <input type="color" value={advancedLyricConfig.streamerBarCustomColor || '#ff4081'} onChange={(e) => updateImmersive({ streamerBarCustomColor: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                  </SettingRow>
-                )}
-              </>
-            )}
-
-            {/* 云阶模式 (cloudstep) */}
-            {currentMode === 'cloudstep' && (
-              <>
-                <SettingRow label={`云阶行间距：${advancedLyricConfig.cloudStepSpacing || 1}`}>
-                  <input className="setting-slider" type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.cloudStepSpacing || 1} onChange={(e)=>updateImmersive({cloudStepSpacing:Number(e.target.value)})}/>
-                </SettingRow>
-                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '20px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>层叠雾化波纹（背景云层）</h4>
-                <SettingRow label={`雾层发散羽化值：${advancedLyricConfig.cloudWaveBlur ?? 23}px`}>
-                  <input className="setting-slider" type="range" min="5" max="60" step="1" value={advancedLyricConfig.cloudWaveBlur ?? 23} onChange={(e) => updateImmersive({ cloudWaveBlur: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`声浪最大起伏高度：${advancedLyricConfig.cloudWaveHeight ?? 30}px`}>
-                  <input className="setting-slider" type="range" min="10" max="80" step="2" value={advancedLyricConfig.cloudWaveHeight ?? 30} onChange={(e) => updateImmersive({ cloudWaveHeight: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`雾波底噪声透明度：${(advancedLyricConfig.cloudWaveOpacity ?? 0.39).toFixed(2)}`}>
-                  <input className="setting-slider" type="range" min="0.02" max="0.5" step="0.01" value={advancedLyricConfig.cloudWaveOpacity ?? 0.39} onChange={(e) => updateImmersive({ cloudWaveOpacity: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`多层错落垂直分散度：${advancedLyricConfig.cloudWaveVerticalSpread ?? 1.0}`}>
-                  <input className="setting-slider" type="range" min="0" max="3.0" step="0.1" value={advancedLyricConfig.cloudWaveVerticalSpread ?? 1.0} onChange={(e) => updateImmersive({ cloudWaveVerticalSpread: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label="配色方案">
-                  <Segment 
-                    options={[
-                      { value: 'theme', label: '跟随系统' },
-                      { value: 'custom', label: '自定义颜色' }
-                    ]} 
-                    value={advancedLyricConfig.cloudWaveColorMode || 'theme'} 
-                    onChange={(v) => updateImmersive({ cloudWaveColorMode: v })} 
-                  />
-                </SettingRow>
-                {advancedLyricConfig.cloudWaveColorMode === 'custom' && (
-                  <SettingRow label="自定义雾波颜色">
-                    <input type="color" value={advancedLyricConfig.cloudWaveCustomColor || '#ff4081'} onChange={(e) => updateImmersive({ cloudWaveCustomColor: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                  </SettingRow>
-                )}
-              </>
-            )}
-
-            {/* 空间画布 (spatial) */}
-            {currentMode === 'spatial' && (
-              <>
-                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>3D 空间声部扩散粒子</h4>
-                <SettingRow label={`空间星图粒子数量：${advancedLyricConfig.spatialParticleCount ?? 200}`}>
-                  <input className="setting-slider" type="range" min="50" max="500" step="10" value={advancedLyricConfig.spatialParticleCount ?? 200} onChange={(e) => updateImmersive({ spatialParticleCount: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`粒子发光放大系数：${advancedLyricConfig.spatialParticleSize ?? 1.0}`}>
-                  <input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.spatialParticleSize ?? 1.0} onChange={(e) => updateImmersive({ spatialParticleSize: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`星云粒子不透明度：${advancedLyricConfig.spatialParticleOpacity ?? 0.7}`}>
-                  <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.spatialParticleOpacity ?? 0.7} onChange={(e) => updateImmersive({ spatialParticleOpacity: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`X轴低频声压扩散：${advancedLyricConfig.spatialSpreadX ?? 1.0}`}>
-                  <input className="setting-slider" type="range" min="0.5" max="3.0" step="0.1" value={advancedLyricConfig.spatialSpreadX ?? 1.0} onChange={(e) => updateImmersive({ spatialSpreadX: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`Y轴中频声压扩散：${advancedLyricConfig.spatialSpreadY ?? 1.0}`}>
-                  <input className="setting-slider" type="range" min="0.5" max="3.0" step="0.1" value={advancedLyricConfig.spatialSpreadY ?? 1.0} onChange={(e) => updateImmersive({ spatialSpreadY: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`Z轴高频声压扩散：${advancedLyricConfig.spatialSpreadZ ?? 1.0}`}>
-                  <input className="setting-slider" type="range" min="0.5" max="3.0" step="0.1" value={advancedLyricConfig.spatialSpreadZ ?? 1.0} onChange={(e) => updateImmersive({ spatialSpreadZ: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`焦外景深虚化系数：${advancedLyricConfig.spatialDepthBlur ?? 0.5}`}>
-                  <input className="setting-slider" type="range" min="0" max="2.0" step="0.1" value={advancedLyricConfig.spatialDepthBlur ?? 0.5} onChange={(e) => updateImmersive({ spatialDepthBlur: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label="配色方案">
-                  <Segment 
-                    options={[
-                      { value: 'adaptive', label: '星域自适应' },
-                      { value: 'custom', label: '自定义颜色' }
-                    ]} 
-                    value={advancedLyricConfig.spatialColorMode || 'adaptive'} 
-                    onChange={(v) => updateImmersive({ spatialColorMode: v })} 
-                  />
-                </SettingRow>
-                {advancedLyricConfig.spatialColorMode === 'custom' && (
-                  <SettingRow label="自定义星场颜色">
-                    <input type="color" value={advancedLyricConfig.spatialCustomColor || '#ff4081'} onChange={(e) => updateImmersive({ spatialCustomColor: e.target.value })} style={{ width: '48px', height: '32px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
-                  </SettingRow>
-                )}
-              </>
-            )}
-
-            {/* 黑胶光碟 (vinyl) */}
-            {currentMode === 'vinyl' && (
-              <>
-                <SettingRow label={`黑胶旋转行间距：${advancedLyricConfig.vinylLineSpacing ?? 0.7}`}>
-                  <input className="setting-slider" type="range" min="0.5" max="2" step="0.1" value={advancedLyricConfig.vinylLineSpacing ?? 0.7} onChange={(e)=>updateImmersive({vinylLineSpacing:Number(e.target.value)})}/>
-                </SettingRow>
-                <SettingRow label={`黑胶旋转倾斜角：${advancedLyricConfig.vinylTiltAngle ?? 0}°`}>
-                  <input className="setting-slider" type="range" min="-60" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle ?? 0} onChange={(e)=>updateImmersive({vinylTiltAngle:Number(e.target.value)})}/>
-                </SettingRow>
-                <h4 style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--primary)', marginTop: '20px', marginBottom: '12px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '6px' }}>黑胶盘面频谱刻槽与触针高频光</h4>
-                <SettingRow label={`盘面频谱声部沟槽：${advancedLyricConfig.vinylGrooveCount ?? 12}圈`}>
-                  <input className="setting-slider" type="range" min="4" max="30" step="1" value={advancedLyricConfig.vinylGrooveCount ?? 12} onChange={(e) => updateImmersive({ vinylGrooveCount: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`刻线声部基础宽度：${advancedLyricConfig.vinylGrooveWidth ?? 1.0}`}>
-                  <input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.vinylGrooveWidth ?? 1.0} onChange={(e) => updateImmersive({ vinylGrooveWidth: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`低音共鸣最大振幅：${advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0}`}>
-                  <input className="setting-slider" type="range" min="1.5" max="10.0" step="0.5" value={advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0} onChange={(e) => updateImmersive({ vinylGrooveMaxWidth: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`声压不透明度占比：${advancedLyricConfig.vinylGrooveOpacity ?? 0.6}`}>
-                  <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.vinylGrooveOpacity ?? 0.6} onChange={(e) => updateImmersive({ vinylGrooveOpacity: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`触点唱针光晕反射：${advancedLyricConfig.vinylStylusGlowStrength ?? 0.7}`}>
-                  <input className="setting-slider" type="range" min="0" max="1.5" step="0.1" value={advancedLyricConfig.vinylStylusGlowStrength ?? 0.7} onChange={(e) => updateImmersive({ vinylStylusGlowStrength: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label={`唱针漫散光圈直径：${advancedLyricConfig.vinylStylusGlowSize ?? 20}px`}>
-                  <input className="setting-slider" type="range" min="8" max="50" step="1" value={advancedLyricConfig.vinylStylusGlowSize ?? 20} onChange={(e) => updateImmersive({ vinylStylusGlowSize: Number(e.target.value) })} />
-                </SettingRow>
-                <SettingRow label="唱盘表面高反光偏振效果">
-                  <Toggle checked={advancedLyricConfig.vinylEdgeReflection !== false} onChange={(v) => updateImmersive({ vinylEdgeReflection: v })} />
-                </SettingRow>
-                <SettingRow label="配色方案">
-                  <Segment 
-                    options={[
-                      { value: 'theme', label: '跟随主题' },
-                      { value: 'white', label: '银白同心射线' }
-                    ]} 
-                    value={advancedLyricConfig.vinylGrooveColorMode || 'theme'} 
-                    onChange={(v) => updateImmersive({ vinylGrooveColorMode: v })} 
-                  />
-                </SettingRow>
-              </>
-            )}
-
-            {/* 胶片模式 (filmstrip) */}
-            {currentMode === 'filmstrip' && (
-              <>
-                <SettingRow label={`胶片帧间距：${advancedLyricConfig.filmFrameGap ?? 18}px`} hint="控制上下歌词胶片帧的距离">
-                  <input className="setting-slider" type="range" min="8" max="48" step="2" value={advancedLyricConfig.filmFrameGap ?? 18} onChange={(e)=>updateImmersive({filmFrameGap:Number(e.target.value)})}/>
-                </SettingRow>
-                <SettingRow label={`非当前帧透明度：${Math.round((advancedLyricConfig.filmOpacity ?? 0.22) * 100)}%`}>
-                  <input className="setting-slider" type="range" min="0.05" max="0.5" step="0.05" value={advancedLyricConfig.filmOpacity ?? 0.22} onChange={(e)=>updateImmersive({filmOpacity:Number(e.target.value)})}/>
-                </SettingRow>
-                <SettingRow label={`当前帧放大：${Math.round((advancedLyricConfig.filmActiveScale ?? 1.08) * 100)}%`}>
-                  <input className="setting-slider" type="range" min="1" max="1.2" step="0.01" value={advancedLyricConfig.filmActiveScale ?? 1.08} onChange={(e)=>updateImmersive({filmActiveScale:Number(e.target.value)})}/>
-                </SettingRow>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* ================= 3. 沉浸背景微粒与通用装饰 ================= */}
-        <div className="settings-section">
-          <h3 className="settings-title"><Sliders size={18} />沉浸背景微粒与装饰</h3>
-          <div className="settings-content">
-            <SettingRow label="背景悬浮粒子装饰 (Floating Decor)" hint="漂浮星空微粒装饰效果"><Toggle checked={advancedLyricConfig.showDecor === true} onChange={(v)=>updateImmersive({showDecor:v})}/></SettingRow>
-            {advancedLyricConfig.showDecor === true && (
-              <>
-                <SettingRow label={`浮动粒子发射数：${advancedLyricConfig.decorParticleAmount ?? 40}`}><input className="setting-slider" type="range" min="10" max="150" step="5" value={advancedLyricConfig.decorParticleAmount ?? 40} onChange={(e)=>updateImmersive({decorParticleAmount:Number(e.target.value)})}/></SettingRow>
-                <SettingRow label={`粒子浮游运动速度：${(advancedLyricConfig.decorSpeed ?? 1.0).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.decorSpeed ?? 1.0} onChange={(e)=>updateImmersive({decorSpeed:Number(e.target.value)})}/></SettingRow>
-                <SettingRow label={`粒子发光微调半径：${(advancedLyricConfig.decorSize ?? 1.0).toFixed(1)}x`}><input className="setting-slider" type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.decorSize ?? 1.0} onChange={(e)=>updateImmersive({decorSize:Number(e.target.value)})}/></SettingRow>
-                <SettingRow label={`粒子底噪基础透明：${(advancedLyricConfig.decorOpacity ?? 0.6).toFixed(2)}`}><input className="setting-slider" type="range" min="0.1" max="1.0" step="0.05" value={advancedLyricConfig.decorOpacity ?? 0.6} onChange={(e)=>updateImmersive({decorOpacity:Number(e.target.value)})}/></SettingRow>
-                <SettingRow label="随音乐节奏闪烁喷洒" hint="关闭后微粒将保持匀速平静漂浮"><Toggle checked={advancedLyricConfig.decorTwinkle === true} onChange={(v)=>updateImmersive({decorTwinkle:v})}/></SettingRow>
-              </>
-            )}
-            <SettingRow label="背景水印与装饰符" hint="漂浮音符、十字星与水印"><Toggle checked={advancedLyricConfig.backgroundDecor !== false} onChange={(v)=>updateImmersive({backgroundDecor:v})}/></SettingRow>
-            <SettingRow label="动态音阶描边" hint="视觉残影与霓虹拖影效果"><Toggle checked={advancedLyricConfig.dynamicOutlines !== false} onChange={(v)=>updateImmersive({dynamicOutlines:v})}/></SettingRow>
           </div>
         </div>
       </div>
     );
   };
-  const applyEqPreset = (preset) => updateAudio({ equalizer: { ...audioConfig.equalizer, enabled: preset !== 'none', preset, bands: EQ_PRESETS[preset] || audioConfig.equalizer?.bands || EQ_PRESETS.none } });
-  const renderAudioTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Sliders size={18} />{T.qualityEq}</h3><div className="settings-content"><SettingRow label={T.quality}><select className="setting-select" value={audioQuality} onChange={(e)=>setAudioQuality(e.target.value)}><option value="standard">{T.standard}</option><option value="higher">{T.higher}</option><option value="exhigh">{T.exhigh}</option><option value="lossless">{T.lossless}</option><option value="hires">Hi-Res</option><option value="jymaster">{T.master}</option></select></SettingRow><SettingRow label={T.enableEq}><Toggle checked={audioConfig.equalizer?.enabled} onChange={(v)=>updateAudio({equalizer:{...audioConfig.equalizer,enabled:v}})}/></SettingRow><SettingRow label={T.eqPreset}><Segment options={Object.keys(EQ_PRESETS).map(k=>({value:k,label:k==='none'?T.none:k}))} value={audioConfig.equalizer?.preset || 'none'} onChange={applyEqPreset}/></SettingRow><div className="eq-bands">{eqBands.map(band=><label key={band} className="eq-band"><span>{band}</span><input type="range" min="-12" max="12" step="1" value={audioConfig.equalizer?.bands?.[band] ?? 0} onChange={(e)=>updateAudio({equalizer:{...audioConfig.equalizer,preset:'custom',bands:{...(audioConfig.equalizer?.bands || EQ_PRESETS.none),[band]:Number(e.target.value)}}})}/><em>{audioConfig.equalizer?.bands?.[band] ?? 0}dB</em></label>)}</div></div></div><div className="settings-section"><h3 className="settings-title"><Sliders size={18} />{T.reverbRender}</h3><div className="settings-content"><SettingRow label={T.reverb}><Toggle checked={audioConfig.reverb?.enabled} onChange={(v)=>updateAudio({reverb:{...audioConfig.reverb,enabled:v}})}/></SettingRow><SettingRow label={T.reverbPreset}><Segment options={['none','hall','room','plate','spring','stadium']} value={audioConfig.reverb?.preset || 'none'} onChange={(v)=>updateAudio({reverb:{...audioConfig.reverb,enabled:v!=='none',preset:v}})}/></SettingRow><SettingRow label={`${T.mix}\uff1a${audioConfig.reverb?.mix ?? 0.3}`}><input className="setting-slider" type="range" min="0" max="1" step="0.05" value={audioConfig.reverb?.mix ?? 0.3} onChange={(e)=>updateAudio({reverb:{...audioConfig.reverb,mix:Number(e.target.value)}})}/></SettingRow><SettingRow label={`${T.decay}\uff1a${audioConfig.reverb?.decay ?? 1.5}s`}><input className="setting-slider" type="range" min="0.1" max="10" step="0.1" value={audioConfig.reverb?.decay ?? 1.5} onChange={(e)=>updateAudio({reverb:{...audioConfig.reverb,decay:Number(e.target.value)}})}/></SettingRow><SettingRow label={T.compressor}><Toggle checked={audioConfig.compressor?.enabled} onChange={(v)=>updateAudio({compressor:{...audioConfig.compressor,enabled:v}})}/></SettingRow><SettingRow label="无缝切歌淡入淡出" hint="换歌与切曲时自动平滑音量渐变"><Toggle checked={audioConfig.crossfade === true} onChange={(v)=>updateAudio({crossfade:v})}/></SettingRow>{audioConfig.crossfade && (<SettingRow label={`淡入淡出过渡：${((audioConfig.crossfadeDuration || 2000) / 1000).toFixed(1)}s`}><input className="setting-slider" type="range" min="500" max="6000" step="500" value={audioConfig.crossfadeDuration || 2000} onChange={(e)=>updateAudio({crossfadeDuration:Number(e.target.value)})}/></SettingRow>)}<SettingRow label={T.spatial}><Segment options={[{value:'stereo',label:T.stereo},{value:'crossfeed',label:T.crossfeed},{value:'mono',label:T.mono}]} value={audioConfig.spatial?.mode || 'stereo'} onChange={(v)=>updateAudio({spatial:{...audioConfig.spatial,enabled:v!=='stereo',mode:v}})}/></SettingRow><SettingRow label={T.backend}><Segment options={[{value:'web audio',label:'Web Audio'},{value:'html5',label:'HTML5'}]} value={renderingConfig.audioBackend || 'web audio'} onChange={(v)=>updateRendering({audioBackend:v})}/></SettingRow><SettingRow label={T.decoder}><Segment options={['auto','wasm','native']} value={renderingConfig.decoderMode || 'auto'} onChange={(v)=>updateRendering({decoderMode:v})}/></SettingRow><SettingRow label={T.fps}><Segment options={[{value:24,label:'24'},{value:30,label:'30'},{value:60,label:'60'},{value:120,label:'120'},{value:0,label:'无限'}]} value={renderingConfig.visualizerFps ?? 30} onChange={(v)=>updateRendering({visualizerFps:v})}/></SettingRow><SettingRow label="GPU 硬件加速" hint="开启以获得极低延迟与超高帧率渲染（需重启应用生效）"><Toggle checked={renderingConfig.hardwareAcceleration !== false} onChange={(v)=>{updateRendering({hardwareAcceleration:v}); window.electronAPI?.setHardwareAcceleration?.(v);}}/></SettingRow><SettingRow label="减少动态效果" hint="全局降低辉光、粒子和转场动画，适合低配置设备"><Toggle checked={renderingConfig.reducedMotion === true} onChange={(v)=>updateRendering({reducedMotion:v})}/></SettingRow></div></div></div>;
+
+  /* ================= 4. TAB: 音频与音效 ================= */
+  const renderAudioTab = () => (
+    <div className="settings-stack">
+      <div className="settings-section">
+        <h3 className="settings-title"><Volume2 size={18} />音频输出与解析</h3>
+        <div className="settings-content">
+          <SettingRow label="音质偏好选择" hint="优先获取无损高码率音频流">
+            <select className="setting-select" value={audioQuality} onChange={(e) => setAudioQuality(e.target.value)}>
+              <option value="standard">标准音质 (128kbps)</option>
+              <option value="higher">较高音质 (192kbps)</option>
+              <option value="exhigh">极高音质 (320kbps)</option>
+              <option value="lossless">无损音质 (FLAC)</option>
+              <option value="hires">Hi-Res 高解析母带</option>
+              <option value="jymaster">超清母带 (Master)</option>
+            </select>
+          </SettingRow>
+          <SettingRow label={`切歌平滑淡入淡出 (Crossfade)：${(audioConfig.crossfade ?? 0.8).toFixed(1)}s`} hint="切歌与暂停时平滑渐变音量，彻底消除爆音">
+            <input className="setting-slider" type="range" min="0" max="5.0" step="0.2" value={audioConfig.crossfade ?? 0.8} onChange={(e) => updateAudio({ crossfade: Number(e.target.value) })} />
+          </SettingRow>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-title"><Sliders size={18} />10 段图形均衡器 (EQ)</h3>
+        <div className="settings-content">
+          <SettingRow label="启用均衡器">
+            <SmoothSwitch checked={audioConfig.equalizer?.enabled === true} onChange={(v) => updateAudio({ equalizer: { ...audioConfig.equalizer, enabled: v } })} />
+          </SettingRow>
+          {audioConfig.equalizer?.enabled && (
+            <>
+              <SettingRow label="EQ 音效预设">
+                <select className="setting-select" value={audioConfig.equalizer?.preset || 'none'} onChange={(e) => updateAudio({ equalizer: { ...audioConfig.equalizer, preset: e.target.value, bands: EQ_PRESETS[e.target.value] || EQ_PRESETS.none } })}>
+                  <option value="none">原声直通 (Flat)</option>
+                  <option value="pop">流行 (Pop)</option>
+                  <option value="rock">摇滚 (Rock)</option>
+                  <option value="jazz">爵士 (Jazz)</option>
+                  <option value="classical">古典 (Classical)</option>
+                  <option value="electronic">电子 (Electronic)</option>
+                  <option value="bassBoost">重低音增强 (Bass Boost)</option>
+                  <option value="vocalBoost">人声清晰 (Vocal Boost)</option>
+                </select>
+              </SettingRow>
+              <div className="eq-bands" style={{ marginTop: 12 }}>
+                {['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'].map((band, idx) => {
+                  const val = audioConfig.equalizer?.bands?.[idx] || 0;
+                  return (
+                    <div key={band} className="eq-band">
+                      <em>{val > 0 ? `+${val}` : val}dB</em>
+                      <input
+                        type="range"
+                        min="-12"
+                        max="12"
+                        step="1"
+                        value={val}
+                        onChange={(e) => {
+                          const next = [...(audioConfig.equalizer?.bands || [0,0,0,0,0,0,0,0,0,0])];
+                          next[idx] = Number(e.target.value);
+                          updateAudio({ equalizer: { ...audioConfig.equalizer, preset: 'custom', bands: next } });
+                        }}
+                      />
+                      <span>{band}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ================= 5. TAB: 存储与缓存 ================= */
   const renderCacheTab = () => {
     const cfg = cacheConfig || DEFAULT_PROFILE.audio.cache;
-    const activeDir = cfg.directory || defaultCacheDir || '安装目录\\ichigomusic-cache';
-    return <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><HardDrive size={18} />播放缓存</h3><div className="settings-content"><SettingRow label="启用缓存"><Toggle checked={cfg.enabled !== false} onChange={(v)=>updateCache({enabled:v})}/></SettingRow><SettingRow label="缓存内容"><Segment options={[{value:'all',label:'音频 + 歌词'},{value:'lyrics',label:'仅歌词'},{value:'audio',label:'仅音频'}]} value={cfg.audio === false ? 'lyrics' : cfg.lyrics === false ? 'audio' : 'all'} onChange={(v)=>updateCache({audio:v!=='lyrics',lyrics:v!=='audio'})}/></SettingRow><SettingRow label={`最大占用：${cfg.maxSizeGb || 1} GB`}><input className="setting-slider" type="range" min="1" max="10" step="1" value={cfg.maxSizeGb || 1} onChange={(e)=>updateCache({maxSizeGb:Number(e.target.value)})}/></SettingRow><SettingRow label="缓存目录" hint={cfg.directory ? '自定义路径' : '默认安装目录'}><div className="cache-path-row"><input className="settings-text-input" value={activeDir} readOnly/><button className="setting-btn compact" onClick={handleSelectCacheDir}>选择目录</button><button className="setting-btn compact" onClick={()=>updateCache({directory:''})}>恢复默认</button></div></SettingRow><SettingRow label="当前占用"><div className="cache-stats-row"><span>{cacheStats ? `${formatBytes(cacheStats.size)} / ${cacheStats.files} 个文件` : '统计中…'}</span><button className="setting-btn danger compact" onClick={handleClearCache}>清空缓存</button></div></SettingRow></div></div></div>;
-  };
-  const renderShortcutsTab = () => <div className="settings-stack"><div className="settings-section"><h3 className="settings-title"><Command size={18} />{T.shortcutsTitle}</h3><div className="settings-content"><SettingRow label="启用快捷键" hint="全局开启或关闭快捷键绑定"><Toggle checked={shortcuts?.enabled !== false} onChange={(v) => saveShortcuts({ ...shortcuts, enabled: v })} /></SettingRow></div></div>{(shortcuts?.enabled !== false) && (<div className="settings-section"><h3 className="settings-title"><Command size={18} />快捷键绑定列</h3><div className="settings-content shortcut-list">{shortcutLabels.map(([key,label,desc])=><ShortcutRow key={key} label={label} description={desc} value={shortcuts?.[key]} onChange={(value)=>saveShortcuts({...shortcuts,[key]:value})} onReset={()=>saveShortcuts({...shortcuts,[key]:DEFAULT_PROFILE.shortcuts[key]})}/>)}<button className="setting-btn danger" onClick={()=>saveShortcuts(DEFAULT_PROFILE.shortcuts)}>{T.resetShortcuts}</button></div></div>)}</div>;
-  const renderNavbarTab = () => <div className="settings-section"><h3 className="settings-title"><Menu size={18} />{T.navItems}</h3><div className="settings-content">{navbarConfig.map((item,index)=><SettingRow key={item.key} label={item.name} hint={item.key}><Toggle checked={item.show} onChange={()=>handleToggleNavbarItem(index)}/></SettingRow>)}</div></div>;
-  const handleCopyRuntimeLogs = async () => {
-    const text = formatRuntimeLogs(runtimeLogs);
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
-    setLogCopyState('已复制');
-    window.setTimeout(() => setLogCopyState(''), 1400);
-  };
-  const renderLogsTab = () => (
-    <div className="settings-stack">
-      <div className="settings-section runtime-log-section">
-        <div className="runtime-log-header">
-          <div>
-            <h3 className="settings-title"><FileText size={18} />运行日志</h3>
-            <p className="settings-desc">仅记录本次运行，退出应用后自动清空。敏感 Cookie 和令牌会自动隐藏。</p>
-          </div>
-          <div className="runtime-log-actions">
-            <span>{runtimeLogs.length} 条</span>
-            <button className="setting-btn compact" onClick={handleCopyRuntimeLogs}><Copy size={14} />{logCopyState || '复制日志'}</button>
-            <button className="setting-btn danger compact" onClick={() => clearRuntimeLogs({ addMarker: true })}><Trash2 size={14} />清空</button>
+    return (
+      <div className="settings-stack">
+        <div className="settings-section">
+          <h3 className="settings-title"><HardDrive size={18} />存储占用与深度管理</h3>
+          <div className="settings-content">
+            <StorageVisualizer stats={cacheStats} onClear={handleClearSpecificCache} onSelectDir={handleSelectCacheDir} />
+            <SettingRow label="全部清空" hint="一键清空所有已下载的离线歌曲、歌词与封面图">
+              <button className="setting-btn danger" onClick={() => handleClearSpecificCache('all')}>清空全部缓存</button>
+            </SettingRow>
           </div>
         </div>
-        <div className="runtime-log-list" role="log" aria-live="polite">
-          {runtimeLogs.length === 0 ? (
-            <div className="runtime-log-empty">当前会话还没有日志。</div>
-          ) : runtimeLogs.map(entry => (
-            <div className={`runtime-log-entry level-${entry.level}`} key={entry.id}>
-              <div className="runtime-log-meta">
-                <time>{new Date(entry.timestamp).toLocaleTimeString('zh-CN', { hour12: false })}</time>
-                <span>{entry.level.toUpperCase()}</span>
-                <span>{entry.source}</span>
-                {entry.count > 1 && <span>×{entry.count}</span>}
-              </div>
-              <div className="runtime-log-message">{entry.message}</div>
-              {entry.details && <pre>{entry.details}</pre>}
-            </div>
+
+        <div className="settings-section">
+          <h3 className="settings-title"><Zap size={18} />缓存路径与上限</h3>
+          <div className="settings-content">
+            <SettingRow label="启用离线缓存" hint="自动缓存已播放歌曲以加速二次播放并节省流量">
+              <SmoothSwitch checked={cfg.enabled !== false} onChange={(v) => updateCache({ enabled: v })} />
+            </SettingRow>
+            <SettingRow label={`缓存上限容量：${cfg.maxSizeGb || 2} GB`}>
+              <input className="setting-slider" type="range" min="1" max="20" step="1" value={cfg.maxSizeGb || 2} onChange={(e) => updateCache({ maxSizeGb: Number(e.target.value) })} />
+            </SettingRow>
+            <SettingRow label="自定义缓存目录" hint={cfg.directory || defaultCacheDir || '默认应用目录'}>
+              <button className="setting-btn" onClick={handleSelectCacheDir}>更改目录</button>
+            </SettingRow>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /* ================= 6. TAB: 快捷键 ================= */
+  const renderShortcutsTab = () => (
+    <div className="settings-stack">
+      <div className="settings-section">
+        <h3 className="settings-title"><Zap size={18} />全局系统级后台热键</h3>
+        <div className="settings-content">
+          <SettingRow label="启用全局后台热键" hint="在全屏游戏或使用其他软件时，随时按媒体键或 Alt+Shift 组合键切歌">
+            <SmoothSwitch checked={shortcuts?.globalEnabled !== false} onChange={handleToggleGlobalShortcuts} />
+          </SettingRow>
+          <div className="settings-desc" style={{ marginTop: 4 }}>
+            支持系统专用媒体键（Play/Next/Prev）以及全局快捷组合：<br />
+            • <kbd>Alt + Shift + Space</kbd> : 播放 / 暂停<br />
+            • <kbd>Alt + Shift + Right</kbd> : 下一首<br />
+            • <kbd>Alt + Shift + Left</kbd> : 上一首
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-title"><Command size={18} />应用内快捷键</h3>
+        <div className="settings-content shortcut-list">
+          {shortcutLabels.map(([key, label, desc]) => (
+            <ShortcutRow
+              key={key}
+              label={label}
+              description={desc}
+              value={shortcuts?.[key]}
+              onChange={(val) => saveShortcuts({ ...shortcuts, [key]: val })}
+              onReset={() => saveShortcuts({ ...shortcuts, [key]: DEFAULT_PROFILE.shortcuts[key] })}
+            />
           ))}
         </div>
       </div>
     </div>
   );
-  const renderAccountTab = () => <div className="settings-section"><h3 className="settings-title"><UserCheck size={18} />{T.account}</h3><div className="settings-content">{user ? <div className="account-card"><img src={user.avatarUrl} alt={user.nickname}/><div><h3>{user.nickname}</h3><p>{T.uid}: {user.userId}</p></div><button className="setting-btn danger" onClick={logout}><Power size={16}/>{T.logout}</button></div> : <div className="settings-stack"><Login onLoginSuccess={()=>setActiveTab('theme')}/><div className="settings-section inset"><h4>{T.cookieLogin}</h4><p className="settings-desc">{T.cookieDesc}</p><textarea className="settings-textarea" rows={4} value={cookieInput} onChange={(e)=>setCookieInput(e.target.value)} placeholder="MUSIC_U=xxxxx; __csrf=yyyyy;"/><button className="setting-btn active" onClick={handleCookieLogin}>{T.importCookie}</button></div></div>}</div></div>;
-  const renderActiveTab = () => activeTab === 'theme' ? renderThemeTab() : activeTab === 'desktop' ? renderDesktopTab() : activeTab === 'audio' ? renderAudioTab() : activeTab === 'cache' ? renderCacheTab() : activeTab === 'shortcuts' ? renderShortcutsTab() : activeTab === 'navbar' ? renderNavbarTab() : activeTab === 'logs' ? renderLogsTab() : renderAccountTab();
-  return <div className="view-container"><h2 style={{ fontFamily: 'var(--font-title)', fontSize: 20, fontWeight: 700, marginBottom: 24 }}>{T.title}</h2><div className="settings-shell"><aside className="settings-tabs">{tabs.map(tab=>{const Icon=tab.icon; return <button key={tab.key} className={activeTab===tab.key?'active':''} onClick={()=>setActiveTab(tab.key)}><Icon size={18}/><span>{tab.label}</span></button>;})}</aside><main className="settings-panel">{renderActiveTab()}</main></div></div>;
+
+  /* ================= 7. TAB: 侧边导航 ================= */
+  const renderNavbarTab = () => (
+    <div className="settings-section">
+      <h3 className="settings-title"><Menu size={18} />侧边导航栏项定制</h3>
+      <div className="settings-content">
+        {navbarConfig.map((item, index) => (
+          <SettingRow key={item.key} label={item.name} hint={item.key}>
+            <SmoothSwitch
+              checked={item.show}
+              onChange={() => {
+                const next = [...navbarConfig];
+                next[index] = { ...next[index], show: !next[index].show };
+                saveNavbarConfig(next);
+              }}
+            />
+          </SettingRow>
+        ))}
+      </div>
+    </div>
+  );
+
+  /* ================= 8. TAB: 运行日志 ================= */
+  const renderLogsTab = () => (
+    <div className="settings-stack">
+      <div className="settings-section runtime-log-section">
+        <div className="runtime-log-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div>
+            <h3 className="settings-title" style={{ margin: 0 }}><FileText size={18} />运行时日志记录</h3>
+            <p className="settings-desc" style={{ margin: '4px 0 0' }}>记录本次会话的播放器与网络状态，退出应用后自动销毁。</p>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button className="setting-btn compact" onClick={async () => {
+              await navigator.clipboard.writeText(formatRuntimeLogs(runtimeLogs));
+              setLogCopyState('已复制');
+              setTimeout(() => setLogCopyState(''), 1500);
+            }}>
+              <Copy size={14} /> {logCopyState || '复制日志'}
+            </button>
+            <button className="setting-btn danger compact" onClick={() => clearRuntimeLogs({ addMarker: true })}>
+              <Trash2 size={14} /> 清空
+            </button>
+          </div>
+        </div>
+        <div className="runtime-log-list" style={{ maxHeight: 400, overflowY: 'auto' }}>
+          {runtimeLogs.length === 0 ? (
+            <div className="runtime-log-empty">暂无运行日志</div>
+          ) : (
+            runtimeLogs.map((entry) => (
+              <div key={entry.id} className={`runtime-log-entry level-${entry.level}`}>
+                <div className="runtime-log-meta">
+                  <time>{new Date(entry.timestamp).toLocaleTimeString()}</time>
+                  <span>{entry.level.toUpperCase()}</span>
+                  <span>{entry.source}</span>
+                </div>
+                <div className="runtime-log-message">{entry.message}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ================= 9. TAB: 账号中心 ================= */
+  const renderAccountTab = () => (
+    <div className="settings-stack">
+      <div className="settings-section">
+        <h3 className="settings-title"><UserCheck size={18} />账号登录与同步</h3>
+        <div className="settings-content">
+          {user ? (
+            <div className="account-card">
+              <img src={user.avatarUrl} alt={user.nickname} className="account-avatar" />
+              <div className="account-info">
+                <h3 className="account-name">{user.nickname}</h3>
+                <p className="account-uid">网易云 UID: {user.userId}</p>
+              </div>
+              <button className="setting-btn danger" onClick={logout}><Power size={15} /> 退出登录</button>
+            </div>
+          ) : (
+            <div className="settings-stack">
+              <Login onLoginSuccess={() => setActiveTab('theme')} />
+              <div className="settings-section inset">
+                <h4>备用登录：粘贴 Cookie</h4>
+                <p className="settings-desc">如扫码受限，可粘贴包含 MUSIC_U 的 Cookie 字符串建立长效登录。</p>
+                <textarea className="settings-textarea" rows={3} value={cookieInput} onChange={(e) => setCookieInput(e.target.value)} placeholder="MUSIC_U=xxxxx; __csrf=yyyy..." />
+                <button className="setting-btn" style={{ marginTop: 8 }} onClick={async () => {
+                  if (!cookieInput.trim()) return alert('请输入有效 Cookie 字符串');
+                  cookieInput.split(';').forEach(item => {
+                    const idx = item.indexOf('=');
+                    if (idx !== -1) document.cookie = `${item.substring(0, idx).trim()}=${item.substring(idx + 1).trim()}; path=/; max-age=31536000`;
+                  });
+                  alert('Cookie 导入成功！正在同步验证…');
+                  setCookieInput('');
+                }}>导入 Cookie 验证登录</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="settings-section">
+        <h3 className="settings-title"><ShieldCheck size={18} />配置文件备份与迁移</h3>
+        <div className="settings-content">
+          <p className="settings-desc">导出或导入所有设置，包括主题、桌面歌词、快捷键、均衡器与播放状态。</p>
+          <div className="settings-actions-row">
+            <button className="setting-btn" onClick={exportProfile}>导出配置文件</button>
+            <button className="setting-btn" onClick={() => document.getElementById('import-file-input')?.click()}>导入配置文件</button>
+            <button className="setting-btn danger" onClick={() => { if (window.confirm('确认重置所有设置为默认值吗？此操作不可逆。')) { resetProfile(); window.location.reload(); } }}>重置所有设置</button>
+            <input id="import-file-input" type="file" accept=".json,application/json" hidden onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const reader = new FileReader();
+              reader.onload = () => {
+                try {
+                  importProfile(reader.result);
+                  alert('配置导入成功，即将刷新应用！');
+                  window.location.reload();
+                } catch (err) {
+                  alert('配置文件格式错误，导入失败');
+                }
+              };
+              reader.readAsText(file);
+            }} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderActiveTab = () => {
+    switch (activeTab) {
+      case 'theme': return renderThemeTab();
+      case 'desktop': return renderDesktopTab();
+      case 'immersive': return renderImmersiveTab();
+      case 'audio': return renderAudioTab();
+      case 'cache': return renderCacheTab();
+      case 'shortcuts': return renderShortcutsTab();
+      case 'navbar': return renderNavbarTab();
+      case 'logs': return renderLogsTab();
+      case 'account': return renderAccountTab();
+      default: return renderThemeTab();
+    }
+  };
+
+  return (
+    <div className="view-container">
+      <div className="settings-shell">
+        <aside className="settings-tabs">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                className={isActive ? 'active' : ''}
+                onClick={() => setActiveTab(tab.key)}
+              >
+                <div className={`tab-icon-badge ${tab.badge}`}>
+                  <Icon size={15} />
+                </div>
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </aside>
+        <main className="settings-panel">{renderActiveTab()}</main>
+      </div>
+    </div>
+  );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

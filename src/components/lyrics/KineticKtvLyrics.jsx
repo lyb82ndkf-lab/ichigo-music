@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useMemo, useState } from 'react';
 import { PVEngine } from '../../pv/core/engine';
 import { templates, getTemplate } from '../../pv/templates';
 import { subscribeLyricClock } from '../../utils/lyricClock';
-
+import { parseDisplayTokens } from './MonetLyricsEngine';
 // 模板名称映射（兼容旧预设 ID、中文名称与新模板 ID）
 const PRESET_ALIAS_MAP = {
   '蓝色构成': 'blueInk',
@@ -105,34 +105,57 @@ export default function KineticKtvLyrics({
   const [isEngineReady, setIsEngineReady] = useState(false);
 
 
-  // 整理歌词时间轴格式以契合 PVEngine（包含原生 YRC/AMLL 逐字与持续时间）
+  // 统一使用 parseDisplayTokens 生成与桌面歌词、常规滚动 100% 相同数据源的逐字时间轴
   const lyricTimeline = useMemo(() => {
     if (!Array.isArray(lyrics) || lyrics.length === 0) return [];
     return lyrics
       .filter(l => l && typeof l.time === 'number' && (l.text || '').trim())
-      .map(l => ({
-        time: l.time,
-        text: (l.text || '').trim(),
-        duration: l.duration,
-        translation: l.translation,
-        words: Array.isArray(l.words) && l.words.length > 0 ? l.words.map(w => {
-          const wTime = typeof w.time === 'number'
-            ? w.time
-            : (typeof w.startSec === 'number' ? w.startSec : (typeof w.start === 'number' ? w.start / 1000 : l.time));
-          const wDur = typeof w.duration === 'number'
-            ? w.duration
-            : (typeof w.durationSec === 'number' ? w.durationSec : (typeof w.endSec === 'number' && typeof w.startSec === 'number' ? w.endSec - w.startSec : 0.25));
-          return {
-            text: w.text || '',
-            time: wTime,
-            duration: wDur,
-            startSec: wTime,
-            durationSec: wDur
-          };
-        }) : undefined
-      }));
-  }, [lyrics]);
+      .map(l => {
+        const tokens = parseDisplayTokens(l);
+        const words = [];
+        for (const token of tokens) {
+          if (!token || !token.text) continue;
+          if (Array.isArray(token.graphemeTimings) && token.graphemeTimings.length > 0) {
+            for (const gt of token.graphemeTimings) {
+              words.push({
+                text: gt.char || token.text,
+                time: gt.startTime,
+                startSec: gt.startTime,
+                duration: Math.max(0.01, gt.endTime - gt.startTime),
+                durationSec: Math.max(0.01, gt.endTime - gt.startTime),
+                endSec: gt.endTime
+              });
+            }
+          } else if (token.timed && token.startTime >= 0) {
+            words.push({
+              text: token.text,
+              time: token.startTime,
+              startSec: token.startTime,
+              duration: Math.max(0.01, token.endTime - token.startTime),
+              durationSec: Math.max(0.01, token.endTime - token.startTime),
+              endSec: token.endTime
+            });
+          } else {
+            words.push({
+              text: token.text,
+              time: l.time,
+              startSec: l.time,
+              duration: 0.1,
+              durationSec: 0.1,
+              endSec: l.time + 0.1
+            });
+          }
+        }
 
+        return {
+          time: l.time,
+          text: (l.text || '').trim(),
+          duration: l.duration,
+          translation: l.translation,
+          words: words.length > 0 ? words : undefined
+        };
+      });
+  }, [lyrics]);
 
   // 解析目标模板
   const resolvedTemplate = useMemo(() => {

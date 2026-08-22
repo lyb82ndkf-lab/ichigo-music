@@ -361,16 +361,23 @@ export function resolveLineStatus(line, index, activeIndex, currentTime) {
 /**
  * 提取滑动窗口渲染队列
  */
-export function buildVisibleWindow(lines, activeIndex, currentTime, options = { before: 3, after: 3 }) {
+export function buildVisibleWindow(lines, activeIndex, currentTime = 0, options = { before: 5, after: 6 }) {
   if (!lines || lines.length === 0) return [];
 
-  let start = activeIndex - options.before;
-  let end = activeIndex + options.after;
+  const beforeCount = (typeof options === 'object' && options !== null && Number.isFinite(options.before))
+    ? options.before
+    : (typeof options === 'number' && Number.isFinite(options) ? options : 5);
+  const afterCount = (typeof options === 'object' && options !== null && Number.isFinite(options.after))
+    ? options.after
+    : 6;
+
+  let start = activeIndex - beforeCount;
+  let end = activeIndex + afterCount;
 
   // 处理边界
   if (activeIndex === -1) {
     start = 0;
-    end = options.before + options.after;
+    end = beforeCount + afterCount;
   } else {
     // 保证至少渲染这么多个，如果贴近头部，多渲尾部
     if (start < 0) {
@@ -384,12 +391,13 @@ export function buildVisibleWindow(lines, activeIndex, currentTime, options = { 
     }
   }
 
-  start = Math.max(0, start);
-  end = Math.min(lines.length - 1, end);
+  start = Math.max(0, Math.floor(start));
+  end = Math.min(lines.length - 1, Math.floor(end));
 
   const windowEntries = [];
   for (let i = start; i <= end; i++) {
     const line = lines[i];
+    if (!line) continue;
     windowEntries.push({
       key: `rail-${line.time}-${i}`,
       line,

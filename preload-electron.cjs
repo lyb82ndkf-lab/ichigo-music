@@ -30,9 +30,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Taskbar / System Tray media controls
   onMediaPrev: (callback) => subscribe('media-prev', callback),
   onMediaNext: (callback) => subscribe('media-next', callback),
-  onMediaTogglePlay: (callback) => subscribe('media-toggle-play', callback),
-  updatePlaybackState: (isPlaying) => ipcRenderer.send('update-playback-state', isPlaying),
-  setPlaybackControlsLocked: (locked) => ipcRenderer.send('set-playback-controls-locked', Boolean(locked)),
+  onMediaPlayPause: (callback) => subscribe('media-play-pause', callback),
+  onMediaTogglePlay: (callback) => subscribe('media-play-pause', callback),
+  setPlaybackControlsLocked: (locked) => ipcRenderer.send('set-playback-controls-locked', locked),
+  setGlobalShortcutsEnabled: (enabled) => ipcRenderer.send('set-global-shortcuts-enabled', enabled),
+  clearSpecificCache: (data) => ipcRenderer.invoke('clear-specific-cache', data),
   initMediaIcons: (icons) => ipcRenderer.send('init-media-icons', icons),
   
   // Profile Storage IPC

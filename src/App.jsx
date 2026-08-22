@@ -71,6 +71,8 @@ function AppContent() {
     setPlayMode,
     playMode,
     toggleLike,
+    isLyricsOpen,
+    setIsLyricsOpen,
     isQueueOpen,
     setIsQueueOpen,
     navigateTo,
@@ -81,7 +83,6 @@ function AppContent() {
       downloadUpdate,
       installUpdate
   } = useApp();
-
   const { engineRef, lyrics, activeLineIndex, lyricsSongId } = useLyricEngine(
     currentSong?.id,
     audioElement,
@@ -142,7 +143,7 @@ function AppContent() {
     return () => clearInterval(timer);
   }, [listenState.roomId]);
 
-  const [isLyricsOpen, setIsLyricsOpen] = useState(false);
+
   const [isImmersiveSettingsOpen, setIsImmersiveSettingsOpen] = useState(false);
   const [immersiveSettingsTab, setImmersiveSettingsTab] = useState('lyrics');
   const [isLyricAdjusterOpen, setIsLyricAdjusterOpen] = useState(false);
@@ -498,7 +499,7 @@ function AppContent() {
           </header>
           
           {/* View Component Wrapper */}
-          <div className="view-scroll-container" style={{ flex: 1, overflowY: currentView === 'listen-together' ? 'hidden' : 'auto' }}>
+          <div className="view-scroll-container" style={{ flex: 1, height: '100%', overflowY: (currentView === 'listen-together' || (layoutMode === 'modern' && (currentView === 'home' || !currentView))) ? 'hidden' : 'auto' }}>
             <Suspense fallback={<div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>}>
               {viewComponent}
             </Suspense>

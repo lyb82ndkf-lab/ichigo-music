@@ -92,6 +92,7 @@ export function AppProvider({ children }) {
   const [duration, setDuration] = useState(() => Number(profile.lastSession?.duration || 0));
   const [resumeTime, setResumeTimeState] = useState(() => profile.lastSession?.resumeTime ?? profile.lastSession?.progress ?? null);
   const [recentlyPlayed, setRecentlyPlayed] = useState(() => profile.recentlyPlayed || []);
+  const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isClosePromptOpen, setIsClosePromptOpen] = useState(false);
   const [listenPlaybackLocked, setListenPlaybackLocked] = useState(false);
@@ -1548,11 +1549,12 @@ export function AppProvider({ children }) {
     recentlyPlayed,
     refreshRecentlyPlayed: fetchRemoteRecentlyPlayed,
     resolveSongCover,
+    isLyricsOpen,
+    setIsLyricsOpen,
     isQueueOpen,
     setIsQueueOpen,
     listenPlaybackLocked,
     setListenPlaybackLocked,
-
     isClosePromptOpen,
     setIsClosePromptOpen,
     requestAppClose,
@@ -1623,7 +1625,7 @@ export function AppProvider({ children }) {
   }), [
     profile, updateProfile, currentView, viewData, historyIndex, viewHistory.length, user, likedSongIds,
     likedPlaylistId, currentSong, playlist, playlistIndex, isPlaying, volume, progress, duration, playMode,
-    recentlyPlayed, isQueueOpen, listenPlaybackLocked, setListenPlaybackLocked, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
+    recentlyPlayed, isLyricsOpen, isQueueOpen, listenPlaybackLocked, setListenPlaybackLocked, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
     visualizerMode, appearanceConfig, coverConfig, backgroundConfig, advancedLyricConfig, visualizerConfig,
     desktopLyricsConfig, audioConfig, cacheConfig, playbackConfig, renderingConfig, shortcuts, userPlaylists, audioQuality,
     resumeTime, audioElement, setUser, setCurrentSongAndPersist, setPlaylistAndPersist, setPlaylistIndexAndPersist,
