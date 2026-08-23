@@ -62,4 +62,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearAppCache: (data) => ipcRenderer.invoke('clear-app-cache', data),
   selectLocalMusicFolder: () => ipcRenderer.invoke('select-local-music-folder'),
   scanLocalMusicFolder: (folderPath) => ipcRenderer.invoke('scan-local-music-folder', folderPath),
+  convertFuriganaBatch: (lines) => ipcRenderer.invoke('furigana:convert-batch', lines),
+  convertFuriganaText: (text) => ipcRenderer.invoke('furigana:convert-text', text),
+  saveLyricFile: (data) => ipcRenderer.invoke('save-lyric-file', data),
 });

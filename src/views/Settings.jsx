@@ -7,8 +7,9 @@ import { DEFAULT_PROFILE, EQ_PRESETS, exportProfile, importProfile, resetProfile
 import {
   Airplay, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu,
   Monitor, Music4, Palette, Power, Sliders, Trash2, UserCheck, Sparkles,
-  Volume2, Eye, RefreshCw, Layers, ShieldCheck, Zap
+  Volume2, Eye, RefreshCw, Layers, ShieldCheck, Zap, Download
 } from 'lucide-react';
+import LyricExportModal from '../components/LyricExportModal';
 import { IMMERSIVE_MODE_OPTIONS, IMMERSIVE_MODE_PARAMETER_KEYS, normalizeImmersiveMode, KTV_TEMPLATE_GALLERY } from '../utils/immersiveModes';
 import { IMMERSIVE_PRESETS, IMMERSIVE_PRESET_MAP } from '../utils/immersivePresets';
 import { clearRuntimeLogs, formatRuntimeLogs, getRuntimeLogs, subscribeRuntimeLogs } from '../utils/runtimeLog';
@@ -273,7 +274,7 @@ export default function Settings() {
     audioConfig, saveAudioConfig, cacheConfig, saveCacheConfig,
     renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts,
     audioQuality, setAudioQuality, viewData, checkForUpdates,
-    appearanceConfig, saveAppearanceConfig
+    appearanceConfig, saveAppearanceConfig, currentSong
   } = useApp();
 
   const [activeTab, setActiveTab] = useState(() => viewData?.tab || (user ? 'theme' : 'account'));
@@ -287,6 +288,7 @@ export default function Settings() {
   const [customBgEnd, setCustomBgEnd] = useState(customThemeColors.bgEnd);
   const [cookieInput, setCookieInput] = useState('');
 
+  const [isLyricExportOpen, setIsLyricExportOpen] = useState(false);
   useEffect(() => {
     if (viewData?.tab) setActiveTab(viewData.tab);
   }, [viewData]);
@@ -588,6 +590,31 @@ export default function Settings() {
             </SettingRow>
             <SettingRow label={`时间微调偏移：${Number(advancedLyricConfig.globalOffset || 0).toFixed(2)}s`}>
               <input className="setting-slider" type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0} onChange={(e) => updateImmersive({ globalOffset: Number(e.target.value) })} />
+            </SettingRow>
+            <SettingRow label="歌词导出与分享" hint={currentSong ? `将《${currentSong.name || currentSong.title || '当前歌曲'}》导出为 LRC / 双语 / 逐字 / TXT` : "将当前播放歌曲的歌词导出为标准 LRC、双语 LRC、逐字 YRC 或纯文本"}>
+              <button
+                type="button"
+                className="setting-btn primary"
+                onClick={() => setIsLyricExportOpen(true)}
+                disabled={!currentSong}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, var(--primary, #ff4081), #9c27b0)',
+                  color: '#fff',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  cursor: currentSong ? 'pointer' : 'not-allowed',
+                  opacity: currentSong ? 1 : 0.6
+                }}
+              >
+                <Download size={15} />
+                <span>{currentSong ? '导出当前歌词' : '请先播放歌曲'}</span>
+              </button>
             </SettingRow>
           </div>
         </div>
@@ -903,6 +930,11 @@ export default function Settings() {
         </aside>
         <main className="settings-panel">{renderActiveTab()}</main>
       </div>
+      <LyricExportModal
+        isOpen={isLyricExportOpen}
+        onClose={() => setIsLyricExportOpen(false)}
+        currentSong={currentSong}
+      />
     </div>
   );
 }

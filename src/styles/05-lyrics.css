@@ -448,6 +448,8 @@
 ruby {
   ruby-align: center;
   ruby-position: over;
+  display: inline-ruby;
+  vertical-align: baseline;
 }
 
 ruby rt {

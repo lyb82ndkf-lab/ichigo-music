@@ -29,3 +29,6 @@ electron-user-data/
 
 # Nested reference tool (separate repository)
 .reference-pv-tool/
+
+# Temporary test files
+test.txt

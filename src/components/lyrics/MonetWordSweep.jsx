@@ -252,8 +252,9 @@ export default function MonetWordSweep({
     };
   }, [token, graphemeOffsets, fontPx, isChorus, lineRenderEndTime, status, showGlow, glowIntensity, animationStyle]);
 
-  const rubyHtml = useMemo(() => toRubyHtml(token.text, showFurigana !== false), [token.text, showFurigana]);
-
+  const rubyHtml = useMemo(() => (
+    showFurigana === false ? token.text : (token.rubyHtml || toRubyHtml(token.text, true))
+  ), [token.text, token.rubyHtml, showFurigana]);
   if (!token.timed) {
     // 标点、空格、没有时轴信息的普通字符
     return (
@@ -303,9 +304,8 @@ export default function MonetWordSweep({
           WebkitMaskRepeat: 'no-repeat',
           maskRepeat: 'no-repeat'
         }}
-      >
-        {token.text}
-      </span>
+        dangerouslySetInnerHTML={{ __html: rubyHtml }}
+      />
     </span>
   );
 }

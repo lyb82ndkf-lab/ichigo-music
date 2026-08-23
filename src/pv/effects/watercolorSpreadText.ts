@@ -150,13 +150,16 @@ export class WatercolorSpreadText extends BaseEffect {
           const rightEdge = charSlots[endIdx].slotX + charSlots[endIdx].charW / 2;
           const compoundCenterX = (leftEdge + rightEdge) / 2;
 
+          const rubyFill = resolveColor('$primary', this.palette) || '#ffffff';
           const rubyObj = new PIXI.Text({
             text: seg.ruby,
             style: new PIXI.TextStyle({
               fontFamily: '"Yu Mincho", "Noto Serif JP", serif',
-              fontSize: Math.max(10, Math.round(this.fontSize * 0.28)),
-              fill: resolveColor('$secondary', this.palette) || '#4a6fa5',
-              alpha: 0.9
+              fontSize: Math.max(11, Math.round(this.fontSize * 0.28)),
+              fontWeight: '600',
+              fill: rubyFill,
+              stroke: { color: '#000000', width: 2 },
+              dropShadow: { color: '#000000', alpha: 0.6, blur: 4, distance: 1 }
             })
           });
           rubyObj.anchor.set(0.5, 0.5);

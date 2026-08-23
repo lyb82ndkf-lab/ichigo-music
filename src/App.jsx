@@ -37,6 +37,7 @@ const Settings = lazy(() => import('./views/Settings'));
 const ModernHome = lazy(() => import('./views/ModernHome'));
 const LocalMusic = lazy(() => import('./views/LocalMusic'));
 import LyricAdjusterModal from './components/LyricAdjusterModal';
+import LyricExportModal from './components/LyricExportModal';
 import SleepTimerModal from './components/SleepTimerModal';
 
 // Icons
@@ -148,6 +149,7 @@ function AppContent() {
   const [immersiveSettingsTab, setImmersiveSettingsTab] = useState('lyrics');
   const [isLyricAdjusterOpen, setIsLyricAdjusterOpen] = useState(false);
   const [isSleepTimerOpen, setIsSleepTimerOpen] = useState(false);
+  const [isLyricExportOpen, setIsLyricExportOpen] = useState(false);
 
   const updateAdvancedLyricConfig = (patch) => {
     saveAdvancedLyricConfig({
@@ -676,16 +678,15 @@ function AppContent() {
                         </select>
                       </label>
 
-                      <div style={{ margin: '8px 0 12px', display: 'flex', gap: '8px' }}>
+                      <div style={{ margin: '8px 0 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                         <button
                           type="button"
-                          onClick={() => setIsLyricAdjusterOpen(true)}
+                          onClick={() => setIsLyricExportOpen(true)}
                           style={{
-                            flex: 1,
-                            padding: '8px 12px',
+                            padding: '9px 12px',
                             borderRadius: '8px',
-                            border: '1px solid rgba(255, 64, 129, 0.4)',
-                            background: 'rgba(255, 64, 129, 0.15)',
+                            border: '1px solid rgba(255, 64, 129, 0.5)',
+                            background: 'linear-gradient(135deg, rgba(255, 64, 129, 0.25), rgba(156, 39, 176, 0.25))',
                             color: '#fff',
                             fontSize: '12px',
                             fontWeight: 600,
@@ -693,31 +694,56 @@ function AppContent() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            gap: '6px'
+                            gap: '6px',
+                            boxShadow: '0 2px 8px rgba(255, 64, 129, 0.2)',
+                            transition: 'all 0.2s'
                           }}
                         >
-                          ⚡ 歌词时间轴微调 / 手动换源
+                          📤 导出歌词 (LRC / 双语 / 逐字 / TXT)
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => setIsSleepTimerOpen(true)}
-                          style={{
-                            padding: '8px 12px',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(255,255,255,0.18)',
-                            background: 'rgba(255,255,255,0.06)',
-                            color: '#fff',
-                            fontSize: '12px',
-                            fontWeight: 500,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '4px'
-                          }}
-                        >
-                          🌙 睡眠定时
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => setIsLyricAdjusterOpen(true)}
+                            style={{
+                              flex: 1,
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(255, 255, 255, 0.18)',
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              color: '#fff',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '6px'
+                            }}
+                          >
+                            ⚡ 歌词微调 / 换源
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsSleepTimerOpen(true)}
+                            style={{
+                              padding: '8px 12px',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(255,255,255,0.18)',
+                              background: 'rgba(255,255,255,0.06)',
+                              color: '#fff',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            🌙 睡眠定时
+                          </button>
+                        </div>
                       </div>
 
                       <label className="setting-row-inline">
@@ -1384,6 +1410,12 @@ function AppContent() {
           isOpen={isLyricAdjusterOpen}
           onClose={() => setIsLyricAdjusterOpen(false)}
           currentSong={currentSong}
+        />
+        <LyricExportModal
+          isOpen={isLyricExportOpen}
+          onClose={() => setIsLyricExportOpen(false)}
+          currentSong={currentSong}
+          lyrics={currentSongLyrics}
         />
         <SleepTimerModal
           isOpen={isSleepTimerOpen}

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { parseLrc, parseYrc, mergeTranslation, mergeRomaji, computeLineDurations } from '../utils/lyrics/lyricParser.js';
 import { api } from '../utils/api.js';
-
+import { warmupFuriganaLines } from '../utils/lyrics/furiganaHelper.js';
 function getDurationSec(songMeta) {
   const raw = songMeta?.durationMs ?? songMeta?.duration ?? songMeta?.dt ?? 0;
   const value = Number(raw || 0);
@@ -159,6 +159,7 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
   const [activeLineIndex, setActiveLineIndex] = useState(-1);
   const [isLoading, setIsLoading] = useState(false);
   const [lyricsSongId, setLyricsSongId] = useState(songId || null);
+  const [furiganaVersion, setFuriganaVersion] = useState(0);
   const displayedSongIdRef = useRef(null);
 
   const durationSec = getDurationSec(songMeta || {});
@@ -361,7 +362,15 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
           engineRef.current.lyrics = bestLines;
           engineRef.current.activeIndex = -1;
           setActiveLineIndex(-1);
-          setIsLoading(false);
+          warmupFuriganaLines(bestLines).then(() => {
+            if (isMounted) {
+              setFuriganaVersion(v => v + 1);
+              // Create new line objects so useMemo([line]) in MonetRailLine re-runs
+              const refreshed = bestLines.map(l => ({ ...l }));
+              engineRef.current.lyrics = refreshed;
+              setLyrics(refreshed);
+            }
+          }).catch(() => {});
         }
       } catch (err) {
         console.error('Failed to fetch lyrics:', err);
@@ -465,5 +474,5 @@ export function useLyricEngine(songId, audioElement, songMeta = null, lyricSourc
     };
   }, [audioElement, lyrics]);
 
-  return { lyrics, activeLineIndex, isLoading, engineRef, lyricsSongId };
+  return { lyrics, activeLineIndex, isLoading, engineRef, lyricsSongId, furiganaVersion };
 }

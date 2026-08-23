@@ -219,14 +219,16 @@ export class ModernArchitectText extends BaseEffect {
             const compoundCenterX = (leftEdge + rightEdge) / 2;
             const rubyY = sSlot.y - this.fontSize * 0.56;
 
+            const rubyFill = resolveColor('$primary', this.palette) || '#ffffff';
             const rubyObj = new PIXI.Text({
               text: seg.ruby,
               style: new PIXI.TextStyle({
                 fontFamily: '"Outfit", "Inter", sans-serif',
-                fontSize: Math.max(10, Math.round(this.fontSize * 0.28)),
+                fontSize: Math.max(11, Math.round(this.fontSize * 0.28)),
                 fontWeight: '700',
-                fill: '#416be2',
-                alpha: 0.95
+                fill: rubyFill,
+                stroke: { color: '#000000', width: 2 },
+                dropShadow: { color: '#000000', alpha: 0.6, blur: 4, distance: 1 }
               })
             });
             rubyObj.anchor.set(0.5, 0.5);

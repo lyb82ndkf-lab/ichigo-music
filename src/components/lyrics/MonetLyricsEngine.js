@@ -1,9 +1,9 @@
 // MonetLyricsEngine.js
 // 莫奈模式：高性能歌词预测量与布局计算引擎 (无 React 依赖)
+import { isJapaneseText, getLineRubyCharMap, getRubyHtmlForToken } from '../../utils/lyrics/furiganaHelper.js';
 
 let sharedCanvas = null;
 let sharedCtx = null;
-
 // 缓存 Map, key: text|fontPx|fontWeight|fontFamily
 const measurementsCache = new Map();
 
@@ -188,10 +188,11 @@ export function buildWordGraphemeTimings(wordText, startTime, durationSec) {
  */
 export function parseDisplayTokens(line) {
   if (!line || !line.text) return [];
+  const isJp = isJapaneseText(line.text);
+  const lineRubyMap = isJp ? getLineRubyCharMap(line.text) : null;
+
   if (!line.words || line.words.length === 0) {
     // Keep contiguous Latin words together when a source has no word timing.
-    // Splitting "beautiful" into character-sized flex items lets the bubble
-    // wrap it as "beautifu" + "l" at the right edge.
     const graphemes = line.text.match(/[A-Za-z0-9]+(?:['’\-][A-Za-z0-9]+)*|\s+|./gu) || splitGraphemes(line.text);
     const lineStart = Number(line.time || 0);
     const lineDuration = Math.max(0.4, Number(line.duration || 0) || 5);
@@ -202,8 +203,10 @@ export function parseDisplayTokens(line) {
       const endTime = startTime + unitDuration;
       const startOffset = cursor;
       cursor += text.length;
+      const rubyHtml = isJp ? getRubyHtmlForToken(text, startOffset, lineRubyMap) : text;
       return {
         text,
+        rubyHtml,
         startTime,
         endTime,
         durationSec: unitDuration,
@@ -229,8 +232,10 @@ export function parseDisplayTokens(line) {
 
     if (wordStartOffset > currentIndex) {
       const gapText = fullText.substring(currentIndex, wordStartOffset);
+      const rubyHtml = isJp ? getRubyHtmlForToken(gapText, currentIndex, lineRubyMap) : gapText;
       tokens.push({
         text: gapText,
+        rubyHtml,
         startTime: -1,
         endTime: -1,
         key: `${line.time}-gap-${currentIndex}`,
@@ -246,15 +251,14 @@ export function parseDisplayTokens(line) {
     const resolvedWordStartOffset = wordStartOffset !== -1 ? wordStartOffset : currentIndex;
     const wordEndOffset = resolvedWordStartOffset + word.text.length;
 
-    // Keep parser word boundaries as the visual animation unit, like folia.
-    // The fill mask still uses graphemeTimings, so words can sweep internally,
-    // while words such as "??" or mora such as "??" jump as one unit.
     const tokenDuration = word.durationSec || (word.endSec !== undefined ? (word.endSec - word.startSec) : 0.1);
     const tokenEndTime = word.endSec !== undefined ? word.endSec : (word.startSec + tokenDuration);
     const safeTokenDuration = Math.max(0.001, tokenDuration);
     const graphemeTimings = buildWordGraphemeTimings(word.text, word.startSec, safeTokenDuration);
+    const rubyHtml = isJp ? getRubyHtmlForToken(word.text, resolvedWordStartOffset, lineRubyMap) : word.text;
     tokens.push({
       text: word.text,
+      rubyHtml,
       startTime: word.startSec,
       endTime: tokenEndTime,
       durationSec: safeTokenDuration,
@@ -272,8 +276,11 @@ export function parseDisplayTokens(line) {
   }
 
   if (currentIndex < fullText.length) {
+    const gapTail = fullText.substring(currentIndex);
+    const rubyHtml = isJp ? getRubyHtmlForToken(gapTail, currentIndex, lineRubyMap) : gapTail;
     tokens.push({
-      text: fullText.substring(currentIndex),
+      text: gapTail,
+      rubyHtml,
       startTime: -1,
       endTime: -1,
       key: `${line.time}-gap-tail`,

@@ -9,6 +9,34 @@ import { createHash } from 'crypto';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import { spawn } from 'child_process';
+import KuroshiroPkg from 'kuroshiro';
+import KuromojiPkg from 'kuroshiro-analyzer-kuromoji';
+
+const Kuroshiro = KuroshiroPkg.default || KuroshiroPkg;
+const KuromojiAnalyzer = KuromojiPkg.default || KuromojiPkg;
+
+let kuroshiroInstance = null;
+let kuroshiroInitPromise = null;
+
+async function getKuroshiro() {
+  if (kuroshiroInstance) return kuroshiroInstance;
+  if (kuroshiroInitPromise) return kuroshiroInitPromise;
+  
+  kuroshiroInitPromise = (async () => {
+    try {
+      const ks = new Kuroshiro();
+      const dictPath = path.resolve(__dirname, 'public/dict');
+      await ks.init(new KuromojiAnalyzer({ dictPath }));
+      kuroshiroInstance = ks;
+      console.log('[Main] Kuroshiro IPADic morphological engine ready');
+      return ks;
+    } catch (err) {
+      console.warn('[Main] Kuroshiro init warning:', err?.message || err);
+      return null;
+    }
+  })();
+  return kuroshiroInitPromise;
+}
 
 protocol.registerSchemesAsPrivileged([{
   scheme: 'ichigo-cache',
@@ -18,6 +46,44 @@ protocol.registerSchemesAsPrivileged([{
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Register Furigana IPC Handlers
+const JAPANESE_KANA_REGEX = /[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff\uff66-\uff9f]/;
+ipcMain.handle('furigana:convert-batch', async (event, lines) => {
+  const ks = await getKuroshiro();
+  if (!ks || !Array.isArray(lines)) return {};
+  
+  // Guard: If there is no Japanese Kana across the entire batch, it's Chinese/non-Japanese
+  const hasAnyKana = lines.some(item => {
+    const t = typeof item === 'string' ? item : item?.text;
+    return t && JAPANESE_KANA_REGEX.test(t);
+  });
+  if (!hasAnyKana) return {};
+
+  const results = {};
+  for (const item of lines) {
+    const text = typeof item === 'string' ? item : item?.text;
+    if (!text || typeof text !== 'string') continue;
+    try {
+      const raw = await ks.convert(text, { mode: 'furigana', to: 'hiragana' });
+      results[text] = raw.replace(/<rp>\(<\/rp>|<rp>\)<\/rp>/g, '');
+    } catch (err) {
+      results[text] = text;
+    }
+  }
+  return results;
+});
+
+ipcMain.handle('furigana:convert-text', async (event, text) => {
+  const ks = await getKuroshiro();
+  if (!ks || !text || typeof text !== 'string') return text;
+  if (!JAPANESE_KANA_REGEX.test(text)) return text;
+  try {
+    const raw = await ks.convert(text, { mode: 'furigana', to: 'hiragana' });
+    return raw.replace(/<rp>\(<\/rp>|<rp>\)<\/rp>/g, '');
+  } catch (err) {
+    return text;
+  }
+});
 let mainWindow = null;
 let desktopLyricsWindow = null;
 let desktopLyricsPos = null;
@@ -1331,6 +1397,30 @@ function createWindow() {
     await ensureDir(path.join(root, 'lyrics'));
     await ensureDir(path.join(root, 'covers'));
     return true;
+  });
+  ipcMain.removeHandler('save-lyric-file');
+  ipcMain.handle('save-lyric-file', async (_event, { defaultFilename, content, filters } = {}) => {
+    try {
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: '导出歌词文件',
+        defaultPath: defaultFilename || 'lyrics.lrc',
+        filters: filters || [
+          { name: 'LRC 歌词文件 (*.lrc)', extensions: ['lrc'] },
+          { name: '文本文件 (*.txt)', extensions: ['txt'] },
+          { name: 'YRC 逐字歌词 (*.yrc)', extensions: ['yrc'] },
+          { name: 'TTML 歌词文件 (*.ttml)', extensions: ['ttml'] },
+          { name: '所有文件 (*.*)', extensions: ['*'] }
+        ]
+      });
+      if (result.canceled || !result.filePath) {
+        return { success: false, canceled: true };
+      }
+      await fs.promises.writeFile(result.filePath, content || '', 'utf8');
+      return { success: true, filePath: result.filePath };
+    } catch (err) {
+      console.error('Failed to save lyric file:', err);
+      return { success: false, error: err?.message || String(err) };
+    }
   });
   ipcMain.removeHandler('select-local-music-folder');
   ipcMain.handle('select-local-music-folder', async () => {
