@@ -68,16 +68,118 @@ if (typeof window !== 'undefined' || typeof process !== 'undefined') {
 }
 
 /**
+ * Explicit Compound-to-Character Ruby Splittings for Jukujikun, Names & ACG/J-Pop
+ */
+export const COMPOUND_SPLITS = {
+  '昨日': ['きの', 'う'],
+  '今日': ['きょ', 'う'],
+  '明日': ['あ', 'した'],
+  '気付': ['き', 'づ'],
+  '突然': ['とつ', 'ぜん'],
+  '景色': ['け', 'しき'],
+  '仲村': ['なか', 'むら'],
+  '芽衣子': ['め', 'い', 'こ'],
+  '人形': ['にん', 'ぎょう'],
+  '出逢': ['で', 'あ'],
+  '出来': ['で', 'き'],
+  '軌跡': ['き', 'せき'],
+  '奇跡': ['き', 'せき'],
+  '偶然': ['ぐう', 'ぜん'],
+  '運命': ['うん', 'めい'],
+  '永久': ['えい', 'きゅう'],
+  '言葉': ['こと', 'ば'],
+  '最初': ['さい', 'しょ'],
+  '鼓動': ['こ', 'どう'],
+  '波紋': ['は', 'もん'],
+  '世界': ['せ', 'かい'],
+  '笑顔': ['え', 'がお'],
+  '何十': ['なん', 'じゅう'],
+  '何百': ['なん', 'ひゃく'],
+  '何千': ['なん', 'ぜん'],
+  '高橋': ['たか', 'はし'],
+  '李依': ['り', 'え'],
+  '当り前': ['あた', '', 'まえ'],
+  '当たり前': ['あ', '', 'まえ'],
+  '思い出': ['おも', '', 'で'],
+  '想い出': ['おも', '', 'で'],
+  '寄り添': ['よ', '', 'そ'],
+  '日々': ['ひ', 'び'],
+  '人々': ['ひと', 'びと'],
+  '時々': ['とき', 'どき'],
+  '段々': ['だん', 'だん'],
+  '度々': ['たび', 'たび'],
+  '様々': ['さま', 'ざま']
+};
+
+/**
  * Comprehensive Single Kanji Readings
  */
 export const SINGLE_KANJI_READINGS = {
-  '全': ['ぜん'],
-  '部': ['ぶ', 'へ'],
-  '透': ['とう', 'す'],
-  '明': ['めい', 'みょう', 'あか', 'あ'],
-  '大': ['だい', 'たい', 'おお'],
-  '事': ['じ', 'こと'],
-  '自': ['じ', 'し', 'みずか'],
+  '仲': ['なか', 'ちゅう'],
+  '村': ['むら', 'そん'],
+  '芽': ['め', 'が'],
+  '衣': ['い', 'え', 'ころも'],
+  '子': ['こ', 'し', 'す'],
+  '気': ['き', 'け'],
+  '付': ['づ', 'つ', 'ふ'],
+  '突': ['とつ', 'つ'],
+  '然': ['ぜん', 'ねん', 'しか'],
+  '昨': ['きの', 'さく'],
+  '日': ['う', 'ひ', 'にち', 'じつ', 'か', 'び'],
+  '景': ['けい', 'け'],
+  '色': ['しき', 'いろ', 'しょく'],
+  '人': ['にん', 'ひと', 'じん'],
+  '形': ['ぎょう', 'かたち', 'けい'],
+  '涙': ['なみだ', 'るい'],
+  '当': ['あ', 'とう'],
+  '前': ['まえ', 'ぜん'],
+  '思': ['おも', 'し'],
+  '少': ['すこ', 'すく', 'しょう'],
+  '違': ['ちが', 'い'],
+  '瞼': ['まぶた', 'けん'],
+  '裏': ['うら', 'り'],
+  '見': ['み', 'けん'],
+  '独': ['ひと', 'どく'],
+  '笑': ['え', 'わら', 'しょう'],
+  '顔': ['がお', 'かお', 'がん'],
+  '探': ['さが', 'たん'],
+  '初': ['しょ', 'はじ', 'はつ'],
+  '夢': ['ゆめ', 'む'],
+  '一': ['いち', 'ひと', 'いっ'],
+  '度': ['ど', 'たび'],
+  '叶': ['かな', 'きょう'],
+  '鼓': ['こ', 'つづみ'],
+  '動': ['どう', 'うご'],
+  '願': ['ねが', 'がん'],
+  '指': ['ゆび', 'し'],
+  '悲': ['かな', 'ひ'],
+  '波': ['は', 'なみ'],
+  '紋': ['もん', 'ぶん'],
+  '冷': ['つめ', 'ひ', 'れい'],
+  '溶': ['と', 'よう'],
+  '落': ['お', 'らく'],
+  '砕': ['くだ', 'さい'],
+  '鍵': ['かぎ', 'けん'],
+  '行': ['い', 'ゆ', 'こう', 'ぎょう'],
+  '手': ['て', 'しゅ'],
+  '阻': ['はば', 'そ'],
+  '立': ['た', 'りつ'],
+  '流': ['なが', 'りゅう'],
+  '瞳': ['ひとみ', 'どう'],
+  '二': ['に', 'ふた'],
+  '輝': ['かがや', 'き'],
+  '後': ['ご', 'うしろ', 'あと'],
+  '声': ['こえ', 'せい'],
+  '泣': ['な', 'きゅう'],
+  '誰': ['だれ'],
+  '届': ['とど', 'かい'],
+  '心': ['こころ', 'しん'],
+  '叫': ['さけ', 'きょう'],
+  '終': ['お', 'しゅう'],
+  '胸': ['むね', 'きょう'],
+  '眠': ['ねむ', 'みん'],
+  '歪': ['ゆが', 'ひず', 'わい'],
+  '求': ['もと', 'きゅう'],
   '分': ['ぶん', 'ぷん', 'ふん', 'わ'],
   '身': ['しん', 'み'],
   '最': ['さい', 'もっと'],
@@ -600,6 +702,13 @@ export function splitWordRuby(base, ruby) {
   if (!base) return [];
   if (!ruby) return Array.from(base).map(c => ({ text: c, ruby: null }));
 
+  if (COMPOUND_SPLITS[base]) {
+    const splitArr = COMPOUND_SPLITS[base];
+    if (splitArr.length === base.length) {
+      return base.split('').map((c, i) => ({ text: c, ruby: splitArr[i] || null }));
+    }
+  }
+
   const parts = [];
   let i = 0;
   while (i < base.length) {
@@ -625,7 +734,20 @@ export function splitWordRuby(base, ruby) {
           ];
         }
       }
-      return [{ text: kText, ruby }];
+      const r1List = (SINGLE_KANJI_READINGS[kText[1]] || []).concat(SINGLE_KANJI_DICT[kText[1]] ? [SINGLE_KANJI_DICT[kText[1]]] : []);
+      for (const r1 of r1List) {
+        if (ruby.endsWith(r1) && ruby.length > r1.length) {
+          return [
+            { text: kText[0], ruby: ruby.slice(0, ruby.length - r1.length) },
+            { text: kText[1], ruby: r1 }
+          ];
+        }
+      }
+      const half = Math.ceil(ruby.length / 2);
+      return [
+        { text: kText[0], ruby: ruby.slice(0, half) },
+        { text: kText[1], ruby: ruby.slice(half) }
+      ];
     }
     if (kText.length >= 3) {
       let remaining = ruby;
@@ -655,10 +777,21 @@ export function splitWordRuby(base, ruby) {
       if (allFound && segments.length === kText.length) {
         return segments;
       }
-      return [{ text: kText, ruby }];
+      const avgLen = Math.floor(ruby.length / kText.length);
+      const res = [];
+      let rem = ruby;
+      for (let idx = 0; idx < kText.length; idx++) {
+        if (idx === kText.length - 1) {
+          res.push({ text: kText[idx], ruby: rem });
+        } else {
+          const take = Math.max(1, Math.min(rem.length - (kText.length - idx - 1), avgLen));
+          res.push({ text: kText[idx], ruby: rem.slice(0, take) });
+          rem = rem.slice(take);
+        }
+      }
+      return res;
     }
   }
-
   const result = [];
   let remainingRuby = ruby;
   for (let p = 0; p < parts.length; p++) {
@@ -713,9 +846,10 @@ export function buildCharRubyMapFromHtml(rubyHtml, originalText) {
       for (const seg of segments) {
         for (let c = 0; c < seg.text.length; c++) {
           if (cursor < originalText.length) {
+            const charRuby = (seg.text.length === 1 || c === 0) ? (seg.ruby || null) : null;
             charRubyMap[cursor] = {
               base: seg.text[c],
-              ruby: seg.ruby || null,
+              ruby: charRuby,
               isFull: true
             };
             cursor++;
