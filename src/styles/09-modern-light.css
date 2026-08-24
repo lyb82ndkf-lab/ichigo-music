@@ -195,3 +195,174 @@
   background: var(--primary-subtle) !important;
   color: var(--primary) !important;
 }
+
+/* 8. Modern Home Dashboard in Light Mode */
+.mode-light.layout-modern .modern-home {
+  color: var(--text-main, #111827);
+}
+
+/* Left Now Playing Poster Stage */
+.mode-light.layout-modern .home-left-stage {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(246, 248, 253, 0.96) 100%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.mode-light.layout-modern .home-left-stage::before {
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, 0.08) 30%, rgba(var(--accent-rgb, 255, 51, 102), 0.4) 50%, rgba(0, 0, 0, 0.08) 70%, transparent) !important;
+}
+
+.mode-light.layout-modern .hero-ambient-glow {
+  opacity: 0.12 !important;
+}
+
+.mode-light.layout-modern .idle-stage-graphic {
+  background: radial-gradient(circle at center, rgba(var(--accent-rgb, 255, 51, 102), 0.15) 0%, rgba(0, 0, 0, 0.02) 70%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.06) !important;
+}
+
+.mode-light.layout-modern .idle-stage-graphic svg {
+  color: var(--text-main, #111827) !important;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.1)) !important;
+}
+
+.mode-light.layout-modern .stage-poster-box {
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light.layout-modern .stage-kicker {
+  color: var(--primary) !important;
+}
+
+.mode-light.layout-modern .stage-song-title {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .stage-song-sub {
+  color: #4b5563 !important;
+}
+
+.mode-light.layout-modern .stage-artist-link {
+  color: #1f2937 !important;
+}
+
+.mode-light.layout-modern .stage-artist-link:hover {
+  color: var(--primary) !important;
+}
+
+.mode-light.layout-modern .stage-lyric-capsule {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.04) !important;
+}
+
+.mode-light.layout-modern .stage-lyric-capsule-text {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .stage-action-pill {
+  background: rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .stage-action-pill:hover {
+  background: rgba(0, 0, 0, 0.09) !important;
+  border-color: rgba(0, 0, 0, 0.18) !important;
+}
+
+.mode-light.layout-modern .stage-action-pill.primary {
+  background: var(--primary) !important;
+  border-color: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+/* Right Hub in Light Mode */
+.mode-light.layout-modern .nav-pill-btn {
+  background: rgba(255, 255, 255, 0.85) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #374151 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+}
+
+.mode-light.layout-modern .nav-pill-btn:hover {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.16) !important;
+  color: #111827 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light.layout-modern .nav-pill-icon {
+  color: #4b5563 !important;
+}
+
+.mode-light.layout-modern .nav-pill-btn:hover .nav-pill-icon {
+  color: var(--primary) !important;
+}
+
+/* Compact Recent Stream */
+.mode-light.layout-modern .compact-recent-stream {
+  background: linear-gradient(142deg, rgba(255, 255, 255, 0.92) 0%, rgba(250, 250, 253, 0.96) 100%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.mode-light.layout-modern .compact-stream-title {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .compact-stream-tag {
+  background: rgba(0, 0, 0, 0.05) !important;
+  color: #6b7280 !important;
+}
+
+.mode-light.layout-modern .compact-song-item:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light.layout-modern .compact-song-cover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+.mode-light.layout-modern .compact-song-name {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .compact-song-artist {
+  color: #6b7280 !important;
+}
+
+.mode-light.layout-modern .compact-song-list {
+  scrollbar-color: rgba(0, 0, 0, 0.15) transparent !important;
+}
+
+.mode-light.layout-modern .compact-song-list::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Compact Playlists Grid */
+.mode-light.layout-modern .compact-playlist-card {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border: 1px solid rgba(0, 0, 0, 0.07) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03) !important;
+}
+
+.mode-light.layout-modern .compact-playlist-card:hover {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+.mode-light.layout-modern .compact-playlist-cover {
+  background: rgba(0, 0, 0, 0.06) !important;
+}
+
+.mode-light.layout-modern .compact-playlist-name {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .compact-playlist-count {
+  color: #6b7280 !important;
+}

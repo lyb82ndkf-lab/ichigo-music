@@ -104,22 +104,22 @@ export const DEFAULT_PROFILE = {
   desktopLyrics: {
     show: true,
     locked: true,
-    fontSize: 24,
+    fontSize: 36,
     fontFamily: 'Inter',
-    fontWeight: 600,
+    fontWeight: 700,
     bold: false,
-    alignment: 'right',
+    alignment: 'center',
     lineCount: 3,
     showTranslation: true,
-    translationSize: 22,
+    translationSize: 20,
     playedColor: '#ff3366',
     unplayedColor: '#ffffff',
     playedColorMode: 'preset',
     unplayedColorMode: 'preset',
     color: 'theme',
-    textStroke: { enabled: false, width: 0, color: '#000000' },
-    textShadow: { enabled: true, color: '#ff336680', blur: 1, offsetX: 0, offsetY: 0 },
-    glow: { enabled: true, intensity: 0.6 },
+    textStroke: { enabled: true, width: 0.6, color: '#000000' },
+    textShadow: { enabled: true, color: '#000000cc', blur: 12, offsetX: 0, offsetY: 0 },
+    glow: { enabled: false, intensity: 0.6 },
     windowX: 954,
     windowY: 86,
     alwaysOnTop: true,
@@ -471,8 +471,9 @@ function safeJsonParse(value, fallback) {
 }
 
 let cachedProfileStr = null;
+let cachedProfileObj = null;
 let writeTimeout = null;
-
+let storageWriteTimeout = null;
 function readLegacyValue(key, fallback = null) {
   if (key === PROFILE_KEY && cachedProfileStr !== null) {
     return cachedProfileStr;
@@ -628,32 +629,42 @@ function migrateProfile(stored, fromVersion = 1) {
 function writeValue(key, value) {
   if (key === PROFILE_KEY) {
     cachedProfileStr = value;
-  }
-  if (typeof window !== 'undefined' && window.electronAPI?.writeProfile) {
-    if (key === PROFILE_KEY) {
-      if (writeTimeout) clearTimeout(writeTimeout);
+    if (typeof window !== 'undefined' && window.electronAPI?.writeProfile) {
+      clearTimeout(writeTimeout);
       writeTimeout = setTimeout(() => {
         window.electronAPI.writeProfile(value);
-        if (hasStorage()) window.localStorage.setItem(key, value);
-      }, 300);
-      return;
+      }, 200);
     }
+    if (hasStorage()) {
+      clearTimeout(storageWriteTimeout);
+      storageWriteTimeout = setTimeout(() => {
+        try { window.localStorage.setItem(key, value); } catch {}
+      }, 100);
+    }
+    return;
   }
   if (hasStorage()) {
-    window.localStorage.setItem(key, value);
+    try { window.localStorage.setItem(key, value); } catch {}
   }
 }
 
 export function loadProfile() {
-  if (!hasStorage()) return clone(DEFAULT_PROFILE);
+  if (cachedProfileObj) {
+    return clone(cachedProfileObj);
+  }
+  if (!hasStorage()) {
+    cachedProfileObj = clone(DEFAULT_PROFILE);
+    return clone(DEFAULT_PROFILE);
+  }
 
   try {
     const raw = readLegacyValue(PROFILE_KEY, null);
     if (!raw) {
       const migrated = migrateLegacyLocalStorage();
+      cachedProfileObj = migrated;
       writeValue(PROFILE_KEY, JSON.stringify(migrated));
       cleanupLegacyKeys();
-      return migrated;
+      return clone(migrated);
     }
 
     const stored = JSON.parse(raw);
@@ -661,31 +672,30 @@ export function loadProfile() {
       ? migrateProfile(stored, stored.version, PROFILE_VERSION)
       : normalizeProfile(stored);
 
+    cachedProfileObj = loaded;
     writeValue(PROFILE_KEY, JSON.stringify(loaded));
     cleanupLegacyKeys();
-    return loaded;
+    return clone(loaded);
   } catch (error) {
     console.warn('Failed to load ichigomusic profile, falling back to defaults:', error);
+    cachedProfileObj = clone(DEFAULT_PROFILE);
     return clone(DEFAULT_PROFILE);
   }
 }
 
 export function saveProfile(partialOrProfile) {
-  if (!hasStorage()) return normalizeProfile(partialOrProfile);
-
-  const current = loadProfile();
+  const current = cachedProfileObj || loadProfile();
   const merged = normalizeProfile(deepMerge(current, partialOrProfile || {}));
+  cachedProfileObj = merged;
   writeValue(PROFILE_KEY, JSON.stringify(merged));
-  cleanupLegacyKeys();
-  return merged;
+  return clone(merged);
 }
 
 export function writeProfile(profile) {
-  if (!hasStorage()) return normalizeProfile(profile);
   const normalized = normalizeProfile(profile);
+  cachedProfileObj = normalized;
   writeValue(PROFILE_KEY, JSON.stringify(normalized));
-  cleanupLegacyKeys();
-  return normalized;
+  return clone(normalized);
 }
 
 export function exportProfile() {
@@ -713,14 +723,16 @@ export function importProfile(jsonStr) {
 }
 
 export function resetProfile() {
-  if (!hasStorage()) return clone(DEFAULT_PROFILE);
+  cachedProfileStr = null;
+  cachedProfileObj = null;
   if (hasStorage()) {
-    window.localStorage.removeItem(PROFILE_KEY);
+    try { window.localStorage.removeItem(PROFILE_KEY); } catch {}
   }
   cleanupLegacyKeys();
   const defaults = clone(DEFAULT_PROFILE);
+  cachedProfileObj = defaults;
   writeValue(PROFILE_KEY, JSON.stringify(defaults));
-  return defaults;
+  return clone(defaults);
 }
 
 export function getProfileKey() {

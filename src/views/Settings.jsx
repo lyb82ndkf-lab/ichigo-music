@@ -117,11 +117,16 @@ function DesktopLyricsSandbox({ config }) {
   const preset = desktopColorPresets[config.colorPreset || 'strawberry'] || desktopColorPresets.strawberry;
   const playedColor = config.colorPreset === 'custom' ? (config.playedColor || '#ff3366') : preset.played;
   const unplayedColor = config.colorPreset === 'custom' ? (config.unplayedColor || '#ffffff') : preset.unplayed;
-  const strokeColor = config.colorPreset === 'custom' ? (config.textStroke?.color || '#000000') : preset.stroke;
+  const strokeColor = config.colorPreset === 'custom' ? (config.textStroke?.color || '#000000') : (config.textStroke?.color || preset.stroke);
   const isStroke = config.textStroke?.enabled !== false;
-  const stroke = isStroke ? `${config.textStroke?.width || 0.6}px ${strokeColor}` : 'none';
-  const shadow = config.textShadow?.enabled === false ? 'none' : `${config.textShadow?.offsetX || 0}px ${config.textShadow?.offsetY || 2}px ${config.textShadow?.blur || 12}px ${config.textShadow?.color || '#000000cc'}`;
-  const glow = config.glow?.enabled ? `, 0 0 ${Math.round((config.glow?.intensity || 0.6) * 28)}px ${playedColor}aa` : '';
+  const strokeWidth = config.textStroke?.width ?? 0.6;
+  const stroke = isStroke ? `${strokeWidth}px ${strokeColor}` : 'none';
+  const shadow = config.textShadow?.enabled === false ? 'none' : `${config.textShadow?.offsetX || 0}px ${config.textShadow?.offsetY || 2}px ${config.textShadow?.blur ?? 12}px ${config.textShadow?.color || '#000000cc'}`;
+  const glow = config.glow?.enabled ? `, 0 0 ${Math.round((config.glow?.intensity ?? 0.6) * 28)}px ${playedColor}aa` : '';
+  const fontSize = Math.min(42, Math.max(18, config.fontSize || 36));
+  const translationSize = Math.min(26, Math.max(12, config.translationSize || 20));
+  const fontWeight = config.fontWeight || 700;
+  const fontFamily = config.fontFamily || 'Inter';
 
   // Mock preview loop
   useEffect(() => {
@@ -149,9 +154,9 @@ function DesktopLyricsSandbox({ config }) {
           style={{
             position: 'relative',
             display: 'inline-block',
-            fontSize: `${Math.min(38, Math.max(22, config.fontSize || 36))}px`,
-            fontWeight: config.fontWeight || 700,
-            fontFamily: `"${config.fontFamily || 'Inter'}", "Microsoft YaHei", sans-serif`,
+            fontSize: `${fontSize}px`,
+            fontWeight: fontWeight,
+            fontFamily: `"${fontFamily}", "Microsoft YaHei", sans-serif`,
             whiteSpace: 'nowrap',
             color: unplayedColor,
             textShadow: `${shadow}${glow}`,
@@ -178,12 +183,14 @@ function DesktopLyricsSandbox({ config }) {
         {config.showTranslation !== false && (
           <div
             style={{
-              fontSize: `${Math.min(22, Math.max(14, config.translationSize || 20))}px`,
-              fontWeight: 600,
+              fontSize: `${translationSize}px`,
+              fontWeight: Math.max(400, fontWeight - 100),
+              fontFamily: `"${fontFamily}", "Microsoft YaHei", sans-serif`,
               color: playedColor,
-              marginTop: '4px',
+              marginTop: '6px',
               opacity: 0.9,
-              textShadow: `${shadow}${glow}`
+              textShadow: `${shadow}${glow}`,
+              WebkitTextStroke: stroke
             }}
           >
             {sampleTrans}
@@ -287,6 +294,41 @@ export default function Settings() {
   const [customBgStart, setCustomBgStart] = useState(customThemeColors.bgStart);
   const [customBgEnd, setCustomBgEnd] = useState(customThemeColors.bgEnd);
   const [cookieInput, setCookieInput] = useState('');
+  const customColorTimerRef = useRef(null);
+
+  useEffect(() => {
+    setCustomPrimary(customThemeColors.primary);
+    setCustomBgStart(customThemeColors.bgStart);
+    setCustomBgEnd(customThemeColors.bgEnd);
+  }, [customThemeColors]);
+
+  const handleCustomPrimaryChange = (val) => {
+    setCustomPrimary(val);
+    document.body.style.setProperty('--custom-primary-color', val);
+    document.body.style.setProperty('--custom-primary-color-glow', `${val}59`);
+    clearTimeout(customColorTimerRef.current);
+    customColorTimerRef.current = setTimeout(() => {
+      saveCustomThemeColors({ primary: val });
+    }, 80);
+  };
+
+  const handleCustomBgStartChange = (val) => {
+    setCustomBgStart(val);
+    document.body.style.setProperty('--custom-bg-start', val);
+    clearTimeout(customColorTimerRef.current);
+    customColorTimerRef.current = setTimeout(() => {
+      saveCustomThemeColors({ bgStart: val });
+    }, 80);
+  };
+
+  const handleCustomBgEndChange = (val) => {
+    setCustomBgEnd(val);
+    document.body.style.setProperty('--custom-bg-end', val);
+    clearTimeout(customColorTimerRef.current);
+    customColorTimerRef.current = setTimeout(() => {
+      saveCustomThemeColors({ bgEnd: val });
+    }, 80);
+  };
 
   const [isLyricExportOpen, setIsLyricExportOpen] = useState(false);
   useEffect(() => {
@@ -428,14 +470,23 @@ export default function Settings() {
 
           {theme === 'custom' && (
             <div className="settings-grid-3" style={{ marginTop: 12 }}>
-              <SettingRow label="主品牌强调色">
-                <input type="color" value={customPrimary} onChange={(e) => { setCustomPrimary(e.target.value); saveCustomThemeColors({ primary: e.target.value }); }} />
+              <SettingRow label="主品牌强调色" hint={customPrimary}>
+                <div className="color-picker-control">
+                  <input type="color" value={customPrimary} onChange={(e) => handleCustomPrimaryChange(e.target.value)} />
+                  <span className="color-code-badge">{customPrimary}</span>
+                </div>
               </SettingRow>
-              <SettingRow label="背景渐变起点">
-                <input type="color" value={customBgStart} onChange={(e) => { setCustomBgStart(e.target.value); saveCustomThemeColors({ bgStart: e.target.value }); }} />
+              <SettingRow label="背景渐变起点" hint={customBgStart}>
+                <div className="color-picker-control">
+                  <input type="color" value={customBgStart} onChange={(e) => handleCustomBgStartChange(e.target.value)} />
+                  <span className="color-code-badge">{customBgStart}</span>
+                </div>
               </SettingRow>
-              <SettingRow label="背景渐变终点">
-                <input type="color" value={customBgEnd} onChange={(e) => { setCustomBgEnd(e.target.value); saveCustomThemeColors({ bgEnd: e.target.value }); }} />
+              <SettingRow label="背景渐变终点" hint={customBgEnd}>
+                <div className="color-picker-control">
+                  <input type="color" value={customBgEnd} onChange={(e) => handleCustomBgEndChange(e.target.value)} />
+                  <span className="color-code-badge">{customBgEnd}</span>
+                </div>
               </SettingRow>
             </div>
           )}
@@ -459,94 +510,244 @@ export default function Settings() {
   );
 
   /* ================= 2. TAB: 桌面歌词 ================= */
-  const renderDesktopTab = () => (
-    <div className="settings-stack">
-      {/* WYSIWYG Live Preview Sandbox */}
-      <DesktopLyricsSandbox config={desktopLyricsConfig} />
+  const renderDesktopTab = () => {
+    const customPaletteQuickSets = [
+      { name: '樱花蜜桃', played: '#ff66b2', unplayed: '#fff0f5', stroke: '#4a0e2a' },
+      { name: '荧光冰蓝', played: '#00f0ff', unplayed: '#e0f7fa', stroke: '#003366' },
+      { name: '极光薄荷', played: '#00e676', unplayed: '#e8f5e9', stroke: '#003300' },
+      { name: '曜石金灿', played: '#ffd600', unplayed: '#fffde7', stroke: '#3e2723' },
+      { name: '赛博电紫', played: '#d500f9', unplayed: '#f3e5f5', stroke: '#2e003e' },
+      { name: '烈焰暖橙', played: '#ff6d00', unplayed: '#fff3e0', stroke: '#4e1a00' },
+      { name: '晶莹纯白', played: '#ffffff', unplayed: '#a0a5b5', stroke: '#1a1c23' }
+    ];
 
-      <div className="settings-section">
-        <h3 className="settings-title"><Airplay size={18} />桌面悬浮窗控制</h3>
-        <div className="settings-content">
-          <SettingRow label="桌面歌词开关" hint="在桌面任意位置显示透明悬浮歌词">
-            <button className={`setting-btn ${desktopLyricsConfig.show ? 'active' : ''}`} onClick={() => { window.electronAPI?.toggleDesktopLyrics?.(); updateDesktop({ show: !desktopLyricsConfig.show }); }}>
-              {desktopLyricsConfig.show ? '已开启（点击关闭）' : '立即开启'}
-            </button>
-          </SettingRow>
-          <SettingRow label="锁定歌词窗口" hint="锁定后鼠标完全穿透至下层窗口或游戏，不影响游戏操作">
-            <SmoothSwitch checked={desktopLyricsConfig.locked} onChange={(v) => updateDesktop({ locked: v })} />
-          </SettingRow>
-          <SettingRow label="始终置顶 (Screen-Saver 级)" hint="覆盖在无边框全屏游戏与窗口最前端">
-            <SmoothSwitch checked={desktopLyricsConfig.alwaysOnTop !== false} onChange={(v) => updateDesktop({ alwaysOnTop: v })} />
-          </SettingRow>
-          <SettingRow label={`窗口透明度：${Math.round((desktopLyricsConfig.opacity ?? 1) * 100)}%`}>
-            <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={desktopLyricsConfig.opacity ?? 1} onChange={(e) => updateDesktop({ opacity: Number(e.target.value) })} />
-          </SettingRow>
+    return (
+      <div className="settings-stack">
+        {/* WYSIWYG Live Preview Sandbox */}
+        <DesktopLyricsSandbox config={desktopLyricsConfig} />
+
+        <div className="settings-section">
+          <h3 className="settings-title"><Airplay size={18} />桌面悬浮窗控制</h3>
+          <div className="settings-content">
+            <SettingRow label="桌面歌词开关" hint="在桌面任意位置显示透明悬浮歌词">
+              <button className={`setting-btn ${desktopLyricsConfig.show ? 'active' : ''}`} onClick={() => { window.electronAPI?.toggleDesktopLyrics?.(); updateDesktop({ show: !desktopLyricsConfig.show }); }}>
+                {desktopLyricsConfig.show ? '已开启（点击关闭）' : '立即开启'}
+              </button>
+            </SettingRow>
+            <SettingRow label="锁定歌词窗口" hint="锁定后鼠标完全穿透至下层窗口或游戏，不影响游戏操作">
+              <SmoothSwitch checked={desktopLyricsConfig.locked} onChange={(v) => updateDesktop({ locked: v })} />
+            </SettingRow>
+            <SettingRow label="始终置顶 (Screen-Saver 级)" hint="覆盖在无边框全屏游戏与窗口最前端">
+              <SmoothSwitch checked={desktopLyricsConfig.alwaysOnTop !== false} onChange={(v) => updateDesktop({ alwaysOnTop: v })} />
+            </SettingRow>
+            <SettingRow label={`窗口透明度：${Math.round((desktopLyricsConfig.opacity ?? 1) * 100)}%`}>
+              <input className="setting-slider" type="range" min="0.2" max="1.0" step="0.05" value={desktopLyricsConfig.opacity ?? 1} onChange={(e) => updateDesktop({ opacity: Number(e.target.value) })} />
+            </SettingRow>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3 className="settings-title"><Palette size={18} />色彩与发光特效</h3>
+          <div className="settings-content">
+            <SettingRow label="配色方案预设" hint="选择经典预设色彩或切换为完全自定义配色">
+              <select className="setting-select" value={desktopLyricsConfig.colorPreset || 'strawberry'} onChange={(e) => updateDesktop({ colorPreset: e.target.value })}>
+                {Object.entries(desktopColorPresets).map(([key, item]) => (
+                  <option key={key} value={key}>{item.label}</option>
+                ))}
+              </select>
+            </SettingRow>
+
+            {desktopLyricsConfig.colorPreset === 'custom' && (
+              <div className="custom-color-panel" style={{ marginTop: 12, padding: '16px', borderRadius: '16px', background: 'var(--card-bg, rgba(255,255,255,0.04))', border: '1px solid var(--card-border, rgba(255,255,255,0.08))' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-main, #ffffff)', marginBottom: 10 }}>自定义歌词色彩搭配</div>
+                <div className="settings-grid-3">
+                  <SettingRow label="已播放高亮颜色" hint={desktopLyricsConfig.playedColor || '#ff3366'}>
+                    <div className="color-picker-control">
+                      <input
+                        type="color"
+                        value={desktopLyricsConfig.playedColor || '#ff3366'}
+                        onChange={(e) => updateDesktop({ playedColor: e.target.value })}
+                      />
+                      <span className="color-code-badge">{desktopLyricsConfig.playedColor || '#ff3366'}</span>
+                    </div>
+                  </SettingRow>
+                  <SettingRow label="未播放底色" hint={desktopLyricsConfig.unplayedColor || '#ffffff'}>
+                    <div className="color-picker-control">
+                      <input
+                        type="color"
+                        value={desktopLyricsConfig.unplayedColor || '#ffffff'}
+                        onChange={(e) => updateDesktop({ unplayedColor: e.target.value })}
+                      />
+                      <span className="color-code-badge">{desktopLyricsConfig.unplayedColor || '#ffffff'}</span>
+                    </div>
+                  </SettingRow>
+                  <SettingRow label="文字描边颜色" hint={desktopLyricsConfig.textStroke?.color || '#000000'}>
+                    <div className="color-picker-control">
+                      <input
+                        type="color"
+                        value={desktopLyricsConfig.textStroke?.color || '#000000'}
+                        onChange={(e) => updateDesktop({ textStroke: { ...desktopLyricsConfig.textStroke, color: e.target.value } })}
+                      />
+                      <span className="color-code-badge">{desktopLyricsConfig.textStroke?.color || '#000000'}</span>
+                    </div>
+                  </SettingRow>
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted, #9ca3af)', display: 'block', marginBottom: 8 }}>快速套用色彩模版：</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                    {customPaletteQuickSets.map((ps) => (
+                      <button
+                        key={ps.name}
+                        type="button"
+                        className="setting-btn compact"
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '4px 10px' }}
+                        onClick={() => updateDesktop({
+                          playedColor: ps.played,
+                          unplayedColor: ps.unplayed,
+                          textStroke: { ...desktopLyricsConfig.textStroke, color: ps.stroke }
+                        })}
+                      >
+                        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: ps.played }} />
+                        <span>{ps.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <SettingRow label="文字发光辉光" hint="开启柔和霓虹文字光效">
+              <SmoothSwitch checked={desktopLyricsConfig.glow?.enabled === true} onChange={(v) => updateDesktop({ glow: { ...desktopLyricsConfig.glow, enabled: v } })} />
+            </SettingRow>
+            {desktopLyricsConfig.glow?.enabled && (
+              <SettingRow label={`辉光光晕强度：${Math.round((desktopLyricsConfig.glow?.intensity ?? 0.6) * 100)}%`} hint="调节歌词边缘发光的扩散范围与光感厚度">
+                <input
+                  className="setting-slider"
+                  type="range"
+                  min="0.1"
+                  max="1.0"
+                  step="0.05"
+                  value={desktopLyricsConfig.glow?.intensity ?? 0.6}
+                  onChange={(e) => updateDesktop({ glow: { ...desktopLyricsConfig.glow, intensity: Number(e.target.value) } })}
+                />
+              </SettingRow>
+            )}
+
+            <SettingRow label="文字深色描边" hint="提高在浅色或复杂壁纸下的可读性">
+              <SmoothSwitch checked={desktopLyricsConfig.textStroke?.enabled !== false} onChange={(v) => updateDesktop({ textStroke: { ...desktopLyricsConfig.textStroke, enabled: v } })} />
+            </SettingRow>
+            {desktopLyricsConfig.textStroke?.enabled !== false && (
+              <>
+                <SettingRow label={`描边粗细：${(desktopLyricsConfig.textStroke?.width ?? 0.6).toFixed(1)}px`} hint="调节歌词文字外轮廓描边线条宽度">
+                  <input
+                    className="setting-slider"
+                    type="range"
+                    min="0.2"
+                    max="3.0"
+                    step="0.1"
+                    value={desktopLyricsConfig.textStroke?.width ?? 0.6}
+                    onChange={(e) => updateDesktop({ textStroke: { ...desktopLyricsConfig.textStroke, width: Number(e.target.value) } })}
+                  />
+                </SettingRow>
+                {desktopLyricsConfig.colorPreset !== 'custom' && (
+                  <SettingRow label="描边自定义色彩" hint={desktopLyricsConfig.textStroke?.color || '默认预设色'}>
+                    <div className="color-picker-control">
+                      <input
+                        type="color"
+                        value={desktopLyricsConfig.textStroke?.color || '#000000'}
+                        onChange={(e) => updateDesktop({ textStroke: { ...desktopLyricsConfig.textStroke, color: e.target.value } })}
+                      />
+                      <span className="color-code-badge">{desktopLyricsConfig.textStroke?.color || '#000000'}</span>
+                    </div>
+                  </SettingRow>
+                )}
+              </>
+            )}
+
+            <SettingRow label="文字立体阴影" hint="为歌词文字投射柔和立体阴影">
+              <SmoothSwitch
+                checked={desktopLyricsConfig.textShadow?.enabled !== false}
+                onChange={(v) => updateDesktop({ textShadow: { ...desktopLyricsConfig.textShadow, enabled: v } })}
+              />
+            </SettingRow>
+            {desktopLyricsConfig.textShadow?.enabled !== false && (
+              <SettingRow label={`阴影模糊半径：${desktopLyricsConfig.textShadow?.blur ?? 12}px`}>
+                <input
+                  className="setting-slider"
+                  type="range"
+                  min="0"
+                  max="24"
+                  step="1"
+                  value={desktopLyricsConfig.textShadow?.blur ?? 12}
+                  onChange={(e) => updateDesktop({ textShadow: { ...desktopLyricsConfig.textShadow, blur: Number(e.target.value) } })}
+                />
+              </SettingRow>
+            )}
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3 className="settings-title"><Eye size={18} />排版、字号与对齐</h3>
+          <div className="settings-content">
+            <SettingRow label="字体选择">
+              <select className="setting-select" value={desktopLyricsConfig.fontFamily || 'Inter'} onChange={(e) => updateDesktop({ fontFamily: e.target.value })}>
+                <option value="Inter">Inter (现代无衬线)</option>
+                <option value="Outfit">Outfit (圆润几何)</option>
+                <option value="Microsoft YaHei">微软雅黑</option>
+                <option value="Noto Sans SC">思源黑体</option>
+                <option value="Noto Serif SC">思源宋体</option>
+                <option value="KaiTi">楷体</option>
+                <option value="LXGW WenKai">霞鹜文楷</option>
+              </select>
+            </SettingRow>
+            <SettingRow label={`主歌词字号：${desktopLyricsConfig.fontSize || 36}px`}>
+              <input className="setting-slider" type="range" min="18" max="64" step="2" value={desktopLyricsConfig.fontSize || 36} onChange={(e) => updateDesktop({ fontSize: Number(e.target.value) })} />
+            </SettingRow>
+            <SettingRow label={`翻译歌词字号：${desktopLyricsConfig.translationSize || 20}px`}>
+              <input className="setting-slider" type="range" min="12" max="36" step="2" value={desktopLyricsConfig.translationSize || 20} onChange={(e) => updateDesktop({ translationSize: Number(e.target.value) })} />
+            </SettingRow>
+            <SettingRow label="字体粗细 (字重)">
+              <Segment
+                options={[
+                  { value: 400, label: '常规 (400)' },
+                  { value: 600, label: '中粗 (600)' },
+                  { value: 700, label: '粗体 (700)' },
+                  { value: 800, label: '极粗 (800)' }
+                ]}
+                value={Number(desktopLyricsConfig.fontWeight || 700)}
+                onChange={(v) => updateDesktop({ fontWeight: Number(v) })}
+              />
+            </SettingRow>
+            <SettingRow label="文字对齐">
+              <Segment
+                options={[
+                  { value: 'left', label: '居左' },
+                  { value: 'center', label: '居中' },
+                  { value: 'right', label: '居右' }
+                ]}
+                value={desktopLyricsConfig.alignment || 'center'}
+                onChange={(v) => updateDesktop({ alignment: v })}
+              />
+            </SettingRow>
+            <SettingRow label="显示行数">
+              <Segment
+                options={[
+                  { value: 1, label: '单行模式' },
+                  { value: 2, label: '双行模式' },
+                  { value: 3, label: '三行模式' }
+                ]}
+                value={Number(desktopLyricsConfig.lineCount || 3)}
+                onChange={(v) => updateDesktop({ lineCount: Number(v) })}
+              />
+            </SettingRow>
+            <SettingRow label="显示歌词翻译" hint="在主歌词下方显示对应翻译文本">
+              <SmoothSwitch checked={desktopLyricsConfig.showTranslation !== false} onChange={(v) => updateDesktop({ showTranslation: v })} />
+            </SettingRow>
+          </div>
         </div>
       </div>
-
-      <div className="settings-section">
-        <h3 className="settings-title"><Eye size={18} />排版、字号与对齐</h3>
-        <div className="settings-content">
-          <SettingRow label="字体选择">
-            <select className="setting-select" value={desktopLyricsConfig.fontFamily || 'Inter'} onChange={(e) => updateDesktop({ fontFamily: e.target.value })}>
-              <option value="Inter">Inter (现代无衬线)</option>
-              <option value="Outfit">Outfit (圆润几何)</option>
-              <option value="Microsoft YaHei">微软雅黑</option>
-              <option value="Noto Serif SC">思源宋体</option>
-              <option value="KaiTi">楷体</option>
-            </select>
-          </SettingRow>
-          <SettingRow label={`主歌词字号：${desktopLyricsConfig.fontSize || 36}px`}>
-            <input className="setting-slider" type="range" min="20" max="56" step="2" value={desktopLyricsConfig.fontSize || 36} onChange={(e) => updateDesktop({ fontSize: Number(e.target.value) })} />
-          </SettingRow>
-          <SettingRow label="文字对齐">
-            <Segment
-              options={[
-                { value: 'left', label: '居左' },
-                { value: 'center', label: '居中' },
-                { value: 'right', label: '居右' }
-              ]}
-              value={desktopLyricsConfig.alignment || 'center'}
-              onChange={(v) => updateDesktop({ alignment: v })}
-            />
-          </SettingRow>
-          <SettingRow label="显示行数">
-            <Segment
-              options={[
-                { value: 1, label: '单行模式' },
-                { value: 2, label: '双行模式' },
-                { value: 3, label: '三行模式' }
-              ]}
-              value={Number(desktopLyricsConfig.lineCount || 3)}
-              onChange={(v) => updateDesktop({ lineCount: Number(v) })}
-            />
-          </SettingRow>
-          <SettingRow label="显示歌词翻译" hint="在主歌词下方显示对应翻译文本">
-            <SmoothSwitch checked={desktopLyricsConfig.showTranslation !== false} onChange={(v) => updateDesktop({ showTranslation: v })} />
-          </SettingRow>
-        </div>
-      </div>
-
-      <div className="settings-section">
-        <h3 className="settings-title"><Palette size={18} />色彩与发光特效</h3>
-        <div className="settings-content">
-          <SettingRow label="配色方案预设">
-            <select className="setting-select" value={desktopLyricsConfig.colorPreset || 'strawberry'} onChange={(e) => updateDesktop({ colorPreset: e.target.value })}>
-              {Object.entries(desktopColorPresets).map(([key, item]) => (
-                <option key={key} value={key}>{item.label}</option>
-              ))}
-            </select>
-          </SettingRow>
-          <SettingRow label="文字发光辉光" hint="开启柔和霓虹文字光效">
-            <SmoothSwitch checked={desktopLyricsConfig.glow?.enabled === true} onChange={(v) => updateDesktop({ glow: { ...desktopLyricsConfig.glow, enabled: v } })} />
-          </SettingRow>
-          <SettingRow label="文字深色描边" hint="提高在浅色壁纸下的可读性">
-            <SmoothSwitch checked={desktopLyricsConfig.textStroke?.enabled !== false} onChange={(v) => updateDesktop({ textStroke: { ...desktopLyricsConfig.textStroke, enabled: v } })} />
-          </SettingRow>
-        </div>
-      </div>
-    </div>
-  );
+    );
+  };
 
   /* ================= 3. TAB: 沉浸歌词 ================= */
   const renderImmersiveTab = () => {
@@ -908,26 +1109,52 @@ export default function Settings() {
   };
 
   return (
-    <div className="view-container">
-      <div className="settings-shell">
-        <aside className="settings-tabs">
-          {tabs.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.key;
-            return (
-              <button
-                key={tab.key}
-                className={isActive ? 'active' : ''}
-                onClick={() => setActiveTab(tab.key)}
-              >
-                <div className={`tab-icon-badge ${tab.badge}`}>
-                  <Icon size={15} />
-                </div>
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </aside>
+    <div className={`view-container ${layoutMode === 'classic' ? 'classic-settings-view' : 'modern-settings-view'}`}>
+      <div className={`settings-shell ${layoutMode === 'classic' ? 'classic-layout' : 'modern-layout'}`}>
+        {layoutMode === 'classic' ? (
+          /* Classic Top Navigation Bar */
+          <nav className="settings-classic-nav" aria-label="设置导航">
+            <div className="settings-classic-tabs">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={`settings-classic-tab-btn ${isActive ? 'active' : ''}`}
+                    onClick={() => setActiveTab(tab.key)}
+                  >
+                    <Icon size={16} />
+                    <span>{tab.label}</span>
+                    {isActive && <div className="settings-classic-tab-indicator" />}
+                  </button>
+                );
+              })}
+            </div>
+          </nav>
+        ) : (
+          /* Modern Left Sidebar Navigation (scrollbar-free) */
+          <aside className="settings-tabs">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={isActive ? 'active' : ''}
+                  onClick={() => setActiveTab(tab.key)}
+                >
+                  <div className={`tab-icon-badge ${tab.badge}`}>
+                    <Icon size={15} />
+                  </div>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </aside>
+        )}
         <main className="settings-panel">{renderActiveTab()}</main>
       </div>
       <LyricExportModal

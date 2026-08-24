@@ -232,10 +232,11 @@ export default function DesktopLyrics() {
 
   const strokeColor = config.colorPreset === 'custom'
     ? (config.textStroke?.color || '#000000')
-    : preset.stroke;
+    : (config.textStroke?.color || preset.stroke);
 
   const isStrokeEnabled = config.textStroke?.enabled !== false;
-  const stroke = isStrokeEnabled ? `${config.textStroke?.width || 0.6}px ${strokeColor}` : '0 transparent';
+  const strokeWidth = config.textStroke?.width ?? 0.6;
+  const stroke = isStrokeEnabled ? `${strokeWidth}px ${strokeColor}` : '0 transparent';
 
   const fontFamily = config.fontFamily || 'Inter';
   const shadow = config.textShadow?.enabled === false

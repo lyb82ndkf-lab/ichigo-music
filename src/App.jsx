@@ -501,7 +501,7 @@ function AppContent() {
           </header>
           
           {/* View Component Wrapper */}
-          <div className="view-scroll-container" style={{ flex: 1, height: '100%', overflowY: (currentView === 'listen-together' || (layoutMode === 'modern' && (currentView === 'home' || !currentView))) ? 'hidden' : 'auto' }}>
+          <div className="view-scroll-container" style={{ flex: 1, height: '100%', overflowY: (currentView === 'listen-together' || (layoutMode === 'modern' && (currentView === 'home' || currentView === 'settings' || !currentView))) ? 'hidden' : 'auto' }}>
             <Suspense fallback={<div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Loading...</div>}>
               {viewComponent}
             </Suspense>

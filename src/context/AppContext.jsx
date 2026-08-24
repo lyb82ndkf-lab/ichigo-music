@@ -342,13 +342,33 @@ export function AppProvider({ children }) {
       window.electronAPI.sendDesktopLyricsConfig({
         ...desktopLyricsConfig,
         locked: desktopLyricsConfig.locked,
-        fontSize: desktopLyricsConfig.fontSize || 36,
+        fontSize: Number(desktopLyricsConfig.fontSize) || 36,
+        translationSize: Number(desktopLyricsConfig.translationSize) || 20,
         fontFamily: desktopLyricsConfig.fontFamily || 'Inter',
-        fontWeight: desktopLyricsConfig.fontWeight || (desktopLyricsConfig.bold !== false ? 700 : 500),
+        fontWeight: Number(desktopLyricsConfig.fontWeight) || 700,
         boldFirstLine: desktopLyricsConfig.bold !== false,
-        desktopColor: desktopLyricsConfig.playedColor || desktopLyricsConfig.color || 'theme',
+        colorPreset: desktopLyricsConfig.colorPreset || 'strawberry',
+        playedColor: desktopLyricsConfig.playedColor || '#ff3366',
+        unplayedColor: desktopLyricsConfig.unplayedColor || '#ffffff',
+        textStroke: {
+          enabled: desktopLyricsConfig.textStroke?.enabled !== false,
+          width: Number(desktopLyricsConfig.textStroke?.width ?? 0.6),
+          color: desktopLyricsConfig.textStroke?.color || '#000000'
+        },
+        glow: {
+          enabled: desktopLyricsConfig.glow?.enabled === true,
+          intensity: Number(desktopLyricsConfig.glow?.intensity ?? 0.6)
+        },
+        textShadow: {
+          enabled: desktopLyricsConfig.textShadow?.enabled !== false,
+          blur: Number(desktopLyricsConfig.textShadow?.blur ?? 12),
+          color: desktopLyricsConfig.textShadow?.color || '#000000cc'
+        },
+        desktopColor: desktopLyricsConfig.playedColor || '#ff3366',
         alignment: desktopLyricsConfig.alignment || 'center',
+        lineCount: Number(desktopLyricsConfig.lineCount || 3),
         showTranslation: desktopLyricsConfig.showTranslation !== false,
+        opacity: Number(desktopLyricsConfig.opacity ?? 1),
         theme,
         customThemeColors
       });
