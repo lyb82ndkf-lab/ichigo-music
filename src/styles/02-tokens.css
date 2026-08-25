@@ -251,6 +251,8 @@ body[class*="theme-"] {
 }
 
 .mode-light.theme-custom {
+  --theme-bg-start: #f8fafc;
+  --theme-bg-end: #f1f5f9;
   --theme-text-main: #111827;
   --theme-text-muted: #4b5563;
   --theme-text-active: #000000;

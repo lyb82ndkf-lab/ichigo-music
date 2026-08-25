@@ -328,3 +328,122 @@
   .listen-now-lyric { margin-top: 5px; }
   .listen-sync-line { margin-top: 7px; }
 }
+
+/* ==========================================================================
+   LISTEN TOGETHER — LIGHT MODE OVERRIDES (.mode-light)
+   ========================================================================== */
+
+.mode-light .listen-together-page {
+  color: var(--text-main, #111827);
+}
+
+.mode-light .listen-header-banner {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(240, 253, 250, 0.92) 100%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+.mode-light .listen-setup-panel {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04) !important;
+}
+
+.mode-light .listen-now-playing,
+.mode-light .listen-chat-panel,
+.mode-light .listen-side-section,
+.mode-light .listen-empty-state {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 253, 0.96) 100%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.mode-light .listen-now-copy h2 {
+  color: #111827 !important;
+}
+
+.mode-light .listen-now-copy p {
+  color: #64748b !important;
+}
+
+.mode-light .listen-panel-title {
+  color: #111827 !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light .listen-panel-title span {
+  color: #64748b !important;
+}
+
+.mode-light .listen-chat-message span {
+  color: #111827 !important;
+}
+
+.mode-light .listen-chat-message time {
+  color: #94a3b8 !important;
+}
+
+.mode-light .listen-chat-composer {
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light .listen-chat-composer input,
+.mode-light .listen-join-row input {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #111827 !important;
+}
+
+.mode-light .listen-member strong {
+  color: #111827 !important;
+}
+
+.mode-light .listen-member small {
+  color: #64748b !important;
+}
+
+.mode-light .listen-invite-section p {
+  color: #475569 !important;
+}
+
+.mode-light .listen-secondary-btn,
+.mode-light .listen-copy-btn {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #374151 !important;
+}
+
+.mode-light .listen-secondary-btn:hover,
+.mode-light .listen-copy-btn:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: #111827 !important;
+}
+
+.mode-light .listen-empty-state h2 {
+  color: #111827 !important;
+}
+
+.mode-light .listen-empty-state > p {
+  color: #64748b !important;
+}
+
+.mode-light .listen-invite-prompt {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #111827 !important;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.18) !important;
+}
+
+.mode-light .listen-invite-prompt h3 {
+  color: #111827 !important;
+}
+
+.mode-light .listen-invite-prompt p {
+  color: #64748b !important;
+}
+
+.mode-light .listen-invite-secondary {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  color: #374151 !important;
+}

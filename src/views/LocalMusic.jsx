@@ -75,17 +75,14 @@ export default function LocalMusic() {
   });
 
   return (
-    <div className="view-container local-music-view" style={{ padding: '24px 32px', color: '#fff' }}>
+    <div className="view-container local-music-view" style={{ padding: '24px 32px' }}>
       {/* Header Banner */}
-      <div style={{
+      <div className="local-header-banner" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '24px',
-        background: 'linear-gradient(135deg, rgba(255, 64, 129, 0.12) 0%, rgba(30, 40, 60, 0.4) 100%)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
         borderRadius: '16px',
-        backdropFilter: 'blur(20px)',
         marginBottom: '24px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -97,13 +94,14 @@ export default function LocalMusic() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 8px 20px rgba(255, 64, 129, 0.35)'
+            boxShadow: '0 8px 20px rgba(255, 64, 129, 0.35)',
+            flexShrink: 0
           }}>
             <HardDrive size={28} color="#fff" />
           </div>
           <div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>本地无损音乐</h2>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', marginTop: '4px' }}>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-active)' }}>本地无损音乐</h2>
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
               {folderPath ? `当前路径：${folderPath}（共 ${songs.length} 首歌曲）` : '尚未选择本地音乐文件夹'}
             </div>
           </div>
@@ -112,13 +110,14 @@ export default function LocalMusic() {
         <div style={{ display: 'flex', gap: '10px' }}>
           <button
             type="button"
+            className="secondary-btn"
             onClick={handleSelectFolder}
             style={{
               padding: '10px 18px',
               borderRadius: '10px',
-              border: '1px solid rgba(255,255,255,0.2)',
-              background: 'rgba(255,255,255,0.08)',
-              color: '#fff',
+              border: '1px solid var(--card-border)',
+              background: 'var(--glass-bg)',
+              color: 'var(--text-main)',
               cursor: 'pointer',
               fontSize: '13px',
               fontWeight: 500,
@@ -183,7 +182,7 @@ export default function LocalMusic() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: '0 4px 14px rgba(255, 64, 129, 0.3)'
+                boxShadow: '0 4px 14px var(--primary-glow)'
               }}
             >
               <Play size={16} fill="#fff" /> 全部播放 ({filteredSongs.length})
@@ -192,20 +191,21 @@ export default function LocalMusic() {
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value)}
+              className="setting-select"
               style={{
                 padding: '8px 12px',
                 borderRadius: '8px',
-                border: '1px solid rgba(255,255,255,0.12)',
-                background: 'rgba(255,255,255,0.06)',
-                color: '#fff',
+                border: '1px solid var(--card-border)',
+                background: 'var(--overlay-bg)',
+                color: 'var(--text-main)',
                 fontSize: '12px',
                 outline: 'none',
                 cursor: 'pointer'
               }}
             >
-              <option value="default" style={{ background: '#1c2028' }}>默认排序</option>
-              <option value="title" style={{ background: '#1c2028' }}>按歌名排序</option>
-              <option value="artist" style={{ background: '#1c2028' }}>按歌手排序</option>
+              <option value="default">默认排序</option>
+              <option value="title">按歌名排序</option>
+              <option value="artist">按歌手排序</option>
             </select>
           </div>
 
@@ -213,13 +213,13 @@ export default function LocalMusic() {
             display: 'flex',
             alignItems: 'center',
             gap: '8px',
-            background: 'rgba(255,255,255,0.06)',
-            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'var(--input-bg)',
+            border: '1px solid var(--card-border)',
             borderRadius: '20px',
             padding: '6px 14px',
             width: '260px'
           }}>
-            <Search size={14} color="rgba(255,255,255,0.5)" />
+            <Search size={14} color="var(--text-muted)" />
             <input
               type="text"
               placeholder="搜索本地曲目..."
@@ -228,7 +228,7 @@ export default function LocalMusic() {
               style={{
                 background: 'transparent',
                 border: 'none',
-                color: '#fff',
+                color: 'var(--text-main)',
                 fontSize: '12px',
                 outline: 'none',
                 width: '100%'
@@ -241,8 +241,8 @@ export default function LocalMusic() {
       {/* Song List Table */}
       {filteredSongs.length > 0 ? (
         <div style={{
-          background: 'rgba(255,255,255,0.03)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'var(--card-bg)',
+          border: '1px solid var(--card-border)',
           borderRadius: '12px',
           overflow: 'hidden'
         }}>
@@ -250,9 +250,9 @@ export default function LocalMusic() {
             display: 'grid',
             gridTemplateColumns: '48px 2fr 1.5fr 1fr 60px',
             padding: '12px 16px',
-            borderBottom: '1px solid rgba(255,255,255,0.08)',
+            borderBottom: '1px solid var(--card-border)',
             fontSize: '12px',
-            color: 'rgba(255,255,255,0.45)',
+            color: 'var(--text-muted)',
             fontWeight: 500
           }}>
             <span>#</span>
@@ -274,22 +274,22 @@ export default function LocalMusic() {
                     gridTemplateColumns: '48px 2fr 1.5fr 1fr 60px',
                     alignItems: 'center',
                     padding: '10px 16px',
-                    borderBottom: '1px solid rgba(255,255,255,0.04)',
-                    background: isCurrent ? 'rgba(255, 64, 129, 0.12)' : 'transparent',
+                    borderBottom: '1px solid var(--surface-border)',
+                    background: isCurrent ? 'var(--primary-subtle)' : 'transparent',
                     fontSize: '13px',
                     cursor: 'pointer',
                     transition: 'background 0.15s'
                   }}
                   className="song-row-hover"
                 >
-                  <span style={{ color: isCurrent ? 'var(--primary)' : 'rgba(255,255,255,0.4)', fontSize: '12px' }}>
+                  <span style={{ color: isCurrent ? 'var(--primary)' : 'var(--text-muted)', fontSize: '12px' }}>
                     {idx + 1}
                   </span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, paddingRight: '12px' }}>
-                    <FileAudio size={16} color={isCurrent ? 'var(--primary)' : 'rgba(255,255,255,0.5)'} />
+                    <FileAudio size={16} color={isCurrent ? 'var(--primary)' : 'var(--text-muted)'} />
                     <span style={{
                       fontWeight: isCurrent ? 600 : 400,
-                      color: isCurrent ? 'var(--primary)' : '#fff',
+                      color: isCurrent ? 'var(--primary)' : 'var(--text-main)',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap'
@@ -298,14 +298,14 @@ export default function LocalMusic() {
                     </span>
                   </div>
                   <span style={{
-                    color: 'rgba(255,255,255,0.65)',
+                    color: 'var(--text-muted)',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap'
                   }}>
                     {s.artist}
                   </span>
-                  <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '12px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
                     {formatSize(s.fileSize)}
                   </span>
                   <div style={{ textAlign: 'right' }}>
@@ -318,7 +318,7 @@ export default function LocalMusic() {
                       style={{
                         background: 'transparent',
                         border: 'none',
-                        color: isCurrent ? 'var(--primary)' : 'rgba(255,255,255,0.7)',
+                        color: isCurrent ? 'var(--primary)' : 'var(--text-muted)',
                         cursor: 'pointer',
                         padding: '4px'
                       }}
@@ -335,10 +335,10 @@ export default function LocalMusic() {
         <div style={{
           textAlign: 'center',
           padding: '60px 20px',
-          color: 'rgba(255,255,255,0.5)'
+          color: 'var(--text-muted)'
         }}>
           <Music size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-          <div style={{ fontSize: '15px', color: '#fff', marginBottom: '6px' }}>
+          <div style={{ fontSize: '15px', color: 'var(--text-active)', marginBottom: '6px' }}>
             {folderPath ? '当前文件夹下未扫描到音频文件' : '尚未选择本地音乐文件夹'}
           </div>
           <div style={{ fontSize: '12px', marginBottom: '20px' }}>

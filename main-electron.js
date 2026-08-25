@@ -18,6 +18,29 @@ const KuromojiAnalyzer = KuromojiPkg.default || KuromojiPkg;
 let kuroshiroInstance = null;
 let kuroshiroInitPromise = null;
 
+function findWorkingDictPath() {
+  const candidates = [
+    path.resolve(__dirname, 'public/dict'),
+    path.resolve(__dirname, 'dist/dict'),
+    path.resolve(__dirname, 'dict'),
+    path.join(process.resourcesPath || '', 'public/dict'),
+    path.join(process.resourcesPath || '', 'dist/dict'),
+    path.join(process.resourcesPath || '', 'dict'),
+    path.resolve(process.cwd(), 'public/dict'),
+    path.resolve(process.cwd(), 'dist/dict'),
+    path.resolve(process.cwd(), 'dict')
+  ];
+
+  for (const dir of candidates) {
+    try {
+      if (fs.existsSync(path.join(dir, 'base.dat.gz'))) {
+        return dir;
+      }
+    } catch {}
+  }
+  return path.resolve(__dirname, 'public/dict');
+}
+
 async function getKuroshiro() {
   if (kuroshiroInstance) return kuroshiroInstance;
   if (kuroshiroInitPromise) return kuroshiroInitPromise;
@@ -25,7 +48,8 @@ async function getKuroshiro() {
   kuroshiroInitPromise = (async () => {
     try {
       const ks = new Kuroshiro();
-      const dictPath = path.resolve(__dirname, 'public/dict');
+      const dictPath = findWorkingDictPath();
+      console.log('[Main] Kuroshiro loading dictionary from:', dictPath);
       await ks.init(new KuromojiAnalyzer({ dictPath }));
       kuroshiroInstance = ks;
       console.log('[Main] Kuroshiro IPADic morphological engine ready');
@@ -63,6 +87,7 @@ ipcMain.handle('furigana:convert-batch', async (event, lines) => {
   for (const item of lines) {
     const text = typeof item === 'string' ? item : item?.text;
     if (!text || typeof text !== 'string') continue;
+    if (!KANJI_REGEX.test(text)) continue;
     try {
       const raw = await ks.convert(text, { mode: 'furigana', to: 'hiragana' });
       results[text] = raw.replace(/<rp>\(<\/rp>|<rp>\)<\/rp>/g, '');
@@ -76,7 +101,7 @@ ipcMain.handle('furigana:convert-batch', async (event, lines) => {
 ipcMain.handle('furigana:convert-text', async (event, text) => {
   const ks = await getKuroshiro();
   if (!ks || !text || typeof text !== 'string') return text;
-  if (!JAPANESE_KANA_REGEX.test(text)) return text;
+  if (!KANJI_REGEX.test(text)) return text;
   try {
     const raw = await ks.convert(text, { mode: 'furigana', to: 'hiragana' });
     return raw.replace(/<rp>\(<\/rp>|<rp>\)<\/rp>/g, '');

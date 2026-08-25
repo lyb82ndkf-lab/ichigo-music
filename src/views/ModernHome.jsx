@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import {
   Compass, TrendingUp, Heart, History, Settings, Play, Pause, Music,
   Radio, HardDrive, Sparkles, Sun, Moon, Sunrise, Sunset, Search, Disc,
-  Flame, ListMusic, ChevronRight, Mic2, ExternalLink
+  Flame, ListMusic, ChevronRight, ChevronLeft, Mic2, ExternalLink
 } from 'lucide-react';
 import ResilientCover from '../components/ResilientCover';
 import CachedCover, { useCachedCoverUrl } from '../components/CachedCover';
@@ -133,9 +133,25 @@ export default function ModernHome() {
     return (recentlyPlayed || []).slice(0, 10);
   }, [recentlyPlayed]);
 
-  const compactPlaylists = useMemo(() => {
-    return (userPlaylists || []).slice(0, 4);
-  }, [userPlaylists]);
+  const playlistScrollRef = React.useRef(null);
+
+  const handlePlaylistScrollLeft = () => {
+    if (playlistScrollRef.current) {
+      playlistScrollRef.current.scrollBy({ left: -260, behavior: 'smooth' });
+    }
+  };
+
+  const handlePlaylistScrollRight = () => {
+    if (playlistScrollRef.current) {
+      playlistScrollRef.current.scrollBy({ left: 260, behavior: 'smooth' });
+    }
+  };
+
+  const handlePlaylistWheel = (e) => {
+    if (playlistScrollRef.current && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      playlistScrollRef.current.scrollLeft += e.deltaY;
+    }
+  };
   return (
     <div className="view-container modern-home">
       {/* ================= LEFT: VINYL POSTER & NOW PLAYING STAGE ================= */}
@@ -299,19 +315,45 @@ export default function ModernHome() {
           </div>
         </div>
 
-        {/* Section 3: Compact Playlists Grid */}
+        {/* Section 3: Compact Playlists Horizontal Carousel */}
         <div className="compact-playlists-section">
           <div className="compact-stream-head" style={{ marginBottom: 0 }}>
             <div className="compact-stream-title">
               <ListMusic size={16} />
               <span>我的歌单 / 收藏精选</span>
             </div>
-            <span className="compact-stream-tag">{userPlaylists?.length || 0} 个歌单</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span className="compact-stream-tag">{userPlaylists?.length || 0} 个歌单</span>
+              {userPlaylists && userPlaylists.length > 2 && (
+                <div className="playlist-scroll-arrows">
+                  <button
+                    type="button"
+                    className="playlist-scroll-arrow-btn"
+                    onClick={handlePlaylistScrollLeft}
+                    title="向左滚动"
+                  >
+                    <ChevronLeft size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    className="playlist-scroll-arrow-btn"
+                    onClick={handlePlaylistScrollRight}
+                    title="向右滚动"
+                  >
+                    <ChevronRight size={13} />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="compact-playlists-grid">
-            {compactPlaylists && compactPlaylists.length > 0 ? (
-              compactPlaylists.map(playlist => (
+          <div
+            ref={playlistScrollRef}
+            className="compact-playlists-scroll"
+            onWheel={handlePlaylistWheel}
+          >
+            {userPlaylists && userPlaylists.length > 0 ? (
+              userPlaylists.map(playlist => (
                 <div
                   key={playlist.id}
                   className="compact-playlist-card"
@@ -331,8 +373,7 @@ export default function ModernHome() {
               ))
             ) : (
               <div
-                className="compact-playlist-card"
-                style={{ gridColumn: 'span 4', textAlign: 'center', padding: '18px 0', color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}
+                className="compact-playlist-card empty"
                 onClick={() => navigateTo('discover')}
               >
                 暂无自建歌单，点击前往探索推荐歌单 →

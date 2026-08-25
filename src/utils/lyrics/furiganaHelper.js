@@ -4,10 +4,10 @@
 
 import KuroshiroPkg from 'kuroshiro';
 import KuromojiPkg from 'kuroshiro-analyzer-kuromoji';
+import joyoKanjiDict from './joyoKanjiDict.js';
 
 const Kuroshiro = KuroshiroPkg.default || KuroshiroPkg;
 const KuromojiAnalyzer = KuromojiPkg.default || KuromojiPkg;
-
 // Global Singleton Kuroshiro Instance
 const kuroshiro = new Kuroshiro();
 let isInitialized = false;
@@ -71,6 +71,17 @@ if (typeof window !== 'undefined' || typeof process !== 'undefined') {
  * Explicit Compound-to-Character Ruby Splittings for Jukujikun, Names & ACG/J-Pop
  */
 export const COMPOUND_SPLITS = {
+  '曖昧': ['あい', 'まい'],
+  '花火': ['はな', 'び'],
+  '何度': ['なん', 'ど'],
+  '同じ': ['おな', ''],
+  '打上花火': ['う', 'ち', 'あ', 'げ', 'はな', 'び'],
+  '打上': ['う', 'ち', 'あ', 'げ'],
+  '打ち上げ': ['う', '', 'あ', '', ''],
+  '春夏秋冬': ['はる', 'なつ', 'あき', 'ふゆ'],
+  '未来永劫': ['み', 'らい', 'えい', 'ごう'],
+  '一期一会': ['いち', 'ご', 'いち', 'え'],
+  '暗雲低迷': ['あん', 'うん', 'てい', 'めい'],
   '昨日': ['きの', 'う'],
   '今日': ['きょ', 'う'],
   '明日': ['あ', 'した'],
@@ -87,6 +98,14 @@ export const COMPOUND_SPLITS = {
   '偶然': ['ぐう', 'ぜん'],
   '運命': ['うん', 'めい'],
   '永久': ['えい', 'きゅう'],
+  '永遠': ['えい', 'えん'],
+  '残響': ['ざん', 'きょう'],
+  '境界線': ['きょう', 'かい', 'せん'],
+  '境界': ['きょう', 'かい'],
+  '神威': ['か', 'むい'],
+  '輪廻': ['りん', 'ね'],
+  '輪廻転生': ['りん', 'ね', 'てん', 'しょう'],
+  '刹那': ['せつ', 'な'],
   '言葉': ['こと', 'ば'],
   '最初': ['さい', 'しょ'],
   '鼓動': ['こ', 'どう'],
@@ -96,6 +115,7 @@ export const COMPOUND_SPLITS = {
   '何十': ['なん', 'じゅう'],
   '何百': ['なん', 'ひゃく'],
   '何千': ['なん', 'ぜん'],
+  '高桥': ['たか', 'はし'],
   '高橋': ['たか', 'はし'],
   '李依': ['り', 'え'],
   '当り前': ['あた', '', 'まえ'],
@@ -364,27 +384,19 @@ export const SINGLE_KANJI_READINGS = {
   '小': ['ちい', 'こ', 'お', 'しょう'], '幸': ['しあわ', 'さいわ', 'こう'],
   '平': ['ひら', 'たい', 'へい'], '横': ['よこ', 'おう'], '足': ['た', 'あし', 'そく'],
   '渡': ['わた', 'と'], '渚': ['なぎさ', 'しょ'], '刻': ['きざ', 'こく'],
-  '砂': ['すな', 'さ'], '居': ['い', 'きょ'], '晴': ['は', 'せい'],
-  '強': ['つよ', 'きょう', 'ごう'], '寂': ['さび', 'じゃく'], '抱': ['だ', 'いだ', 'ほう'],
-  '伝': ['つた', 'でん'], '初': ['はじ', 'はつ', 'しょ'], '表': ['おもて', 'あらわ', 'ひょう'],
-  '情': ['じょう', 'なさ'], '間': ['あいだ', 'ま', 'かん'], '空': ['あ', 'そら', 'から', 'くう'],
-  '満': ['み', 'まん'], '旅': ['たび', 'りょ'], '途': ['と'], '中': ['なか', 'ちゅう'],
-  '続': ['つづ', 'ぞく'], '未': ['み', 'いま'], '失': ['うしな', 'しつ'],
-  '秒': ['びょう'], '超': ['こ', 'ちょう'], '李': ['り'], '依': ['え', 'い']
+  '秒': ['びょう'], '超': ['こ', 'ちょう'], '李': ['り'], '依': ['え', 'い'],
+  '曖': ['あい'], '昧': ['まい'], '解': ['と', 'かい', 'げ'], '繋': ['つな', 'けい'],
+  '度': ['ど', 'たび'], '同': ['おな', 'どう'], '打': ['う', 'だ'], '火': ['び', 'ひ', 'か']
 };
 /**
  * Standard default single-kanji reading fallback
  */
 export const SINGLE_KANJI_DICT = {
-  '全': 'ぜん', '部': 'ぶ', '透': 'とう', '明': 'めい', '大': 'だい', '事': 'じ',
-  '自': 'じ', '分': 'ぶん', '身': 'しん', '最': 'さい', '先': 'せん', '優': 'ゆう',
-  '人': 'ひと', '達': 'たち', '世': 'せ', '界': 'かい', '回': 'まわ', '雨': 'あめ', '様': 'よう',
-  '軌': 'き', '跡': 'せき', '奇': 'き', '永': 'えい', '久': 'きゅう', '偶': 'ぐう', '然': 'ぜん',
-  '運': 'うん', '命': 'めい', '逢': 'あ', '巡': 'めぐ', '寄': 'よ', '添': 'そ', '溢': 'あふ',
-  '積': 'つ', '重': 'かさ', '好': 'す', '包': 'つつ', '感': 'かん', '小': 'ちい', '幸': 'しあわ',
-  '平': 'ひら', '横': 'よこ', '足': 'た', '渡': 'わた', '渚': 'なぎさ', '刻': 'きざ',
-  '砂': 'すな', '居': 'い', '晴': 'は', '強': 'つよ', '寂': 'さび', '抱': 'だ',
-  '伝': 'つた', '初': 'はじ', '表': 'あらわ', '情': 'じょう', '間': 'あいだ', '空': 'そら',
+  ...joyoKanjiDict,
+  '曖': 'あい', '昧': 'まい', '解': 'と', '繋': 'つな', '度': 'ど', '同': 'おな',
+  '自': 'じ', '分': 'ぶん', '身': 'しん', '最': 'さい', '先': 'せん', '优': 'ゆう', '優': 'ゆう',
+  '人': 'ひと', '达': 'たち', '達': 'たち', '世': 'せ', '界': 'かい', '回': 'まわ', '雨': 'あめ', '様': 'よう',
+  '轨': 'き', '迹': 'せき', '轨道': 'きどう', '花火': 'はなび',
   '満': 'み', '旅': 'たび', '途': 'と', '中': 'なか', '続': 'つづ', '未': 'み', '失': 'うしな',
   '秒': 'びょう', '超': 'こ',
   '降': 'ふ', '花': 'はな', '散': 'ち', '染': 'そ', '頬': 'ほほ', '想': 'おも',
@@ -446,6 +458,60 @@ export const SINGLE_KANJI_DICT = {
  * Priority Long-Match Compound Dictionary (J-Pop / ACG / Literature)
  */
 const JPOP_COMPOUNDS = {
+  '曖昧': 'あいまい',
+  '花火': 'はなび',
+  '何度': 'なんど',
+  '同じ': 'おなじ',
+  '解かして': 'とかして',
+  '解かす': 'とかす',
+  '解く': 'とく',
+  '解ける': 'とける',
+  '繋いだ': 'つないだ',
+  '繋いで': 'つないで',
+  '繋ぐ': 'つなぐ',
+  '繋がる': 'つながる',
+  '打上花火': 'うちあげはなび',
+  '打上': 'うちあげ',
+  '打ち上げ': 'うちあげ',
+  '春夏秋冬': 'はるなつあきふゆ',
+  '未来永劫': 'みらいえいごう',
+  '一期一会': 'いちごいちえ',
+  '暗雲低迷': 'あんうんていめい',
+  '残響散歌': 'ざんきょうさんか',
+  '残響': 'ざんきょう',
+  '境界線': 'きょうかいせん',
+  '境界': 'きょうかい',
+  '神威': 'かむい',
+  '輪廻転生': 'りんねてんしょう',
+  '輪廻': 'りんね',
+  '刹那的': 'せつなてき',
+  '刹那': 'せつな',
+  '運命': 'うんめい',
+  '宿命': 'しゅくめい',
+  '永遠': 'えいえん',
+  '黄昏': 'たそがれ',
+  '茜色': 'あかねいろ',
+  '微熱': 'びねつ',
+  '暗雲': 'あんうん',
+  '星屑': 'ほしくず',
+  '夜空': 'よぞら',
+  '泡沫': 'うたかた',
+  '静寂': 'せいじゃく',
+  '残影': 'ざんえい',
+  '旅路': 'たびじ',
+  '螺旋': 'らせん',
+  '真実': 'しんじつ',
+  '彼方': 'かなた',
+  '此処': 'ここ',
+  '虚無': 'きょむ',
+  '幻影': 'げんえい',
+  '輪郭': 'りんかく',
+  '情熱': 'じょうねつ',
+  '哀愁': 'あいしゅう',
+  '追憶': 'ついおく',
+  '慟哭': 'どうこく',
+  '残照': 'ざんしょう',
+  '感情': 'かんじょう',
   '全部': 'ぜんぶ',
   '透明': 'とうめい',
   '大事': 'だいじ',
@@ -481,8 +547,6 @@ const JPOP_COMPOUNDS = {
   '優先': 'ゆうせん',
   '最高': 'さいこう',
   '最後': 'さいご',
-  '最初': 'さいしょ',
-  '最近': 'さいきん',
   '最新': 'さいしん',
   '最大': 'さいだい',
   '最小': 'さいしょう',
@@ -608,6 +672,16 @@ const JPOP_COMPOUNDS = {
 };
 
 const OKURIGANA_PATTERNS = [
+  { pattern: /^曖昧(な|に|さ|の|だ|で)/, kanji: '曖昧', ruby: 'あいまい' },
+  { pattern: /^花火(を|が|に|の|と|で|は)?/, kanji: '花火', ruby: 'はなび' },
+  { pattern: /^何度(も|が|は|を)?/, kanji: '何度', ruby: 'なんど' },
+  { pattern: /^同(じ|じく)/, kanji: '同', ruby: 'おな' },
+  { pattern: /^解(かして|かした|かす|かせば|かそう|かない|ける|けた|けて|けない|く|いて|いた|かない)/, kanji: '解', ruby: 'と' },
+  { pattern: /^繋(いだ|いで|ぐ|がない|げば|ごう|がる|がった|がって|がらない)/, kanji: '繋', ruby: 'つな' },
+  { pattern: /^打(ち上|ちあげ|ち)/, kanji: '打', ruby: 'う' },
+  { pattern: /^咲(いた|いて|く|かない|けば|こう)/, kanji: '咲', ruby: 'さ' },
+  { pattern: /^終(わらない|わった|わって|わる|われば)/, kanji: '終', ruby: 'お' },
+  { pattern: /^続(いて|いた|く|かない|けば|ける|けた|けて|けない)/, kanji: '続', ruby: 'つづ' },
   { pattern: /^降(った|って|る|らない|り)/, kanji: '降', ruby: 'ふ' },
   { pattern: /^散(った|って|る|らない|り)/, kanji: '散', ruby: 'ち' },
   { pattern: /^染(まった|まって|まる|まらない|まり)/, kanji: '染', ruby: 'そ' },
@@ -621,10 +695,11 @@ const OKURIGANA_PATTERNS = [
   { pattern: /^静(か|けさ|かに)/, kanji: '静', ruby: 'しず' },
   { pattern: /^戻(って|った|る|らない|り)/, kanji: '戻', ruby: 'もど' },
   { pattern: /^良(い|く|かった|ければ)/, kanji: '良', ruby: 'い' },
-  { pattern: /^見(てる|ている|た|て|る|ない|つめる|つける)/, kanji: '見', ruby: 'み' },
+  { pattern: /^見(られる|られた|られない|てる|ている|た|て|る|ない|つめる|つける)/, kanji: '見', ruby: 'み' },
   { pattern: /^忘(れた|れて|れる|れない|れそう)/, kanji: '忘', ruby: 'わす' },
   { pattern: /^死(んだ|んで|ぬ|なない)/, kanji: '死', ruby: 'し' },
   { pattern: /^歩(いた|いて|く|かない|き|き出す)/, kanji: '歩', ruby: 'ある' },
+  { pattern: /^欲(しい|しく|しさ|しかった|しくない)/, kanji: '欲', ruby: 'ほ' },
   { pattern: /^欲(しい|しく|しさ|しかった)/, kanji: '欲', ruby: 'ほ' },
   { pattern: /^微睡(む|み|んで|んだ)/, kanji: '微睡', ruby: 'まどろ' },
   { pattern: /^云(わない|った|って|う|い)/, kanji: '云', ruby: 'い' },
@@ -696,6 +771,48 @@ export function isJapaneseText(text) {
 }
 
 /**
+ * Align mixed kanji/kana surface string with its hiragana reading using intermediate kana anchors
+ */
+export function alignFurigana(surface, reading) {
+  const DIGIT_RE = /[0-9０-９]/;
+  const kataToHira = s => s.replace(/[\u30A1-\u30F6]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+  const escapeRegex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  const needsRuby = ch => KANJI_REGEX.test(ch) || DIGIT_RE.test(ch);
+  if (!reading || ![...surface].some(needsRuby)) return Array.from(surface).map(c => ({ text: c, ruby: null }));
+  const hira = kataToHira(reading);
+
+  const runs = [];
+  for (const ch of surface) {
+    const k = needsRuby(ch);
+    const last = runs[runs.length - 1];
+    if (last && last.kanji === k) last.text += ch;
+    else runs.push({ text: ch, kanji: k });
+  }
+
+  let pattern = '^';
+  for (const run of runs) {
+    pattern += run.kanji ? '(.+?)' : escapeRegex(kataToHira(run.text));
+  }
+  pattern += '$';
+
+  try {
+    const m = hira.match(new RegExp(pattern));
+    if (!m) return null;
+
+    const parts = [];
+    let g = 1;
+    for (const run of runs) {
+      if (run.kanji) parts.push({ text: run.text, ruby: m[g++] });
+      else parts.push({ text: run.text, ruby: null });
+    }
+    return parts;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Splits compound word into precise character segments with ruby
  */
 export function splitWordRuby(base, ruby) {
@@ -709,121 +826,95 @@ export function splitWordRuby(base, ruby) {
     }
   }
 
-  const parts = [];
-  let i = 0;
-  while (i < base.length) {
-    const isKanji = KANJI_REGEX.test(base[i]);
-    let chunk = base[i];
-    i++;
-    while (i < base.length && KANJI_REGEX.test(base[i]) === isKanji) {
-      chunk += base[i];
-      i++;
+  // If mixed kanji + kana (okurigana run), use dynamic regex anchor alignment
+  const aligned = alignFurigana(base, ruby);
+  if (aligned && aligned.length > 1) {
+    const finalSegments = [];
+    for (const seg of aligned) {
+      if (!seg.ruby || seg.text.length <= 1) {
+        finalSegments.push(seg);
+      } else {
+        // Sub-split multi-kanji runs if needed
+        const sub = splitWordRuby(seg.text, seg.ruby);
+        finalSegments.push(...sub);
+      }
     }
-    parts.push({ text: chunk, isKanji });
+    return finalSegments;
   }
-  if (parts.length === 1 && parts[0].isKanji) {
-    const kText = parts[0].text;
-    if (kText.length === 1) return [{ text: kText, ruby }];
-    if (kText.length === 2) {
-      const r0List = (SINGLE_KANJI_READINGS[kText[0]] || []).concat(SINGLE_KANJI_DICT[kText[0]] ? [SINGLE_KANJI_DICT[kText[0]]] : []);
-      for (const r0 of r0List) {
-        if (ruby.startsWith(r0) && ruby.length > r0.length) {
-          return [
-            { text: kText[0], ruby: r0 },
-            { text: kText[1], ruby: ruby.slice(r0.length) }
-          ];
-        }
+
+  // Single kanji
+  if (base.length === 1) {
+    return [{ text: base, ruby: KANJI_REGEX.test(base) ? ruby : null }];
+  }
+
+  // Proportional or dictionary split for multi-kanji words
+  if (base.length === 2) {
+    const r0List = (SINGLE_KANJI_READINGS[base[0]] || []).concat(SINGLE_KANJI_DICT[base[0]] ? [SINGLE_KANJI_DICT[base[0]]] : []);
+    for (const r0 of r0List) {
+      if (ruby.startsWith(r0) && ruby.length > r0.length) {
+        return [
+          { text: base[0], ruby: r0 },
+          { text: base[1], ruby: ruby.slice(r0.length) }
+        ];
       }
-      const r1List = (SINGLE_KANJI_READINGS[kText[1]] || []).concat(SINGLE_KANJI_DICT[kText[1]] ? [SINGLE_KANJI_DICT[kText[1]]] : []);
-      for (const r1 of r1List) {
-        if (ruby.endsWith(r1) && ruby.length > r1.length) {
-          return [
-            { text: kText[0], ruby: ruby.slice(0, ruby.length - r1.length) },
-            { text: kText[1], ruby: r1 }
-          ];
-        }
-      }
-      const half = Math.ceil(ruby.length / 2);
-      return [
-        { text: kText[0], ruby: ruby.slice(0, half) },
-        { text: kText[1], ruby: ruby.slice(half) }
-      ];
     }
-    if (kText.length >= 3) {
-      let remaining = ruby;
-      const segments = [];
-      let allFound = true;
-      for (let idx = 0; idx < kText.length; idx++) {
-        const char = kText[idx];
-        if (idx === kText.length - 1) {
-          segments.push({ text: char, ruby: remaining });
-          break;
-        }
-        const rList = (SINGLE_KANJI_READINGS[char] || []).concat(SINGLE_KANJI_DICT[char] ? [SINGLE_KANJI_DICT[char]] : []);
-        let found = false;
-        for (const r of rList) {
-          if (remaining.startsWith(r) && remaining.length > r.length) {
-            segments.push({ text: char, ruby: r });
-            remaining = remaining.slice(r.length);
-            found = true;
-            break;
-          }
-        }
-        if (!found) {
-          allFound = false;
-          break;
-        }
+    const r1List = (SINGLE_KANJI_READINGS[base[1]] || []).concat(SINGLE_KANJI_DICT[base[1]] ? [SINGLE_KANJI_DICT[base[1]]] : []);
+    for (const r1 of r1List) {
+      if (ruby.endsWith(r1) && ruby.length > r1.length) {
+        return [
+          { text: base[0], ruby: ruby.slice(0, ruby.length - r1.length) },
+          { text: base[1], ruby: r1 }
+        ];
       }
-      if (allFound && segments.length === kText.length) {
-        return segments;
+    }
+    const half = Math.ceil(ruby.length / 2);
+    return [
+      { text: base[0], ruby: ruby.slice(0, half) },
+      { text: base[1], ruby: ruby.slice(half) }
+    ];
+  }
+
+  let remaining = ruby;
+  const segments = [];
+  let allFound = true;
+  for (let idx = 0; idx < base.length; idx++) {
+    const char = base[idx];
+    if (idx === base.length - 1) {
+      segments.push({ text: char, ruby: remaining });
+      break;
+    }
+    const rList = (SINGLE_KANJI_READINGS[char] || []).concat(SINGLE_KANJI_DICT[char] ? [SINGLE_KANJI_DICT[char]] : []);
+    let found = false;
+    for (const r of rList) {
+      if (remaining.startsWith(r) && remaining.length > r.length) {
+        segments.push({ text: char, ruby: r });
+        remaining = remaining.slice(r.length);
+        found = true;
+        break;
       }
-      const avgLen = Math.floor(ruby.length / kText.length);
-      const res = [];
-      let rem = ruby;
-      for (let idx = 0; idx < kText.length; idx++) {
-        if (idx === kText.length - 1) {
-          res.push({ text: kText[idx], ruby: rem });
-        } else {
-          const take = Math.max(1, Math.min(rem.length - (kText.length - idx - 1), avgLen));
-          res.push({ text: kText[idx], ruby: rem.slice(0, take) });
-          rem = rem.slice(take);
-        }
-      }
-      return res;
+    }
+    if (!found) {
+      allFound = false;
+      break;
     }
   }
-  const result = [];
-  let remainingRuby = ruby;
-  for (let p = 0; p < parts.length; p++) {
-    const part = parts[p];
-    if (!part.isKanji) {
-      if (remainingRuby.startsWith(part.text)) {
-        remainingRuby = remainingRuby.slice(part.text.length);
-      }
-      for (const ch of part.text) {
-        result.push({ text: ch, ruby: null });
-      }
+  if (allFound && segments.length === base.length) {
+    return segments;
+  }
+
+  const avgLen = Math.floor(ruby.length / base.length);
+  const res = [];
+  let rem = ruby;
+  for (let idx = 0; idx < base.length; idx++) {
+    if (idx === base.length - 1) {
+      res.push({ text: base[idx], ruby: rem });
     } else {
-      const nextKana = parts[p + 1] ? parts[p + 1].text : null;
-      let kanjiRuby = remainingRuby;
-      if (nextKana) {
-        const nextKanaIdx = remainingRuby.indexOf(nextKana);
-        if (nextKanaIdx > 0) {
-          kanjiRuby = remainingRuby.slice(0, nextKanaIdx);
-          remainingRuby = remainingRuby.slice(nextKanaIdx);
-        }
-      } else {
-        remainingRuby = '';
-      }
-      if (part.text.length === 1) {
-        result.push({ text: part.text, ruby: kanjiRuby });
-      } else {
-        const subSplit = splitWordRuby(part.text, kanjiRuby);
-        result.push(...subSplit);
-      }
+      const take = Math.max(1, Math.min(rem.length - (base.length - idx - 1), avgLen));
+      res.push({ text: base[idx], ruby: rem.slice(0, take) });
+      rem = rem.slice(take);
     }
   }
-  return result;
+  return res;
 }
 
 /**

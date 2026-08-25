@@ -342,7 +342,22 @@
   background: rgba(0, 0, 0, 0.15) !important;
 }
 
-/* Compact Playlists Grid */
+/* Compact Playlists Horizontal Scroll */
+.mode-light.layout-modern .compact-playlists-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15) !important;
+}
+
+.mode-light.layout-modern .playlist-scroll-arrow-btn {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  color: #4b5563 !important;
+}
+
+.mode-light.layout-modern .playlist-scroll-arrow-btn:hover {
+  background: rgba(0, 0, 0, 0.08) !important;
+  color: #111827 !important;
+}
+
 .mode-light.layout-modern .compact-playlist-card {
   background: rgba(255, 255, 255, 0.82) !important;
   border: 1px solid rgba(0, 0, 0, 0.07) !important;
@@ -365,4 +380,153 @@
 
 .mode-light.layout-modern .compact-playlist-count {
   color: #6b7280 !important;
+}
+
+/* 9. Playlist & Album Details in Modern Light Mode */
+.mode-light.layout-modern .songs-table {
+  color: var(--text-main, #111827);
+}
+
+.mode-light.layout-modern .songs-table th {
+  color: #64748b !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light.layout-modern .song-row {
+  background: rgba(255, 255, 255, 0.82) !important;
+  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02) !important;
+}
+
+.mode-light.layout-modern .song-row:hover {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.05) !important;
+}
+
+.mode-light.layout-modern .song-row td {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .song-row-title,
+.mode-light.layout-modern .song-row-name {
+  color: #111827 !important;
+  font-weight: 600;
+}
+
+.mode-light.layout-modern .song-row-artist,
+.mode-light.layout-modern .song-row-artists {
+  color: #64748b !important;
+}
+
+.mode-light.layout-modern .song-row-artists span:hover {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .song-title-cell button.play-pause-btn {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+}
+
+/* 10. Leaderboards in Modern Light Mode */
+.mode-light.layout-modern .rank-card {
+  background: rgba(255, 255, 255, 0.88) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+}
+
+.mode-light.layout-modern .rank-card:hover {
+  background: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.14) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07) !important;
+}
+
+.mode-light.layout-modern .rank-title {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .rank-song-name {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .rank-song-artist {
+  color: #64748b !important;
+}
+
+/* 11. Search in Modern Light Mode */
+.mode-light.layout-modern .search-input-wrap {
+  background: rgba(0, 0, 0, 0.04) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+.mode-light.layout-modern .search-input {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .search-tab-btn {
+  color: #64748b !important;
+}
+
+.mode-light.layout-modern .search-tab-btn:hover {
+  color: #111827 !important;
+}
+
+.mode-light.layout-modern .search-tab-btn.active {
+  color: var(--primary) !important;
+  background: var(--primary-subtle) !important;
+}
+
+/* 12. Progress Bar Lyric Hover Preview & Volume Popover in Light Mode */
+.mode-light .progress-lyric-preview,
+.mode-light.layout-modern .progress-lyric-preview {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+  color: #111827 !important;
+}
+
+.mode-light .progress-preview-count,
+.mode-light.layout-modern .progress-preview-count {
+  color: #64748b !important;
+}
+
+.mode-light .progress-preview-text,
+.mode-light.layout-modern .progress-preview-text {
+  color: #111827 !important;
+}
+
+.mode-light .progress-preview-translation,
+.mode-light.layout-modern .progress-preview-translation {
+  color: #4b5563 !important;
+}
+
+.mode-light .progress-preview-line,
+.mode-light.layout-modern .progress-preview-line {
+  color: #64748b !important;
+}
+
+.mode-light .progress-preview-meter,
+.mode-light.layout-modern .progress-preview-meter {
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light .modern-volume-popover,
+.mode-light.layout-modern .modern-volume-popover {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12) !important;
+  color: #111827 !important;
+}
+
+.mode-light .modern-volume-popover strong,
+.mode-light.layout-modern .modern-volume-popover strong {
+  color: #111827 !important;
+}
+
+.mode-light .modern-mini-queue-popover {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.14) !important;
+  color: #111827 !important;
 }

@@ -400,3 +400,101 @@
   background: var(--primary);
 }
 
+
+/* ==========================================================================
+   CLASSIC LAYOUT — LIGHT MODE OVERRIDES (.mode-light)
+   ========================================================================== */
+
+.mode-light .app-sidebar,
+.mode-light.layout-classic .app-sidebar {
+  background: rgba(255, 255, 255, 0.92);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 2px 0 16px rgba(0, 0, 0, 0.03);
+}
+
+.mode-light .brand-name {
+  color: #111827;
+  -webkit-text-fill-color: initial;
+  background: none;
+}
+
+.mode-light .nav-section-title {
+  color: #64748b;
+}
+
+.mode-light .nav-item {
+  color: #475569;
+}
+
+.mode-light .nav-item:hover {
+  color: #111827;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.mode-light .nav-item.active {
+  color: var(--primary);
+  background: var(--primary-subtle);
+  font-weight: 600;
+}
+
+.mode-light .user-card {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.mode-light .user-card:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.mode-light .user-name {
+  color: #111827;
+}
+
+.mode-light .user-status {
+  color: #64748b;
+}
+
+.mode-light .main-header {
+  background: linear-gradient(to bottom, rgba(248, 250, 252, 0.95), rgba(248, 250, 252, 0.4));
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.mode-light .app-player-bar,
+.mode-light.layout-classic .app-player-bar {
+  background: rgba(255, 255, 255, 0.94);
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.04);
+}
+
+.mode-light .player-song-name {
+  color: #111827;
+}
+
+.mode-light .player-song-artists {
+  color: #64748b;
+}
+
+.mode-light .control-btn {
+  color: #64748b;
+}
+
+.mode-light .control-btn:hover {
+  color: #111827;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.mode-light .control-btn.active {
+  color: var(--primary);
+}
+
+.mode-light .progress-slider {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.mode-light .volume-slider {
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.mode-light .volume-fill {
+  background: #374151;
+}

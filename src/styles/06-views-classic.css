@@ -856,3 +856,127 @@
 }
 
 
+
+/* ==========================================================================
+   CLASSIC VIEWS & MUSIC COMPONENTS — LIGHT MODE OVERRIDES (.mode-light)
+   ========================================================================== */
+
+.mode-light .music-card {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.03);
+}
+
+.mode-light .music-card:hover {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.mode-light .card-title {
+  color: #111827;
+}
+
+.mode-light .card-desc {
+  color: #64748b;
+}
+
+.mode-light .card-image-wrap {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.mode-light .songs-table th {
+  color: #64748b;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.mode-light .song-row td {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  color: #111827;
+}
+
+.mode-light .song-row:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.mode-light .song-row-title,
+.mode-light .song-row-name {
+  color: #111827;
+}
+
+.mode-light .song-row-artist,
+.mode-light .song-row-artists {
+  color: #64748b;
+}
+
+.mode-light .song-row-artists span:hover {
+  color: #111827;
+}
+
+.mode-light .search-input-wrap {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.mode-light .search-input-wrap:focus-within {
+  background: #ffffff;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-subtle);
+}
+
+.mode-light .search-input {
+  color: #111827;
+}
+
+.mode-light .search-tab-btn {
+  color: #64748b;
+}
+
+.mode-light .search-tab-btn:hover {
+  color: #111827;
+}
+
+.mode-light .search-tab-btn.active {
+  color: var(--primary);
+  background: var(--primary-subtle);
+}
+
+.mode-light .modal-content {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.16);
+  color: #111827;
+}
+
+.mode-light .play-queue-popover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.12);
+  color: #111827;
+}
+
+.mode-light .volume-popover {
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.mode-light .window-btn {
+  color: #64748b;
+}
+
+.mode-light .window-btn:hover {
+  color: #111827;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.mode-light .local-header-banner {
+  background: linear-gradient(135deg, rgba(255, 64, 129, 0.08) 0%, rgba(240, 244, 250, 0.92) 100%) !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+.mode-light .cover-placeholder {
+  color: #64748b;
+  background: rgba(0, 0, 0, 0.05);
+}

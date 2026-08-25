@@ -33,18 +33,14 @@ function SetupPanel({ listenState }) {
   };
 
   return (
-    <div style={{
+    <div className="listen-setup-panel" style={{
       padding: '24px',
       borderRadius: '16px',
-      background: 'rgba(255, 255, 255, 0.03)',
-      border: '1px solid rgba(255, 255, 255, 0.08)',
-      backdropFilter: 'blur(20px)',
-      boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
       display: 'flex',
       flexDirection: 'column',
       gap: '16px'
     }}>
-      <div style={{ fontSize: '15px', fontWeight: 700, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text-active)', display: 'flex', alignItems: 'center', gap: '8px' }}>
         <LogIn size={18} color="var(--primary)" />
         <span>加入已有听歌房间</span>
       </div>
@@ -111,16 +107,13 @@ export default function ListenTogether({ listenState, currentSong, lyrics = [], 
 
   return (
     <div className="listen-together-page">
-      {/* Header Banner (LocalMusic Style) */}
-      <div style={{
+      {/* Header Banner */}
+      <div className="listen-header-banner" style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '24px',
-        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(20, 35, 45, 0.45) 100%)',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
         borderRadius: '16px',
-        backdropFilter: 'blur(20px)',
         marginBottom: '20px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -138,8 +131,8 @@ export default function ListenTogether({ listenState, currentSong, lyrics = [], 
             <Radio size={28} color="#fff" />
           </div>
           <div>
-            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700 }}>{roomTitle}</h2>
-            <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.65)', marginTop: '4px' }}>
+            <h2 style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: 'var(--text-active)' }}>{roomTitle}</h2>
+            <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
               {roomId ? '播放状态会自动同步给房间里的每个人' : '创建一个房间，和朋友一起同步音乐与实时聊天'}
             </div>
           </div>
