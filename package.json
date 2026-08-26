@@ -1,6 +1,6 @@
 {
     "name": "ichigomusic",
-    "version": "2.1.1",
+    "version": "2.2.0",
     "description": "A beautiful music player with desktop lyrics and particle visualizers.",
     "author": "Antigravity",
     "private": true,
@@ -13,7 +13,7 @@
         "check:desktop-lyrics": "node scripts/check-desktop-lyrics.mjs",
         "check:furigana-e2e": "node scripts/run-e2e-furigana-pipeline.mjs",
         "check:user-lyrics": "node scripts/test-user-lyrics-file.mjs",
-        "check": "npm run build && npm run check:ui && npm run check:immersive && npm run check:desktop-lyrics && npm run check:furigana-e2e && npm run check:user-lyrics && npm run check:cover && npm run check:playback && npm run check:runtime && npm run check:packaged-entry && npm run check:listen && npm run check:ktv && npm run check:ktv-pv && npm run check:playlist && npm run check:lyrics && node --check main-electron.js && node --check preload-electron.cjs",
+        "check": "npm run build && npm run check:ui && npm run check:audio-engine && npm run check:immersive && npm run check:desktop-lyrics && npm run check:furigana-e2e && npm run check:user-lyrics && npm run check:cover && npm run check:playback && npm run check:runtime && npm run check:packaged-entry && npm run check:listen && npm run check:ktv && npm run check:ktv-pv && npm run check:playlist && npm run check:lyrics && node --check main-electron.js && node --check preload-electron.cjs",
         "electron": "electron .",
         "electron:build": "vite build && electron-builder",
         "check:cover": "node scripts/check-cover-state.mjs",
@@ -25,7 +25,8 @@
         "check:ktv-pv": "node scripts/check-ktv-pv.mjs",
         "check:playlist": "node scripts/check-playlist-loading.mjs",
         "check:lyrics": "node --test src/hooks/useLyricEngine.test.js",
-        "check:ui": "node scripts/check-ui-primitives.mjs"
+        "check:ui": "node scripts/check-ui-primitives.mjs",
+        "check:audio-engine": "node scripts/check-audio-engine-and-mini-player.mjs"
     },
     "dependencies": {
         "@fontsource/dotgothic16": "^5.3.0",

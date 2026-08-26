@@ -27,6 +27,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDesktopLyricsMoved: (callback) => subscribe('desktop-lyrics-moved', callback),
   onDesktopLyricsVisibilityChange: (callback) => subscribe('desktop-lyrics-visibility-change', callback),
 
+  // Island Mini Player IPC
+  toggleMiniPlayer: () => ipcRenderer.send('toggle-mini-player'),
+  closeMiniPlayer: () => ipcRenderer.send('close-mini-player'),
+  restoreMainWindow: () => ipcRenderer.send('restore-main-window'),
+  sendMiniPlayerUpdate: (data) => ipcRenderer.send('send-mini-player-update', data),
+  onMiniPlayerUpdate: (callback) => subscribe('mini-player-update-reply', callback),
+  sendMiniPlayerAction: (action, payload) => ipcRenderer.send('mini-player-action', action, payload),
+  onMiniPlayerAction: (callback) => subscribe('mini-player-action-reply', callback),
+  saveMiniPlayerPosition: (pos) => ipcRenderer.send('save-mini-player-position', pos),
+  onMiniPlayerVisibilityChange: (callback) => subscribe('mini-player-visibility-change', callback),
+
   // Taskbar / System Tray media controls
   onMediaPrev: (callback) => subscribe('media-prev', callback),
   onMediaNext: (callback) => subscribe('media-next', callback),

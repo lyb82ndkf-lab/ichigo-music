@@ -53,8 +53,8 @@ export default function Sidebar() {
   return (
     <aside className="app-sidebar">
       <nav className="nav-menu" style={{ paddingTop: '10px' }}>
-        {navbarConfig
-          .filter(item => item.show)
+        {(Array.isArray(navbarConfig) ? navbarConfig : [])
+          .filter(item => item && item.show)
           .map(item => {
             const IconComponent = iconMap[item.key] || Music;
             const isActive = currentView === item.key;

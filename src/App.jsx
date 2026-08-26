@@ -17,6 +17,7 @@ import MiniQueuePopover from './components/MiniQueuePopover';
 import { useCachedCoverUrl } from './components/CachedCover';
 
 import DesktopLyrics from './views/DesktopLyrics';
+import IslandMiniPlayer from './views/IslandMiniPlayer';
 import ListenTogether from './views/ListenTogether';
 import { useLyricEngine } from './hooks/useLyricEngine';
 import { useListenTogether } from './hooks/useListenTogether';
@@ -39,7 +40,7 @@ const LocalMusic = lazy(() => import('./views/LocalMusic'));
 import LyricAdjusterModal from './components/LyricAdjusterModal';
 import LyricExportModal from './components/LyricExportModal';
 import SleepTimerModal from './components/SleepTimerModal';
-
+import EqualizerModal from './components/EqualizerModal';
 // Icons
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';
 
@@ -71,18 +72,22 @@ function AppContent() {
     setVolume,
     setPlayMode,
     playMode,
+    likedSongIds,
     toggleLike,
     isLyricsOpen,
     setIsLyricsOpen,
     isQueueOpen,
     setIsQueueOpen,
+    isEqualizerOpen,
+    setIsEqualizerOpen,
     navigateTo,
-    immersiveColor,
     cacheConfig,
-      updateInfo,
-      setUpdateInfo,
-      downloadUpdate,
-      installUpdate
+    colorMode,
+    immersiveColor,
+    updateInfo,
+    setUpdateInfo,
+    downloadUpdate,
+    installUpdate
   } = useApp();
   const { engineRef, lyrics, activeLineIndex, lyricsSongId } = useLyricEngine(
     currentSong?.id,
@@ -285,6 +290,69 @@ function AppContent() {
     const intervalId = setInterval(sendUpdate, 250);
     return () => clearInterval(intervalId);
   }, [isPlaying, currentSong, advancedLyricConfig.globalOffset, lyrics, audioElement, desktopLyricsConfig?.show]);
+  // Synchronize state and lyrics to Island Mini Player
+  useEffect(() => {
+    if (!window.electronAPI?.sendMiniPlayerUpdate) return;
+
+    const sendMiniUpdate = () => {
+      const isLiked = Boolean(
+        currentSong?.id && (
+          (likedSongIds instanceof Set && (likedSongIds.has(currentSong.id) || likedSongIds.has(String(currentSong.id)) || likedSongIds.has(Number(currentSong.id))))
+          || (Array.isArray(likedSongIds) && (likedSongIds.includes(currentSong.id) || likedSongIds.includes(String(currentSong.id)) || likedSongIds.includes(Number(currentSong.id))))
+        )
+      );
+      const timeSnapshot = audioElement ? (audioElement.currentTime || 0) : progress;
+      const adjustedSnapshot = timeSnapshot + (advancedLyricConfig?.globalOffset || 0);
+
+      let effectiveActiveIndex = -1;
+      if (lyrics && lyrics.length > 0) {
+        for (let i = lyrics.length - 1; i >= 0; i -= 1) {
+          if (adjustedSnapshot >= (lyrics[i].time || 0)) {
+            effectiveActiveIndex = i;
+            break;
+          }
+        }
+      }
+
+      window.electronAPI.sendMiniPlayerUpdate({
+        isPlaying,
+        currentSong,
+        progress: timeSnapshot,
+        duration: audioElement?.duration || (Number(currentSong?.durationMs || currentSong?.dt || 0) / 1000) || 0,
+        volume,
+        isLiked,
+        lyrics: lyrics || [],
+        activeLineIndex: effectiveActiveIndex,
+        immersiveColor,
+        colorMode
+      });
+    };
+    sendMiniUpdate();
+    const intervalId = setInterval(sendMiniUpdate, 300);
+    return () => clearInterval(intervalId);
+  }, [isPlaying, currentSong, progress, volume, likedSongIds, lyrics, audioElement, advancedLyricConfig?.globalOffset, immersiveColor, colorMode]);
+
+  // Listen to Mini Player transport actions
+  useEffect(() => {
+    if (!window.electronAPI?.onMiniPlayerAction) return;
+
+    const cleanup = window.electronAPI.onMiniPlayerAction(({ action, payload } = {}) => {
+      if (action === 'toggle-play') {
+        guardedTogglePlay();
+      } else if (action === 'prev') {
+        guardedPlayPrev();
+      } else if (action === 'next') {
+        guardedPlayNext();
+      } else if (action === 'set-volume') {
+        setVolume(Number(payload));
+      } else if (action === 'toggle-like') {
+        if (currentSong?.id) toggleLike(currentSong.id);
+      }
+    });
+
+    return cleanup;
+  }, [guardedTogglePlay, guardedPlayPrev, guardedPlayNext, setVolume, toggleLike, currentSong?.id]);
+
 
 
   // Sync Desktop Lyrics coordinates/config. Register IPC listeners once and always clean them up.
@@ -795,7 +863,7 @@ function AppContent() {
                                 }}>
                                 <option value="auto">自动：按封面颜色固定选择</option>
                                 <option value="multi">多选：随机轮播模板池</option>
-                                {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([val, label]) => (
+                                {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([val, label]) => (
                                   <option key={val} value={val}>{label}</option>
                                 ))}
                               </select>
@@ -804,7 +872,7 @@ function AppContent() {
 
                           {/* 富卡片缩略表格画廊 (Thumbnail Table Gallery) */}
                           <div aria-label="PV 模板速选" style={{ margin: '4px 0 14px', maxHeight: '280px', overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([value, label, background, tag, desc, palette]) => {
+                            {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([value, label, background, tag, desc, palette]) => {
                               const selected = (advancedLyricConfig.ktvPreset || 'auto') === value;
                               return (
                                 <div
@@ -890,11 +958,12 @@ function AppContent() {
                               <b style={{ color: ktvPresetPool.length >= 2 ? 'var(--primary)' : '#ffbd69' }}>{ktvPresetPool.length} 个</b>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '4px 8px', maxHeight: '160px', overflowY: 'auto' }}>
-                              {KTV_TEMPLATE_GALLERY.filter(([val]) => val !== 'auto').map(([value, label]) => {
-                                const checked = ktvPresetPool.includes(value);
+                              {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([value, label]) => {
+                                const pool = Array.isArray(ktvPresetPool) ? ktvPresetPool : [];
+                                const checked = pool.includes(value);
                                 return <label key={`multi-${value}`} style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, color: checked ? 'var(--primary)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer' }}>
                                   <input type="checkbox" checked={checked} onChange={() => {
-                                    const next = checked ? ktvPresetPool.filter(item => item !== value) : [...ktvPresetPool, value];
+                                    const next = checked ? pool.filter(item => item !== value) : [...pool, value];
                                     updateAdvancedLyricConfig({ ktvPresetPool: next });
                                   }} />
                                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
@@ -1421,6 +1490,10 @@ function AppContent() {
           isOpen={isSleepTimerOpen}
           onClose={() => setIsSleepTimerOpen(false)}
         />
+        <EqualizerModal
+          isOpen={isEqualizerOpen}
+          onClose={() => setIsEqualizerOpen(false)}
+        />
         <AnimatePresence>
           {updateInfo?.show && (
             <UpdatePromptModal
@@ -1493,6 +1566,9 @@ const generateMediaBase64Icons = () => {
 export default function App() {
   if (window.location.search.includes('desktop-lyrics=true')) {
     return <DesktopLyrics />;
+  }
+  if (window.location.search.includes('mini-player=true')) {
+    return <IslandMiniPlayer />;
   }
 
   return (

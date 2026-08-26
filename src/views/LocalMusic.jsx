@@ -64,7 +64,8 @@ export default function LocalMusic() {
     return `${mb.toFixed(1)} MB`;
   };
 
-  const filteredSongs = songs.filter(s => {
+  const filteredSongs = (Array.isArray(songs) ? songs : []).filter(s => {
+    if (!s) return false;
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
     return (s.name || '').toLowerCase().includes(q) || (s.artist || '').toLowerCase().includes(q);

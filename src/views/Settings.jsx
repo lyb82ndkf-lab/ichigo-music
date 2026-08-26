@@ -3,13 +3,14 @@ import { useApp, APP_VERSION } from '../context/AppContext';
 import { api } from '../utils/api';
 import Login from './Login';
 import ShortcutRow from '../components/ShortcutRow';
-import { DEFAULT_PROFILE, EQ_PRESETS, exportProfile, importProfile, resetProfile } from '../utils/settingsProfile';
+import { DEFAULT_PROFILE, EQ_PRESETS, EQ_PRESET_NAMES, EQ_BAND_LABELS, EQ_BAND_FREQUENCIES, exportProfile, importProfile, resetProfile } from '../utils/settingsProfile';
 import {
   Airplay, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu,
   Monitor, Music4, Palette, Power, Sliders, Trash2, UserCheck, Sparkles,
-  Volume2, Eye, RefreshCw, Layers, ShieldCheck, Zap, Download
+  Volume2, Eye, RefreshCw, Layers, ShieldCheck, Zap, Download, Activity
 } from 'lucide-react';
 import LyricExportModal from '../components/LyricExportModal';
+import EqualizerPanel from '../components/EqualizerPanel';
 import { IMMERSIVE_MODE_OPTIONS, IMMERSIVE_MODE_PARAMETER_KEYS, normalizeImmersiveMode, KTV_TEMPLATE_GALLERY } from '../utils/immersiveModes';
 import { IMMERSIVE_PRESETS, IMMERSIVE_PRESET_MAP } from '../utils/immersivePresets';
 import { clearRuntimeLogs, formatRuntimeLogs, getRuntimeLogs, subscribeRuntimeLogs } from '../utils/runtimeLog';
@@ -281,7 +282,8 @@ export default function Settings() {
     audioConfig, saveAudioConfig, cacheConfig, saveCacheConfig,
     renderingConfig, saveRenderingConfig, shortcuts, saveShortcuts,
     audioQuality, setAudioQuality, viewData, checkForUpdates,
-    appearanceConfig, saveAppearanceConfig, currentSong
+    appearanceConfig, saveAppearanceConfig, currentSong,
+    isEqualizerOpen, setIsEqualizerOpen
   } = useApp();
 
   const [activeTab, setActiveTab] = useState(() => viewData?.tab || (user ? 'theme' : 'account'));
@@ -290,16 +292,16 @@ export default function Settings() {
   const [checking, setChecking] = useState(false);
   const [cacheStats, setCacheStats] = useState(null);
   const [defaultCacheDir, setDefaultCacheDir] = useState('');
-  const [customPrimary, setCustomPrimary] = useState(customThemeColors.primary);
-  const [customBgStart, setCustomBgStart] = useState(customThemeColors.bgStart);
-  const [customBgEnd, setCustomBgEnd] = useState(customThemeColors.bgEnd);
+  const [customPrimary, setCustomPrimary] = useState(customThemeColors?.primary || '#ff4081');
+  const [customBgStart, setCustomBgStart] = useState(customThemeColors?.bgStart || '#120c1f');
+  const [customBgEnd, setCustomBgEnd] = useState(customThemeColors?.bgEnd || '#05020a');
   const [cookieInput, setCookieInput] = useState('');
   const customColorTimerRef = useRef(null);
 
   useEffect(() => {
-    setCustomPrimary(customThemeColors.primary);
-    setCustomBgStart(customThemeColors.bgStart);
-    setCustomBgEnd(customThemeColors.bgEnd);
+    setCustomPrimary(customThemeColors?.primary || '#ff4081');
+    setCustomBgStart(customThemeColors?.bgStart || '#120c1f');
+    setCustomBgEnd(customThemeColors?.bgEnd || '#05020a');
   }, [customThemeColors]);
 
   const handleCustomPrimaryChange = (val) => {
@@ -839,58 +841,11 @@ export default function Settings() {
               <option value="jymaster">超清母带 (Master)</option>
             </select>
           </SettingRow>
-          <SettingRow label={`切歌平滑淡入淡出 (Crossfade)：${(audioConfig.crossfade ?? 0.8).toFixed(1)}s`} hint="切歌与暂停时平滑渐变音量，彻底消除爆音">
-            <input className="setting-slider" type="range" min="0" max="5.0" step="0.2" value={audioConfig.crossfade ?? 0.8} onChange={(e) => updateAudio({ crossfade: Number(e.target.value) })} />
-          </SettingRow>
         </div>
       </div>
 
-      <div className="settings-section">
-        <h3 className="settings-title"><Sliders size={18} />10 段图形均衡器 (EQ)</h3>
-        <div className="settings-content">
-          <SettingRow label="启用均衡器">
-            <SmoothSwitch checked={audioConfig.equalizer?.enabled === true} onChange={(v) => updateAudio({ equalizer: { ...audioConfig.equalizer, enabled: v } })} />
-          </SettingRow>
-          {audioConfig.equalizer?.enabled && (
-            <>
-              <SettingRow label="EQ 音效预设">
-                <select className="setting-select" value={audioConfig.equalizer?.preset || 'none'} onChange={(e) => updateAudio({ equalizer: { ...audioConfig.equalizer, preset: e.target.value, bands: EQ_PRESETS[e.target.value] || EQ_PRESETS.none } })}>
-                  <option value="none">原声直通 (Flat)</option>
-                  <option value="pop">流行 (Pop)</option>
-                  <option value="rock">摇滚 (Rock)</option>
-                  <option value="jazz">爵士 (Jazz)</option>
-                  <option value="classical">古典 (Classical)</option>
-                  <option value="electronic">电子 (Electronic)</option>
-                  <option value="bassBoost">重低音增强 (Bass Boost)</option>
-                  <option value="vocalBoost">人声清晰 (Vocal Boost)</option>
-                </select>
-              </SettingRow>
-              <div className="eq-bands" style={{ marginTop: 12 }}>
-                {['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'].map((band, idx) => {
-                  const val = audioConfig.equalizer?.bands?.[idx] || 0;
-                  return (
-                    <div key={band} className="eq-band">
-                      <em>{val > 0 ? `+${val}` : val}dB</em>
-                      <input
-                        type="range"
-                        min="-12"
-                        max="12"
-                        step="1"
-                        value={val}
-                        onChange={(e) => {
-                          const next = [...(audioConfig.equalizer?.bands || [0,0,0,0,0,0,0,0,0,0])];
-                          next[idx] = Number(e.target.value);
-                          updateAudio({ equalizer: { ...audioConfig.equalizer, preset: 'custom', bands: next } });
-                        }}
-                      />
-                      <span>{band}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
-          )}
-        </div>
+      <div className="settings-section" style={{ padding: 0, background: 'transparent', border: 'none', boxShadow: 'none' }}>
+        <EqualizerPanel isModal={false} />
       </div>
     </div>
   );

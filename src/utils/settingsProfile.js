@@ -28,14 +28,37 @@ const LEGACY_KEYS = [
   'ichigo_recently_played'
 ];
 
+export const EQ_BAND_FREQUENCIES = [31, 62, 125, 250, 500, 1000, 2000, 4000, 8000, 16000];
+export const EQ_BAND_LABELS = ['31Hz', '62Hz', '125Hz', '250Hz', '500Hz', '1kHz', '2kHz', '4kHz', '8kHz', '16kHz'];
+
 export const EQ_PRESETS = {
-  none: { '32': 0, '64': 0, '125': 0, '250': 0, '500': 0, '1k': 0, '2k': 0, '4k': 0, '8k': 0, '16k': 0 },
-  pop: { '32': -1, '64': 2, '125': 4, '250': 3, '500': 0, '1k': -1, '2k': 2, '4k': 4, '8k': 3, '16k': 1 },
-  rock: { '32': 5, '64': 4, '125': 2, '250': -1, '500': -2, '1k': 1, '2k': 3, '4k': 5, '8k': 4, '16k': 2 },
-  jazz: { '32': 2, '64': 3, '125': 1, '250': 2, '500': -1, '1k': -1, '2k': 1, '4k': 3, '8k': 4, '16k': 3 },
-  classical: { '32': 3, '64': 2, '125': 1, '250': 0, '500': 0, '1k': 0, '2k': 1, '4k': 2, '8k': 3, '16k': 4 },
-  electronic: { '32': 6, '64': 5, '125': 2, '250': 0, '500': -2, '1k': 0, '2k': 1, '4k': 3, '8k': 5, '16k': 4 },
-  hiphop: { '32': 6, '64': 5, '125': 4, '250': 2, '500': -1, '1k': -1, '2k': 1, '4k': 2, '8k': 3, '16k': 2 }
+  none: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  pop: [-1, 2, 4, 3, 0, -1, 2, 4, 3, 1],
+  rock: [5, 4, 2, -1, -2, 1, 3, 5, 4, 2],
+  dance: [6, 5, 2, 0, -2, 0, 1, 3, 5, 4],
+  classical: [3, 2, 1, 0, 0, 0, 1, 2, 3, 4],
+  vocalBoost: [-2, -1, 0, 1, 3, 4, 3, 1, 0, -1],
+  bassBoost: [8, 7, 5, 3, 1, 0, -1, -2, -2, -3],
+  pureTreble: [-3, -2, -2, -1, 0, 1, 3, 5, 7, 8],
+  jazz: [2, 3, 1, 2, -1, -1, 1, 3, 4, 3],
+  hiphop: [6, 5, 4, 2, -1, -1, 1, 2, 3, 2],
+  electronic: [5, 4, 2, 0, -2, 1, 2, 4, 6, 5],
+  acoustic: [2, 1, 0, 1, 2, 2, 3, 3, 2, 1]
+};
+
+export const EQ_PRESET_NAMES = {
+  none: '原声直通 (Flat)',
+  pop: '流行 (Pop)',
+  rock: '摇滚 (Rock)',
+  dance: '舞曲 (Dance)',
+  classical: '古典 (Classical)',
+  vocalBoost: '人声增强 (Vocal Boost)',
+  bassBoost: '低音轰炸 (Bass Boost)',
+  pureTreble: '纯净高音 (Pure Treble)',
+  jazz: '爵士 (Jazz)',
+  hiphop: '嘻哈 (Hip-Hop)',
+  electronic: '电子 (Electronic)',
+  acoustic: '现场/原声 (Acoustic)'
 };
 
 const DEFAULT_BANDS = EQ_PRESETS.none;
@@ -347,6 +370,7 @@ export const DEFAULT_PROFILE = {
     quality: 'hires',
     volume: 0.15,
     muted: false,
+    crossfade: 1.0,
     cache: {
       enabled: true,
       audio: true,
@@ -357,18 +381,8 @@ export const DEFAULT_PROFILE = {
     equalizer: {
       enabled: false,
       preset: 'none',
-      bands: {
-        '32': 0,
-        '64': 0,
-        '125': 0,
-        '250': 0,
-        '500': 0,
-        '1k': 0,
-        '2k': 0,
-        '4k': 0,
-        '8k': 0,
-        '16k': 0
-      }
+      bands: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      customPresets: []
     },
     reverb: {
       enabled: false,
@@ -608,6 +622,29 @@ function normalizeProfile(profile) {
       name: CANONICAL_NAV_NAMES['listen-together'],
       show: true
     });
+  }
+  if (normalized.audio?.equalizer) {
+    const eq = normalized.audio.equalizer;
+    let bands = eq.bands;
+    if (!Array.isArray(bands)) {
+      if (bands && typeof bands === 'object') {
+        const legacyKeys = ['32', '64', '125', '250', '500', '1k', '2k', '4k', '8k', '16k'];
+        bands = legacyKeys.map((k) => Number(bands[k] || 0));
+      } else {
+        bands = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+      }
+    }
+    const safeBands = [...bands];
+    while (safeBands.length < 10) safeBands.push(0);
+    normalized.audio.equalizer.bands = safeBands.slice(0, 10).map((v) => Math.max(-12, Math.min(12, Number(v) || 0)));
+    normalized.audio.equalizer.customPresets = Array.isArray(eq.customPresets) ? eq.customPresets : [];
+    if (typeof eq.preset !== 'string') eq.preset = 'none';
+  }
+
+  if (typeof normalized.audio?.crossfade !== 'number') {
+    normalized.audio.crossfade = 1.0;
+  } else {
+    normalized.audio.crossfade = Math.max(0, Math.min(10, normalized.audio.crossfade));
   }
 
   return normalized;

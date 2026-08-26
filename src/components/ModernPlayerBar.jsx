@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import CachedCover from './CachedCover';
 import {
   Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1,
-  HeartPulse, ListMusic, Volume2, VolumeX, MonitorSpeaker
+  HeartPulse, ListMusic, Volume2, VolumeX, MonitorSpeaker, Sliders, AppWindow
 } from 'lucide-react';
 import {
   Button, IconButton, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
@@ -29,7 +29,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
   const {
     currentSong, isPlaying, togglePlay, playNext, playPrev, progress, duration,
     audioElement, likedSongIds, toggleLike, playMode, setPlayMode, isQueueOpen,
-    setIsQueueOpen, volume, setVolume, audioQuality, setAudioQuality,
+    setIsQueueOpen, isEqualizerOpen, setIsEqualizerOpen, audioConfig, volume, setVolume, audioQuality, setAudioQuality,
     desktopLyricsConfig, navigateTo
   } = useApp();
   const [prevVolume, setPrevVolume] = useState(0.8);
@@ -172,6 +172,7 @@ export default function ModernPlayerBar({ onToggleLyrics, lyrics = [], playbackL
             </DropdownMenu>
             <Tooltip content="播放队列"><IconButton className={`ctrl-btn ${isQueueOpen ? 'is-active' : ''}`} label="播放队列" onClick={() => setIsQueueOpen(!isQueueOpen)} disabled={playbackLocked}><ListMusic size={18} /></IconButton></Tooltip>
             <Tooltip content="桌面歌词"><IconButton className={`ctrl-btn modern-desktop-lyrics ${desktopLyricsConfig?.show ? 'is-active' : ''}`} label="桌面歌词" onClick={() => window.electronAPI ? window.electronAPI.toggleDesktopLyrics() : alert('桌面歌词功能仅在桌面客户端可用')}><MonitorSpeaker size={16} /></IconButton></Tooltip>
+            <Tooltip content="灵动悬浮胶囊 / 桌面迷你播放器"><IconButton className="ctrl-btn" label="桌面迷你播放器" onClick={() => window.electronAPI ? window.electronAPI.toggleMiniPlayer() : alert('桌面迷你播放器仅在桌面客户端可用')}><AppWindow size={16} /></IconButton></Tooltip>
             <Popover open={volumePopoverOpen} onOpenChange={(open) => { clearVolumeCloseTimer(); setVolumePopoverOpen(open); }}>
               <PopoverAnchor asChild>
                 <IconButton

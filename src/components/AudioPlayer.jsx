@@ -1,9 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { isLegacyFileMediaSource, isLocalMediaSource, isStreamMediaSource } from '../utils/audioSource';
 import { api } from '../utils/api';
 import { appendRuntimeLog } from '../utils/runtimeLog';
-
+import { EQ_BAND_FREQUENCIES } from '../utils/settingsProfile';
 function isWebAudioEligibleSource(source) {
   if (!source) return false;
   if (isLocalMediaSource(source) || isStreamMediaSource(source)) return true;
@@ -28,17 +28,20 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     resumeTime,
     setResumeTime,
     playSong,
-    refreshRecentlyPlayed
+    refreshRecentlyPlayed,
+    audioConfig
   } = useApp();
 
   const audioRef = useRef(null);
   const [crossOriginMode, setCrossOriginMode] = useState('anonymous');
   const [audioSource, setAudioSource] = useState('');
 
-  // Audio Context and Analyzer references
+  // Audio Context, Equalizer, Analyzer and Fader references
   const audioContextRef = useRef(null);
   const sourceNodeRef = useRef(null);
   const sourceElementRef = useRef(null);
+  const eqFiltersRef = useRef([]);
+  const gainNodeRef = useRef(null);
   const analyserNodeRef = useRef(null);
   const playRequestIdRef = useRef(0);
   const playPendingRef = useRef(null);
@@ -155,13 +158,20 @@ export default function AudioPlayer({ canControlPlayback = true }) {
           sourceNodeRef.current.disconnect();
         } catch (err) {}
       }
+      eqFiltersRef.current.forEach((filter) => {
+        try { filter.disconnect(); } catch (err) {}
+      });
+      eqFiltersRef.current = [];
+      if (gainNodeRef.current) {
+        try { gainNodeRef.current.disconnect(); } catch (err) {}
+      }
+      gainNodeRef.current = null;
       sourceNodeRef.current = null;
       sourceElementRef.current = null;
       delete window.ichigoAnalyser;
       delete window.ichigoAudioContext;
     };
   }, []);
-
   const safePlay = () => {
     const audio = audioRef.current;
     if (!audio || !audioSource || !playbackIntentRef.current) return;
@@ -425,7 +435,37 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     }
   }, [audioRoutingMode]);
 
-  // Initialize Web Audio API Analyser
+  // Apply Equalizer 10-Band Gains
+  const applyEqBands = useCallback(() => {
+    const audioCtx = audioContextRef.current;
+    if (!audioCtx || eqFiltersRef.current.length === 0) return;
+    const eq = audioConfig?.equalizer;
+    const isEnabled = eq?.enabled === true;
+    const bands = Array.isArray(eq?.bands)
+      ? eq.bands
+      : Object.values(eq?.bands || {});
+
+    eqFiltersRef.current.forEach((filter, idx) => {
+      if (!filter) return;
+      const rawGain = isEnabled ? Number(bands[idx] ?? 0) : 0;
+      const targetGain = Math.max(-12, Math.min(12, Number.isFinite(rawGain) ? rawGain : 0));
+      try {
+        if (audioCtx.state === 'running') {
+          filter.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.02);
+        } else {
+          filter.gain.value = targetGain;
+        }
+      } catch {
+        filter.gain.value = targetGain;
+      }
+    });
+  }, [audioConfig?.equalizer]);
+
+  useEffect(() => {
+    applyEqBands();
+  }, [applyEqBands]);
+
+  // Initialize Web Audio API Analyser, 10-Band EQ & Gain Node
   const setupWebAudio = () => {
     const localMedia = isLocalMediaSource(audioSource);
     if (!audioRef.current || !isWebAudioEligibleSource(audioSource) || (crossOriginMode === null && !localMedia)) return;
@@ -443,6 +483,44 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         audioCtx.resume().catch(() => {});
       }
 
+      // 1. Build 10 BiquadFilterNodes (31Hz ~ 16kHz)
+      if (eqFiltersRef.current.length !== EQ_BAND_FREQUENCIES.length) {
+        eqFiltersRef.current.forEach((f) => { try { f.disconnect(); } catch {} });
+        eqFiltersRef.current = EQ_BAND_FREQUENCIES.map((freq, idx) => {
+          const filter = audioCtx.createBiquadFilter();
+          filter.frequency.value = freq;
+          if (idx === 0) {
+            filter.type = 'lowshelf';
+          } else if (idx === EQ_BAND_FREQUENCIES.length - 1) {
+            filter.type = 'highshelf';
+          } else {
+            filter.type = 'peaking';
+            filter.Q.value = 1.414;
+          }
+          filter.gain.value = 0;
+          return filter;
+        });
+
+        for (let i = 0; i < eqFiltersRef.current.length - 1; i += 1) {
+          eqFiltersRef.current[i].connect(eqFiltersRef.current[i + 1]);
+        }
+      }
+
+      // 2. Build Master / Fader Gain Node for Crossfade
+      let gainNode = gainNodeRef.current;
+      if (!gainNode) {
+        gainNode = audioCtx.createGain();
+        gainNode.gain.value = 1;
+        gainNodeRef.current = gainNode;
+      }
+
+      const lastFilter = eqFiltersRef.current[eqFiltersRef.current.length - 1];
+      if (lastFilter) {
+        try { lastFilter.disconnect(); } catch {}
+        lastFilter.connect(gainNode);
+      }
+
+      // 3. Build Analyser
       let analyser = analyserNodeRef.current;
       if (!analyser) {
         analyser = audioCtx.createAnalyser();
@@ -452,6 +530,12 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         window.ichigoAnalyser = analyser;
       }
 
+      try { gainNode.disconnect(); } catch {}
+      gainNode.connect(analyser);
+      try { analyser.disconnect(); } catch {}
+      analyser.connect(audioCtx.destination);
+
+      // 4. Connect source element to first filter in chain
       const audio = audioRef.current;
       if (!sourceNodeRef.current || sourceElementRef.current !== audio) {
         if (sourceNodeRef.current) {
@@ -460,11 +544,17 @@ export default function AudioPlayer({ canControlPlayback = true }) {
           } catch (err) {}
         }
         const sourceNode = audioCtx.createMediaElementSource(audio);
-        sourceNode.connect(analyser);
-        analyser.connect(audioCtx.destination);
+        const firstFilter = eqFiltersRef.current[0];
+        if (firstFilter) {
+          sourceNode.connect(firstFilter);
+        } else {
+          sourceNode.connect(gainNode);
+        }
         sourceNodeRef.current = sourceNode;
         sourceElementRef.current = audio;
       }
+
+      applyEqBands();
     } catch (err) {
       console.warn("Web Audio API not supported or CORS restricted:", err);
       window.ichigoAnalyser = null;
@@ -477,7 +567,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       sourceElementRef.current = null;
     }
   };
-
   useEffect(() => {
     const handleGesture = () => {
       const audioContext = audioContextRef.current;
@@ -521,8 +610,18 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     }, 'audio');
     setIsPlaying(true);
     setupWebAudio();
+    const crossfadeDur = Math.max(0, Math.min(10, Number(audioConfig?.crossfade ?? 1.0)));
+    const audioCtx = audioContextRef.current;
+    const gainNode = gainNodeRef.current;
+    if (audioCtx && gainNode && crossfadeDur > 0.05) {
+      try {
+        const fadeTime = Math.min(crossfadeDur, 3.0);
+        gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
+        gainNode.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + fadeTime);
+      } catch (err) {}
+    }
   };
-
   const handlePause = () => {
     playPendingRef.current = null;
     const audio = audioRef.current;

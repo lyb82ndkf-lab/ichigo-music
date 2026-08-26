@@ -8,9 +8,9 @@ export default function Leaderboards() {
 
   const initData = () => {
     const cached = getCachedData('/toplist');
-    if (cached && cached.list) {
-      const official = cached.list.filter(item => item.tracks && item.tracks.length > 0);
-      const global = cached.list.filter(item => !item.tracks || item.tracks.length === 0);
+    if (cached && Array.isArray(cached.list)) {
+      const official = cached.list.filter(item => item && item.tracks && item.tracks.length > 0);
+      const global = cached.list.filter(item => item && (!item.tracks || item.tracks.length === 0));
       return { official: official.slice(0, 4), global };
     }
     return { official: [], global: [] };
@@ -26,11 +26,10 @@ export default function Leaderboards() {
       if (officialLists.length === 0) setLoading(true);
       try {
         const res = await api.getLeaderboards();
-        if (res.list) {
+        if (res && Array.isArray(res.list)) {
           // Official lists contain preview tracks in 'tracks' field from NetEase toplists
-          const official = res.list.filter(item => item.tracks && item.tracks.length > 0);
-          const global = res.list.filter(item => !item.tracks || item.tracks.length === 0);
-          
+          const official = res.list.filter(item => item && item.tracks && item.tracks.length > 0);
+          const global = res.list.filter(item => item && (!item.tracks || item.tracks.length === 0));
           setOfficialLists(official.slice(0, 4));
           setGlobalLists(global);
         }

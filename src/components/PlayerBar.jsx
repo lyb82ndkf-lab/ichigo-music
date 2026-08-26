@@ -18,8 +18,9 @@ import {
   ListMusic,
   Trash2,
   Tv,
+  Sliders,
+  AppWindow
 } from 'lucide-react';
-
 export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], playbackLocked = false }) {
   const {
     currentSong,
@@ -43,7 +44,10 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
     navigateTo,
     audioQuality,
     setAudioQuality,
-    desktopLyricsConfig
+    desktopLyricsConfig,
+    isEqualizerOpen,
+    setIsEqualizerOpen,
+    audioConfig
   } = useApp();
 
   const [showQueue, setShowQueue] = useState(false);
@@ -52,10 +56,16 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
   const [progressPreview, setProgressPreview] = useState(null);
   const [queueVisibleCount, setQueueVisibleCount] = useState(100);
   const previewRafRef = useRef(null);
+  const activeQueueItemRef = useRef(null);
 
   React.useEffect(() => {
     if (!showQueue) return undefined;
-    setQueueVisibleCount(100);
+    const activeIndex = playlist.findIndex((song, idx) => idx === playlistIndex || String(song?.id) === String(currentSong?.id));
+    if (activeIndex >= 0 && activeIndex >= 100) {
+      setQueueVisibleCount(Math.max(100, Math.ceil((activeIndex + 25) / 50) * 50));
+    } else {
+      setQueueVisibleCount(100);
+    }
     const onScroll = (event) => {
       const target = event.target;
       if (target?.classList?.contains('play-queue-popover') && target.scrollHeight - target.scrollTop - target.clientHeight < 240) {
@@ -64,7 +74,20 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
     };
     window.addEventListener('scroll', onScroll, true);
     return () => window.removeEventListener('scroll', onScroll, true);
-  }, [showQueue, playlist.length]);
+  }, [showQueue, playlist.length, playlistIndex, currentSong?.id]);
+
+  React.useEffect(() => {
+    if (!showQueue) return;
+    const timer = setTimeout(() => {
+      if (activeQueueItemRef.current) {
+        activeQueueItemRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+      }
+    }, 60);
+    return () => clearTimeout(timer);
+  }, [showQueue, playlistIndex, currentSong?.id]);
 
   const formatTime = (s) => {
     if (isNaN(s) || s === Infinity) return '00:00';
@@ -258,6 +281,13 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
             title="播放队列"
           >
             <ListMusic size={16} />
+          </button>
+          <button
+            className="control-btn"
+            onClick={() => window.electronAPI?.toggleMiniPlayer ? window.electronAPI.toggleMiniPlayer() : alert('桌面迷你播放器仅在桌面客户端可用')}
+            title="灵动悬浮胶囊 / 桌面迷你播放器"
+          >
+            <AppWindow size={16} />
           </button>
         </div>
 
@@ -512,9 +542,10 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, overflowY: 'auto', paddingRight: '4px' }}>
             {playlist.slice(0, queueVisibleCount).map((song, index) => {
-              const isActive = index === playlistIndex;
+              const isActive = index === playlistIndex || String(song?.id) === String(currentSong?.id);
               return (
                 <div 
+                  ref={isActive ? activeQueueItemRef : null}
                   key={song.id + '-' + index}
                   onClick={() => playSong(song, playlist)}
                   style={{

@@ -58,7 +58,7 @@ export default function Search() {
     setQuery(keyword);
     
     // Save to history list
-    const updatedHistory = [keyword, ...history.filter(h => h !== keyword)].slice(0, 10);
+    const updatedHistory = [keyword, ...(Array.isArray(history) ? history : []).filter(h => h !== keyword)].slice(0, 10);
     setHistory(updatedHistory);
     localStorage.setItem('search_history', JSON.stringify(updatedHistory));
 
@@ -91,7 +91,7 @@ export default function Search() {
 
   const handleRemoveHistoryItem = (item, e) => {
     e.stopPropagation();
-    const updatedHistory = history.filter(h => h !== item);
+    const updatedHistory = (Array.isArray(history) ? history : []).filter(h => h !== item);
     setHistory(updatedHistory);
     localStorage.setItem('search_history', JSON.stringify(updatedHistory));
   };
@@ -100,7 +100,7 @@ export default function Search() {
   const getSongTitle = (song) => song?.name || song?.title || '\u672a\u77e5';
   const getSongArtists = (song) => song?.ar || song?.artists || [];
   const getSongAlbum = (song) => song?.al || song?.album || null;
-  const safeSongs = results.songs.filter(Boolean);
+  const safeSongs = (Array.isArray(results?.songs) ? results.songs : []).filter(Boolean);
 
   const formatDuration = (ms) => {
     const s = Math.floor(ms / 1000);

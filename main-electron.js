@@ -112,8 +112,9 @@ ipcMain.handle('furigana:convert-text', async (event, text) => {
 let mainWindow = null;
 let desktopLyricsWindow = null;
 let desktopLyricsPos = null;
+let miniPlayerWindow = null;
+let miniPlayerPos = null;
 let apiPort = 3000;
-
 let tray = null;
 let mediaIcons = null;
 let isPlayingState = false;
@@ -682,7 +683,6 @@ const loadDesktopLyricsPosition = () => {
   return null;
 };
 
-// Save position
 const saveDesktopLyricsPosition = (pos) => {
   try {
     const configPath = getPositionConfigPath();
@@ -692,6 +692,31 @@ const saveDesktopLyricsPosition = (pos) => {
   }
 };
 
+const getMiniPlayerPositionConfigPath = () => {
+  return path.join(app.getPath('userData'), 'mini-player-position.json');
+};
+
+const loadMiniPlayerPosition = () => {
+  try {
+    const configPath = getMiniPlayerPositionConfigPath();
+    if (fs.existsSync(configPath)) {
+      const data = fs.readFileSync(configPath, 'utf8');
+      return JSON.parse(data);
+    }
+  } catch (err) {
+    console.error('Failed to load mini player position:', err);
+  }
+  return null;
+};
+
+const saveMiniPlayerPosition = (pos) => {
+  try {
+    const configPath = getMiniPlayerPositionConfigPath();
+    fs.writeFileSync(configPath, JSON.stringify(pos), 'utf8');
+  } catch (err) {
+    console.error('Failed to save mini player position:', err);
+  }
+};
 // System Tray and Media Controls
 function createTray() {
   try {
@@ -750,6 +775,15 @@ function updateTrayMenu(isPlaying, controlsLocked = playbackControlsLocked) {
           mainWindow.webContents.send('media-next');
         }
       }
+    },
+    { type: 'separator' },
+    {
+      label: '桌面歌词',
+      click: () => toggleDesktopLyrics()
+    },
+    {
+      label: '桌面迷你播放器',
+      click: () => toggleMiniPlayer()
     },
     { type: 'separator' },
     {
@@ -963,6 +997,108 @@ function toggleDesktopLyrics() {
     desktopLyricsWindow = null;
   });
 }
+function toggleMiniPlayer() {
+  if (miniPlayerWindow) {
+    if (miniPlayerWindow.isVisible()) {
+      miniPlayerWindow.hide();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('mini-player-visibility-change', false);
+      }
+    } else {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.hide();
+      }
+      miniPlayerWindow.show();
+      miniPlayerWindow.setAlwaysOnTop(true, 'screen-saver');
+      miniPlayerWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('mini-player-visibility-change', true);
+      }
+    }
+    return;
+  }
+
+  if (!miniPlayerPos) {
+    miniPlayerPos = loadMiniPlayerPosition();
+  }
+  miniPlayerWindow = new BrowserWindow({
+    width: 350,
+    height: 105,
+    x: miniPlayerPos ? miniPlayerPos.x : undefined,
+    y: miniPlayerPos ? miniPlayerPos.y : undefined,
+    transparent: true,
+    backgroundColor: '#00000000',
+    frame: false,
+    alwaysOnTop: true,
+    skipTaskbar: false,
+    hasShadow: false,
+    resizable: false,
+    movable: true,
+    fullscreenable: false,
+    type: process.platform === 'win32' ? 'toolbar' : 'panel',
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      backgroundThrottling: false,
+      preload: path.join(__dirname, 'preload-electron.cjs')
+    }
+  });
+
+  miniPlayerWindow.setAlwaysOnTop(true, 'screen-saver');
+  miniPlayerWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+
+  // Main window hides when mini player opens
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.hide();
+    mainWindow.webContents.send('mini-player-visibility-change', true);
+  }
+
+  if (app.isPackaged) {
+    miniPlayerWindow.loadURL(`http://localhost:${apiPort}/?mini-player=true`);
+  } else {
+    miniPlayerWindow.loadURL('http://localhost:5173/?mini-player=true');
+  }
+
+  miniPlayerWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+    if (!app.isPackaged && validatedURL.startsWith('http://localhost:5173')) {
+      setTimeout(() => {
+        if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+          miniPlayerWindow.loadURL('http://localhost:5173/?mini-player=true');
+        }
+      }, 1000);
+    }
+  });
+
+  miniPlayerWindow.on('moved', () => {
+    const bounds = miniPlayerWindow.getBounds();
+    miniPlayerPos = { x: bounds.x, y: bounds.y };
+    saveMiniPlayerPosition(miniPlayerPos);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('mini-player-moved', { x: bounds.x, y: bounds.y });
+    }
+  });
+
+  miniPlayerWindow.on('close', (e) => {
+    if (!app.isQuitting) {
+      e.preventDefault();
+      miniPlayerWindow.hide();
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+        mainWindow.webContents.send('mini-player-visibility-change', false);
+      }
+    }
+  });
+
+  miniPlayerWindow.on('closed', () => {
+    miniPlayerWindow = null;
+  });
+}
+
 
 function createWindow() {
   if (!tray) {
@@ -1143,6 +1279,45 @@ function createWindow() {
     desktopLyricsPos = pos;
     saveDesktopLyricsPosition(pos);
   });
+  // Island Mini Player IPC
+  ipcMain.on('toggle-mini-player', () => toggleMiniPlayer());
+  ipcMain.on('close-mini-player', () => {
+    if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+      miniPlayerWindow.hide();
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('mini-player-visibility-change', false);
+    }
+  });
+  ipcMain.on('restore-main-window', () => {
+    if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+      miniPlayerWindow.hide();
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('mini-player-visibility-change', false);
+    }
+  });
+  ipcMain.on('send-mini-player-update', (event, data) => {
+    if (miniPlayerWindow && !miniPlayerWindow.isDestroyed()) {
+      miniPlayerWindow.webContents.send('mini-player-update-reply', data);
+    }
+  });
+  ipcMain.on('mini-player-action', (event, action, payload) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('mini-player-action-reply', { action, payload });
+    }
+  });
+  ipcMain.on('save-mini-player-position', (event, pos) => {
+    miniPlayerPos = pos;
+    saveMiniPlayerPosition(pos);
+  });
+
 
   ipcMain.on('init-media-icons', (event, icons) => {
     mediaIcons = icons;

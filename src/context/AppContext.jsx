@@ -94,9 +94,9 @@ export function AppProvider({ children }) {
   const [recentlyPlayed, setRecentlyPlayed] = useState(() => profile.recentlyPlayed || []);
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isEqualizerOpen, setIsEqualizerOpen] = useState(false);
   const [isClosePromptOpen, setIsClosePromptOpen] = useState(false);
   const [listenPlaybackLocked, setListenPlaybackLocked] = useState(false);
-
   // Audio elements ref (shared across components)
   const [audioElement, setAudioElement] = useState(null);
 
@@ -271,7 +271,7 @@ export function AppProvider({ children }) {
   // Add to recently played list (max 100 items)
   const addToRecent = useCallback((song) => {
     const { recentlyPlayed } = stateRef.current;
-    const listWithoutCurrent = recentlyPlayed.filter(item => item.id !== song.id);
+    const listWithoutCurrent = (Array.isArray(recentlyPlayed) ? recentlyPlayed : []).filter(item => item && item.id !== song?.id);
     const newRecent = [song, ...listWithoutCurrent].slice(0, 100);
     setRecentlyPlayed(newRecent);
     updateProfile({ recentlyPlayed: newRecent });
@@ -1041,7 +1041,10 @@ export function AppProvider({ children }) {
       if (playSequence !== playSequenceRef.current) return;
 
       if (!songUrl) {
-        alert('\u65e0\u6cd5\u83b7\u53d6\u8be5\u6b4c\u66f2\u7684\u64ad\u653e\u6e90\uff08\u53ef\u80fd\u662fVIP\u6b4c\u66f2\u6216\u7248\u6743\u9650\u5236\uff09');
+        appendRuntimeLog('warn', '无法获取歌曲播放源（VIP或版权限制），自动尝试播放下一首', {
+          songId: song.id,
+          songName: song.name || song.title
+        }, 'player');
         if (!playNextAvailableAfterFailure()) {
           setIsPlaying(false);
         }
@@ -1101,7 +1104,7 @@ export function AppProvider({ children }) {
           const songIdx = currentPlaylist.findIndex(item => item.id === song.id);
           const baseIdx = songIdx !== -1 ? songIdx : currentIdx;
           const candidates = currentMode === 'random'
-            ? currentPlaylist.filter(item => item.id !== song.id).slice(0, 3)
+            ? (Array.isArray(currentPlaylist) ? currentPlaylist : []).filter(item => item && item.id !== song.id).slice(0, 3)
             : [1, 2, 3].map(offset => currentPlaylist[(baseIdx + offset) % currentPlaylist.length]);
           candidates.filter(Boolean).forEach(nextSong => {
             getPlayableSongUrl(nextSong, audioQuality).then(url => {
@@ -1112,7 +1115,10 @@ export function AppProvider({ children }) {
       } catch (_) { /* ignore pre-fetch errors */ }
     } catch (error) {
       console.error('Error starting song playback:', error);
-      alert('\u64ad\u653e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5');
+      appendRuntimeLog('error', '播放启动失败，自动尝试下一首', {
+        songId: song?.id,
+        error: error?.message || String(error)
+      }, 'player');
       if (!playNextAvailableAfterFailure()) {
         setIsPlaying(false);
       }
@@ -1274,7 +1280,7 @@ export function AppProvider({ children }) {
     // Deduplicate recommendations
     const seen = new Set();
     seen.add(String(seedSong.id));
-    return recList.filter(s => {
+    return (Array.isArray(recList) ? recList : []).filter(s => {
       const id = String(s?.id || '');
       if (!id || seen.has(id)) return false;
       seen.add(id);
@@ -1287,7 +1293,7 @@ export function AppProvider({ children }) {
     const pid = playlistId || stateRef.current.likedPlaylistId || '';
     
     // 1. Shuffled liked/base song pool (excluding seed song)
-    const baseWithoutSeed = baseSongs.filter(s => s && s.id !== seedSong.id);
+    const baseWithoutSeed = (Array.isArray(baseSongs) ? baseSongs : []).filter(s => s && s.id !== seedSong.id);
     const shuffledBase = [...baseWithoutSeed].sort(() => Math.random() - 0.5);
 
     // 2. Recommended songs pool
@@ -1339,7 +1345,7 @@ export function AppProvider({ children }) {
     if (!seed) return;
 
     // 1. Immediately create a shuffled queue starting with seed
-    const baseWithoutSeed = baseBackup.filter(s => s && s.id !== seed.id);
+    const baseWithoutSeed = (Array.isArray(baseBackup) ? baseBackup : []).filter(s => s && s.id !== seed.id);
     const initialShuffled = [{ ...seed, isHeartRecommend: false }, ...([...baseWithoutSeed].sort(() => Math.random() - 0.5))];
 
     // 2. Immediately update playMode, playlist and start playback!
@@ -1353,7 +1359,7 @@ export function AppProvider({ children }) {
     fetchHeartRecommendedPool(seed, pid).then(recList => {
       if (recList.length > 0) {
         const currentPlaying = stateRef.current.currentSong || seed;
-        const remainingBase = initialShuffled.filter(s => s.id !== currentPlaying.id);
+        const remainingBase = (Array.isArray(initialShuffled) ? initialShuffled : []).filter(s => s && s.id !== currentPlaying.id);
         const interleaved = [{ ...currentPlaying, isHeartRecommend: false }];
         let bIdx = 0;
         let rIdx = 0;
@@ -1423,9 +1429,9 @@ export function AppProvider({ children }) {
       fetchHeartRecommendedPool(lastSong, stateRef.current.likedPlaylistId).then(moreRecs => {
         if (moreRecs.length > 0 || basePool.length > 0) {
           const existingIds = new Set(stateRef.current.playlist.map(s => s.id));
-          const newRecs = moreRecs.filter(s => !existingIds.has(s.id));
+          const newRecs = (Array.isArray(moreRecs) ? moreRecs : []).filter(s => s && !existingIds.has(s.id));
           // Take more base liked songs
-          const newBase = [...basePool].filter(s => !existingIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, 10);
+          const newBase = (Array.isArray(basePool) ? basePool : []).filter(s => s && !existingIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, 10);
           
           const moreInterleaved = [];
           let bIdx = 0;
@@ -1573,6 +1579,8 @@ export function AppProvider({ children }) {
     setIsLyricsOpen,
     isQueueOpen,
     setIsQueueOpen,
+    isEqualizerOpen,
+    setIsEqualizerOpen,
     listenPlaybackLocked,
     setListenPlaybackLocked,
     isClosePromptOpen,
@@ -1592,12 +1600,6 @@ export function AppProvider({ children }) {
     layoutMode,
     setLayoutMode,
     theme,
-    setTheme,
-    customThemeColors,
-    saveCustomThemeColors,
-
-    navbarConfig,
-    saveNavbarConfig,
     lyricStyle,
     saveLyricStyle,
     visualizerMode,
@@ -1645,8 +1647,7 @@ export function AppProvider({ children }) {
   }), [
     profile, updateProfile, currentView, viewData, historyIndex, viewHistory.length, user, likedSongIds,
     likedPlaylistId, currentSong, playlist, playlistIndex, isPlaying, volume, progress, duration, playMode,
-    recentlyPlayed, isLyricsOpen, isQueueOpen, listenPlaybackLocked, setListenPlaybackLocked, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
-    visualizerMode, appearanceConfig, coverConfig, backgroundConfig, advancedLyricConfig, visualizerConfig,
+    recentlyPlayed, isLyricsOpen, isQueueOpen, isEqualizerOpen, listenPlaybackLocked, setListenPlaybackLocked, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
     desktopLyricsConfig, audioConfig, cacheConfig, playbackConfig, renderingConfig, shortcuts, userPlaylists, audioQuality,
     resumeTime, audioElement, setUser, setCurrentSongAndPersist, setPlaylistAndPersist, setPlaylistIndexAndPersist,
     isFirstTimeSetupComplete, requestAppClose,
