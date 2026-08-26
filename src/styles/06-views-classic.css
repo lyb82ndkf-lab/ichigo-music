@@ -980,3 +980,15 @@
   color: #64748b;
   background: rgba(0, 0, 0, 0.05);
 }
+
+.quality-pill-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 10px var(--primary-glow);
+}
+
+.mode-light .quality-popover {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
+  color: #111827 !important;
+}

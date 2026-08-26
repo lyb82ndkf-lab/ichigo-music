@@ -311,34 +311,34 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
         {/* Audio Quality Selector */}
         <div className="quality-control-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
           <button 
-            className="control-btn" 
+            type="button"
+            className="quality-pill-btn" 
             style={{ 
-              fontSize: '10px', 
+              fontSize: '11px', 
               fontWeight: 700, 
               border: '1px solid var(--primary)', 
               color: 'var(--primary)', 
-              borderRadius: '4px',
-              textTransform: 'uppercase',
-              minWidth: '38px',
-              minHeight: '38px',
-              padding: 0,
-              lineHeight: 1.05,
-              textAlign: 'center',
-              display: 'flex',
-              flexDirection: 'column',
+              background: 'var(--primary-subtle)',
+              borderRadius: '999px',
+              padding: '3px 10px',
+              height: '24px',
+              display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              whiteSpace: 'nowrap'
+              gap: '4px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              transition: 'all 0.2s ease'
             }} 
             onClick={playbackLocked ? undefined : () => setShowQualityMenu(!showQualityMenu)}
             disabled={playbackLocked}
             title="切换音质"
           >
-            {audioQuality === 'jymaster' ? <><span>超清</span><span>母带</span></> :
-             audioQuality === 'standard' ? '标准' :
-             audioQuality === 'higher' ? '较高' :
-             audioQuality === 'exhigh' ? '极高' :
-             audioQuality === 'lossless' ? '无损' : 'Hi-Res'}
+            <span>{audioQuality === 'jymaster' ? '母带' :
+                   audioQuality === 'standard' ? '标准' :
+                   audioQuality === 'higher' ? '较高' :
+                   audioQuality === 'exhigh' ? '极高' :
+                   audioQuality === 'lossless' ? '无损' : 'Hi-Res'}</span>
           </button>
           
           {showQualityMenu && !playbackLocked && (
@@ -346,19 +346,19 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
               className="quality-popover"
               style={{
                 position: 'absolute',
-                bottom: '40px',
+                bottom: '36px',
                 left: '50%',
                 transform: 'translateX(-50%)',
                 background: 'var(--overlay-bg)',
                 border: '1px solid var(--card-border)',
-                borderRadius: '8px',
+                borderRadius: '12px',
                 padding: '6px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '4px',
-                minWidth: '85px',
+                gap: '3px',
+                minWidth: '100px',
                 zIndex: 100,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
                 backdropFilter: 'blur(20px)'
               }}
             >
@@ -372,17 +372,21 @@ export default function PlayerBar({ onToggleLyrics, isLyricsOpen, lyrics = [], p
               ].map(q => (
                 <button
                   key={q.key}
+                  type="button"
                   style={{
                     background: audioQuality === q.key ? 'var(--primary)' : 'transparent',
                     color: audioQuality === q.key ? 'var(--primary-text)' : 'var(--text-main)',
                     border: 'none',
-                    borderRadius: '4px',
-                    padding: '4px 8px',
-                    fontSize: '11px',
+                    borderRadius: '8px',
+                    padding: '6px 10px',
+                    fontSize: '11.5px',
                     fontWeight: 600,
                     cursor: 'pointer',
                     textAlign: 'center',
-                    transition: 'all 0.2s'
+                    transition: 'all 0.18s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
                   onClick={() => {
                     setAudioQuality(q.key);
