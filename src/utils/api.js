@@ -93,6 +93,11 @@ export const api = {
   createQRImage: (key) => request(`/login/qr/create?key=${key}&qrimg=true&timestamp=${Date.now()}`),
   checkQRStatus: (key) => request(`/login/qr/check?key=${key}&timestamp=${Date.now()}`),
   logout: () => request(`/logout?timestamp=${Date.now()}`),
+  getUserDetail: (uid) => request(`/user/detail?uid=${uid}&timestamp=${Date.now()}`),
+  getUserSubcount: () => request(`/user/subcount?timestamp=${Date.now()}`),
+  getUserRecord: (uid, type = 0) => request(`/user/record?uid=${uid}&type=${type}&timestamp=${Date.now()}`),
+  getListenDataTotal: () => request(`/listen/data/total?timestamp=${Date.now()}`),
+  getArtistDetail: (id) => request(`/artist/detail?id=${id}&timestamp=${Date.now()}`),
 
   // Song details & URLs
   getSongUrls: (ids, level = 'exhigh', unblock = false) => request(`/song/url/v1?id=${ids}&level=${level}${unblock ? '&unblock=true' : ''}&timestamp=${Date.now()}`),

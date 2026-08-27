@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import LyricExportModal from '../components/LyricExportModal';
 import EqualizerPanel from '../components/EqualizerPanel';
+import ListeningStatsReport from '../components/ListeningStatsReport';
 import { IMMERSIVE_MODE_OPTIONS, IMMERSIVE_MODE_PARAMETER_KEYS, normalizeImmersiveMode, KTV_TEMPLATE_GALLERY } from '../utils/immersiveModes';
 import { IMMERSIVE_PRESETS, IMMERSIVE_PRESET_MAP } from '../utils/immersivePresets';
 import { clearRuntimeLogs, formatRuntimeLogs, getRuntimeLogs, subscribeRuntimeLogs } from '../utils/runtimeLog';
@@ -985,6 +986,7 @@ export default function Settings() {
   /* ================= 9. TAB: 账号中心 ================= */
   const renderAccountTab = () => (
     <div className="settings-stack">
+      {/* 1. User Profile & Login Sync */}
       <div className="settings-section">
         <h3 className="settings-title"><UserCheck size={18} />账号登录与同步</h3>
         <div className="settings-content">
@@ -1016,6 +1018,21 @@ export default function Settings() {
               </div>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* 2. Personalized Listening Stats & Genre Radar Report */}
+      <div className="settings-section" style={{ padding: '20px 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <h3 className="settings-title" style={{ margin: 0 }}>
+            <Activity size={18} color="var(--primary)" /> 个性化听歌数据报告与智能电台
+          </h3>
+          <span style={{ fontSize: '12px', color: 'var(--primary)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <Sparkles size={13} /> 偏好深度画像
+          </span>
+        </div>
+        <div className="settings-content">
+          <ListeningStatsReport />
         </div>
       </div>
 

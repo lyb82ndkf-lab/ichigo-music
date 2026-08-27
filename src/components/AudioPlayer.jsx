@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { isLegacyFileMediaSource, isLocalMediaSource, isStreamMediaSource } from '../utils/audioSource';
 import { api } from '../utils/api';
+import { recordPlayEvent } from '../utils/listeningStats';
 import { appendRuntimeLog } from '../utils/runtimeLog';
 import { EQ_BAND_FREQUENCIES } from '../utils/settingsProfile';
 function isWebAudioEligibleSource(source) {
@@ -114,6 +115,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         endpoint,
         ...extra
       }, 'audio');
+      recordPlayEvent({ song, playedSeconds: payload.time, totalDuration: payload.total });
       window.setTimeout(() => refreshRecentlyPlayed?.(), 1800);
     };
     api.scrobble(payload)

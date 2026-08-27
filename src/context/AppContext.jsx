@@ -1288,44 +1288,66 @@ export function AppProvider({ children }) {
     });
   }, []);
 
-  const buildInterleavedHeartQueue = useCallback(async (seedSong, baseSongs = [], playlistId) => {
+  // Dynamic Smart Radio Queue Builder with Progressive Discovery Pacing
+  const buildDynamicSmartRadioQueue = useCallback((seedSong, baseSongs = [], recList = []) => {
     if (!seedSong?.id) return [];
-    const pid = playlistId || stateRef.current.likedPlaylistId || '';
-    
-    // 1. Shuffled liked/base song pool (excluding seed song)
-    const baseWithoutSeed = (Array.isArray(baseSongs) ? baseSongs : []).filter(s => s && s.id !== seedSong.id);
-    const shuffledBase = [...baseWithoutSeed].sort(() => Math.random() - 0.5);
 
-    // 2. Recommended songs pool
-    const recList = await fetchHeartRecommendedPool(seedSong, pid);
+    const cleanBase = (Array.isArray(baseSongs) ? baseSongs : []).filter(s => s && String(s.id) !== String(seedSong.id));
+    const cleanRec = (Array.isArray(recList) ? recList : []).filter(s => s && String(s.id) !== String(seedSong.id));
+    const shuffledBase = [...cleanBase].sort(() => Math.random() - 0.5);
 
-    // 3. Interleave: Seed song -> 2 liked songs -> 1 recommended song -> 2 liked songs -> 1 recommended song...
-    const interleaved = [{ ...seedSong, isHeartRecommend: false }];
+    const queue = [{ ...seedSong, isHeartRecommend: false }];
     let baseIdx = 0;
     let recIdx = 0;
+    let cycle = 0;
 
-    while (baseIdx < shuffledBase.length || recIdx < recList.length) {
-      // Insert up to 2 liked songs
-      for (let i = 0; i < 2 && baseIdx < shuffledBase.length; i += 1) {
-        interleaved.push({ ...shuffledBase[baseIdx], isHeartRecommend: false });
+    // Dynamic Pacing Schedule:
+    // Cycle 0: 3 base familiar tracks -> 1 smart recommendation
+    // Cycle 1: 2 base familiar tracks -> 1 smart recommendation
+    // Cycle 2: 2 base familiar tracks -> 2 smart recommendations
+    // Cycle 3+: 1~2 base familiar tracks -> 2 smart recommendations
+    while (baseIdx < shuffledBase.length || recIdx < cleanRec.length) {
+      let baseCount = 2;
+      let recCount = 1;
+
+      if (cycle === 0) {
+        baseCount = 3;
+        recCount = 1;
+      } else if (cycle === 1) {
+        baseCount = 2;
+        recCount = 1;
+      } else if (cycle === 2) {
+        baseCount = 2;
+        recCount = 2;
+      } else {
+        baseCount = Math.random() > 0.4 ? 2 : 1;
+        recCount = Math.random() > 0.3 ? 2 : 1;
+      }
+
+      // Insert familiar base tracks
+      for (let i = 0; i < baseCount && baseIdx < shuffledBase.length; i += 1) {
+        queue.push({ ...shuffledBase[baseIdx], isHeartRecommend: false });
         baseIdx += 1;
       }
-      // Insert 1 recommended song
-      if (recIdx < recList.length) {
-        interleaved.push({ ...recList[recIdx], isHeartRecommend: true });
+
+      // Insert smart recommended discovery tracks
+      for (let j = 0; j < recCount && recIdx < cleanRec.length; j += 1) {
+        queue.push({ ...cleanRec[recIdx], isHeartRecommend: true });
         recIdx += 1;
       }
+
+      cycle += 1;
     }
 
-    appendRuntimeLog('info', '心动模式队列构建成功（红心随机混洗+穿插推荐）', {
-      total: interleaved.length,
+    appendRuntimeLog('info', '智能电台/心动模式队列构建完成（动态渐进探索节奏）', {
+      total: queue.length,
       baseLikedCount: shuffledBase.length,
-      recommendCount: recList.length,
+      recommendCount: cleanRec.length,
       seedSongName: seedSong.name
     }, 'player');
 
-    return interleaved;
-  }, [fetchHeartRecommendedPool]);
+    return queue;
+  }, []);
 
   const startHeartMode = useCallback((startSong = null, playlistId = null, sourceList = null) => {
     if (stateRef.current.listenPlaybackLocked) return;
@@ -1340,47 +1362,36 @@ export function AppProvider({ children }) {
     }
     const baseBackup = originalPlaylistBackupRef.current || [...currentList];
 
-    // Pick seed song: if startSong provided use it, otherwise pick random from base list
+    // Pick seed song
     const seed = startSong || baseBackup[Math.floor(Math.random() * baseBackup.length)] || currentList[0];
     if (!seed) return;
 
-    // 1. Immediately create a shuffled queue starting with seed
+    // 1. Immediately create an initial progressive queue starting with seed
     const baseWithoutSeed = (Array.isArray(baseBackup) ? baseBackup : []).filter(s => s && s.id !== seed.id);
     const initialShuffled = [{ ...seed, isHeartRecommend: false }, ...([...baseWithoutSeed].sort(() => Math.random() - 0.5))];
 
-    // 2. Immediately update playMode, playlist and start playback!
+    // 2. Update playMode, playlist and start playback immediately
     updateProfile({ playback: { playMode: 'heart' } });
     setPlaylistAndPersist(initialShuffled);
     setPlaylistIndexAndPersist(0);
     playSong(seed, initialShuffled);
 
-    // 3. Concurrently fetch recommendations in background and interleave them!
+    // 3. Concurrently fetch multi-tier recommendations and rebuild with dynamic pacing
     const pid = playlistId || stateRef.current.likedPlaylistId || '';
     fetchHeartRecommendedPool(seed, pid).then(recList => {
       if (recList.length > 0) {
         const currentPlaying = stateRef.current.currentSong || seed;
         const remainingBase = (Array.isArray(initialShuffled) ? initialShuffled : []).filter(s => s && s.id !== currentPlaying.id);
-        const interleaved = [{ ...currentPlaying, isHeartRecommend: false }];
-        let bIdx = 0;
-        let rIdx = 0;
-        while (bIdx < remainingBase.length || rIdx < recList.length) {
-          for (let i = 0; i < 2 && bIdx < remainingBase.length; i += 1) {
-            interleaved.push({ ...remainingBase[bIdx], isHeartRecommend: false });
-            bIdx += 1;
-          }
-          if (rIdx < recList.length) {
-            interleaved.push({ ...recList[rIdx], isHeartRecommend: true });
-            rIdx += 1;
-          }
-        }
-        setPlaylistAndPersist(interleaved);
-        const idx = interleaved.findIndex(s => s.id === currentPlaying.id);
+        const dynamicQueue = buildDynamicSmartRadioQueue(currentPlaying, remainingBase, recList);
+        
+        setPlaylistAndPersist(dynamicQueue);
+        const idx = dynamicQueue.findIndex(s => s.id === currentPlaying.id);
         setPlaylistIndexAndPersist(idx >= 0 ? idx : 0);
       }
     }).catch(err => {
-      console.warn('Background heart recommendation interleave failed:', err);
+      console.warn('Background smart radio recommendation interleave failed:', err);
     });
-  }, [fetchHeartRecommendedPool, updateProfile, setPlaylistAndPersist, setPlaylistIndexAndPersist, playSong]);
+  }, [fetchHeartRecommendedPool, buildDynamicSmartRadioQueue, updateProfile, setPlaylistAndPersist, setPlaylistIndexAndPersist, playSong]);
 
   const setPlayModeAndPersist = useCallback(async (mode) => {
     if (stateRef.current.listenPlaybackLocked) return;
@@ -1420,7 +1431,7 @@ export function AppProvider({ children }) {
       nextIndex = (playlistIndex + 1) % playlist.length;
     }
 
-    // Auto-fetch and interleave more in Heart Mode when approaching end of queue
+    // Auto-fetch and dynamically append more in Heart / Smart Radio Mode when approaching end of queue
     if (playMode === 'heart' && playlistIndex >= playlist.length - 4 && !isFetchingHeartRef.current) {
       isFetchingHeartRef.current = true;
       const lastSong = playlist[playlist.length - 1] || currentSong;
@@ -1430,32 +1441,32 @@ export function AppProvider({ children }) {
         if (moreRecs.length > 0 || basePool.length > 0) {
           const existingIds = new Set(stateRef.current.playlist.map(s => s.id));
           const newRecs = (Array.isArray(moreRecs) ? moreRecs : []).filter(s => s && !existingIds.has(s.id));
-          // Take more base liked songs
-          const newBase = (Array.isArray(basePool) ? basePool : []).filter(s => s && !existingIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, 10);
+          const newBase = (Array.isArray(basePool) ? basePool : []).filter(s => s && !existingIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, 12);
           
-          const moreInterleaved = [];
+          const appendBatch = [];
           let bIdx = 0;
           let rIdx = 0;
           while (bIdx < newBase.length || rIdx < newRecs.length) {
-            if (bIdx < newBase.length) {
-              moreInterleaved.push({ ...newBase[bIdx], isHeartRecommend: false });
+            // Progressive batch: 1~2 base -> 2 rec
+            const bCount = Math.random() > 0.5 ? 2 : 1;
+            for (let i = 0; i < bCount && bIdx < newBase.length; i += 1) {
+              appendBatch.push({ ...newBase[bIdx], isHeartRecommend: false });
               bIdx += 1;
             }
-            if (rIdx < newRecs.length) {
-              moreInterleaved.push({ ...newRecs[rIdx], isHeartRecommend: true });
+            for (let j = 0; j < 2 && rIdx < newRecs.length; j += 1) {
+              appendBatch.push({ ...newRecs[rIdx], isHeartRecommend: true });
               rIdx += 1;
             }
           }
 
-          if (moreInterleaved.length > 0) {
-            setPlaylistAndPersist([...stateRef.current.playlist, ...moreInterleaved]);
+          if (appendBatch.length > 0) {
+            setPlaylistAndPersist([...stateRef.current.playlist, ...appendBatch]);
           }
         }
       }).catch(() => {}).finally(() => {
         isFetchingHeartRef.current = false;
       });
     }
-
     const nextSong = playlist[nextIndex];
     if (nextSong) {
       playSong(nextSong);
