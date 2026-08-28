@@ -5,7 +5,7 @@ import Login from './Login';
 import ShortcutRow from '../components/ShortcutRow';
 import { DEFAULT_PROFILE, EQ_PRESETS, EQ_PRESET_NAMES, EQ_BAND_LABELS, EQ_BAND_FREQUENCIES, exportProfile, importProfile, resetProfile } from '../utils/settingsProfile';
 import {
-  Airplay, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu,
+  Airplay, Check, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu,
   Monitor, Music4, Palette, Power, Sliders, Trash2, UserCheck, Sparkles,
   Volume2, Eye, RefreshCw, Layers, ShieldCheck, Zap, Download, Activity
 } from 'lucide-react';
@@ -249,7 +249,7 @@ function StorageVisualizer({ stats, onClear, onSelectDir }) {
           <div className="storage-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="storage-card-dot" style={{ background: '#10b981' }} />
-              <span>逐字歌词</span>
+              <span>歌词缓存</span>
             </div>
             <button className="setting-btn danger ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onClear('lyrics')}>清理</button>
           </div>
@@ -257,10 +257,10 @@ function StorageVisualizer({ stats, onClear, onSelectDir }) {
         </div>
 
         <div className="storage-card">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+          <div className="storage-card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <span className="storage-card-dot" style={{ background: '#f59e0b' }} />
-              <span>封面图库</span>
+              <span>封面缓存</span>
             </div>
             <button className="setting-btn danger ghost" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => onClear('covers')}>清理</button>
           </div>
@@ -457,17 +457,38 @@ export default function Settings() {
         <h3 className="settings-title"><Palette size={18} />主题配色与色彩风格</h3>
         <div className="settings-content">
           <SettingRow label="预设强调色" hint="选择预设品牌色彩或开启自定义渐变色">
-            <div className="color-row">
-              {themeOptions.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  className="swatch"
-                  style={{ background: opt.color, borderColor: theme === opt.id ? '#ffffff' : 'rgba(255,255,255,0.18)' }}
-                  onClick={() => setTheme(opt.id)}
-                  title={opt.name}
-                />
-              ))}
+            <div className="color-row" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              {themeOptions.map((opt) => {
+                const isSelected = theme === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    className={`swatch ${isSelected ? 'active' : ''}`}
+                    style={{
+                      background: opt.color,
+                      borderColor: isSelected ? '#ffffff' : 'rgba(255,255,255,0.22)',
+                      boxShadow: isSelected ? '0 0 0 2.5px #ffffff, 0 0 16px var(--primary-glow, rgba(255,64,129,0.5))' : '0 2px 8px rgba(0,0,0,0.3)',
+                      transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: 0,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)'
+                    }}
+                    onClick={() => {
+                      setTheme(opt.id);
+                    }}
+                    title={opt.name}
+                  >
+                    {isSelected && <Check size={16} color={opt.id === 'dark' ? '#000000' : '#ffffff'} strokeWidth={3} />}
+                  </button>
+                );
+              })}
             </div>
           </SettingRow>
 
@@ -921,25 +942,27 @@ export default function Settings() {
   );
 
   /* ================= 7. TAB: 侧边导航 ================= */
-  const renderNavbarTab = () => (
-    <div className="settings-section">
-      <h3 className="settings-title"><Menu size={18} />侧边导航栏项定制</h3>
-      <div className="settings-content">
-        {navbarConfig.map((item, index) => (
-          <SettingRow key={item.key} label={item.name} hint={item.key}>
-            <SmoothSwitch
-              checked={item.show}
-              onChange={() => {
-                const next = [...navbarConfig];
-                next[index] = { ...next[index], show: !next[index].show };
-                saveNavbarConfig(next);
-              }}
-            />
-          </SettingRow>
-        ))}
+  const renderNavbarTab = () => {
+    const items = Array.isArray(navbarConfig) && navbarConfig.length > 0 ? navbarConfig : DEFAULT_PROFILE.navbarItems;
+    return (
+      <div className="settings-section">
+        <h3 className="settings-title"><Menu size={18} />侧边导航栏项定制</h3>
+        <div className="settings-content">
+          {items.map((item, index) => (
+            <SettingRow key={item.key || index} label={item.name} hint={item.key}>
+              <SmoothSwitch
+                checked={item.show !== false}
+                onChange={() => {
+                  const next = items.map((it, i) => i === index ? { ...it, show: !it.show } : it);
+                  saveNavbarConfig(next);
+                }}
+              />
+            </SettingRow>
+          ))}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   /* ================= 8. TAB: 运行日志 ================= */
   const renderLogsTab = () => (

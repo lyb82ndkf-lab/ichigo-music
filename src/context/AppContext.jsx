@@ -95,6 +95,7 @@ export function AppProvider({ children }) {
   const [isLyricsOpen, setIsLyricsOpen] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isEqualizerOpen, setIsEqualizerOpen] = useState(false);
+  const [isAudioMatchOpen, setIsAudioMatchOpen] = useState(false);
   const [isClosePromptOpen, setIsClosePromptOpen] = useState(false);
   const [listenPlaybackLocked, setListenPlaybackLocked] = useState(false);
   // Audio elements ref (shared across components)
@@ -306,20 +307,65 @@ export function AppProvider({ children }) {
     document.body.classList.add(`layout-${layoutMode}`);
     document.body.classList.toggle('reduced-motion', renderingConfig.reducedMotion === true);
     document.body.classList.toggle('surface-flat', appearanceConfig.surfaceStyle === 'flat');
+    const THEME_PALETTES = {
+      strawberry: { primary: '#ff3366', hover: '#e62055', glow: 'rgba(255, 51, 102, 0.35)', subtle: 'rgba(255, 51, 102, 0.12)', rgb: '255, 51, 102', text: '#ffffff' },
+      sakura: { primary: '#ff66b2', hover: '#e64d99', glow: 'rgba(255, 102, 178, 0.35)', subtle: 'rgba(255, 102, 178, 0.12)', rgb: '255, 102, 178', text: '#ffffff' },
+      matcha: { primary: '#4caf50', hover: '#3d8b40', glow: 'rgba(76, 175, 80, 0.35)', subtle: 'rgba(76, 175, 80, 0.12)', rgb: '76, 175, 80', text: '#ffffff' },
+      ocean: { primary: '#00b0ff', hover: '#0091ea', glow: 'rgba(0, 176, 255, 0.35)', subtle: 'rgba(0, 176, 255, 0.12)', rgb: '0, 176, 255', text: '#ffffff' },
+      purple: { primary: '#ab47bc', hover: '#8e24aa', glow: 'rgba(171, 71, 188, 0.35)', subtle: 'rgba(171, 71, 188, 0.12)', rgb: '171, 71, 188', text: '#ffffff' },
+      dark: { primary: '#9e9e9e', hover: '#757575', glow: 'rgba(158, 158, 158, 0.35)', subtle: 'rgba(158, 158, 158, 0.12)', rgb: '158, 158, 158', text: '#ffffff' }
+    };
+
+    const rootStyle = document.documentElement.style;
+    const bodyStyle = document.body.style;
 
     if (theme === 'custom') {
       document.body.classList.add('theme-custom');
-      document.body.style.setProperty('--custom-primary-color', customThemeColors.primary);
-      document.body.style.setProperty('--custom-primary-color-hover', adjustColorBrightness(customThemeColors.primary, -15));
-      document.body.style.setProperty('--custom-primary-color-glow', `${customThemeColors.primary}59`);
-      document.body.style.setProperty('--custom-primary-color-subtle', `${customThemeColors.primary}1a`);
-      document.body.style.setProperty('--custom-primary-text', getContrastColor(customThemeColors.primary));
-      document.body.style.setProperty('--custom-bg-start', customThemeColors.bgStart || (activeMode === 'light' ? '#f5f5f4' : '#0b0c10'));
-      document.body.style.setProperty('--custom-bg-end', customThemeColors.bgEnd || (activeMode === 'light' ? '#ffffff' : '#030406'));
+      const primary = customThemeColors.primary || '#ff4081';
+      const r = parseInt(primary.substring(1, 3), 16) || 255;
+      const g = parseInt(primary.substring(3, 5), 16) || 64;
+      const b = parseInt(primary.substring(5, 7), 16) || 129;
+      const rgb = `${r}, ${g}, ${b}`;
+      const hover = adjustColorBrightness(primary, -15);
+      const glow = `${primary}59`;
+      const subtle = `${primary}1a`;
+      const text = getContrastColor(primary);
+
+      rootStyle.setProperty('--primary', primary);
+      rootStyle.setProperty('--primary-hover', hover);
+      rootStyle.setProperty('--primary-glow', glow);
+      rootStyle.setProperty('--primary-subtle', subtle);
+      rootStyle.setProperty('--primary-text', text);
+      rootStyle.setProperty('--primary-rgb', rgb);
+      rootStyle.setProperty('--accent-rgb', rgb);
+
+      bodyStyle.setProperty('--custom-primary-color', primary);
+      bodyStyle.setProperty('--custom-primary-color-hover', hover);
+      bodyStyle.setProperty('--custom-primary-color-glow', glow);
+      bodyStyle.setProperty('--custom-primary-color-subtle', subtle);
+      bodyStyle.setProperty('--custom-primary-text', text);
+      bodyStyle.setProperty('--custom-primary-rgb', rgb);
+      bodyStyle.setProperty('--custom-bg-start', customThemeColors.bgStart || (activeMode === 'light' ? '#f5f5f4' : '#0b0c10'));
+      bodyStyle.setProperty('--custom-bg-end', customThemeColors.bgEnd || (activeMode === 'light' ? '#ffffff' : '#030406'));
     } else {
       document.body.classList.add(`theme-${theme}`);
-      document.body.style.removeProperty('--custom-bg-start');
-      document.body.style.removeProperty('--custom-bg-end');
+      const pal = THEME_PALETTES[theme] || THEME_PALETTES.strawberry;
+      rootStyle.setProperty('--primary', pal.primary);
+      rootStyle.setProperty('--primary-hover', pal.hover);
+      rootStyle.setProperty('--primary-glow', pal.glow);
+      rootStyle.setProperty('--primary-subtle', pal.subtle);
+      rootStyle.setProperty('--primary-text', pal.text);
+      rootStyle.setProperty('--primary-rgb', pal.rgb);
+      rootStyle.setProperty('--accent-rgb', pal.rgb);
+
+      bodyStyle.removeProperty('--custom-primary-color');
+      bodyStyle.removeProperty('--custom-primary-color-hover');
+      bodyStyle.removeProperty('--custom-primary-color-glow');
+      bodyStyle.removeProperty('--custom-primary-color-subtle');
+      bodyStyle.removeProperty('--custom-primary-text');
+      bodyStyle.removeProperty('--custom-primary-rgb');
+      bodyStyle.removeProperty('--custom-bg-start');
+      bodyStyle.removeProperty('--custom-bg-end');
     }
     document.body.dataset.appearanceReady = 'true';
   }, [theme, colorMode, customThemeColors, layoutMode, renderingConfig.reducedMotion, appearanceConfig.surfaceStyle]);
@@ -1592,6 +1638,8 @@ export function AppProvider({ children }) {
     setIsQueueOpen,
     isEqualizerOpen,
     setIsEqualizerOpen,
+    isAudioMatchOpen,
+    setIsAudioMatchOpen,
     listenPlaybackLocked,
     setListenPlaybackLocked,
     isClosePromptOpen,
@@ -1611,6 +1659,11 @@ export function AppProvider({ children }) {
     layoutMode,
     setLayoutMode,
     theme,
+    setTheme,
+    customThemeColors,
+    saveCustomThemeColors,
+    navbarConfig,
+    saveNavbarConfig,
     lyricStyle,
     saveLyricStyle,
     visualizerMode,
@@ -1658,7 +1711,7 @@ export function AppProvider({ children }) {
   }), [
     profile, updateProfile, currentView, viewData, historyIndex, viewHistory.length, user, likedSongIds,
     likedPlaylistId, currentSong, playlist, playlistIndex, isPlaying, volume, progress, duration, playMode,
-    recentlyPlayed, isLyricsOpen, isQueueOpen, isEqualizerOpen, listenPlaybackLocked, setListenPlaybackLocked, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
+    recentlyPlayed, isLyricsOpen, isQueueOpen, isEqualizerOpen, isAudioMatchOpen, setIsAudioMatchOpen, listenPlaybackLocked, setListenPlaybackLocked, isClosePromptOpen, colorMode, layoutMode, theme, customThemeColors, navbarConfig, lyricStyle,
     desktopLyricsConfig, audioConfig, cacheConfig, playbackConfig, renderingConfig, shortcuts, userPlaylists, audioQuality,
     resumeTime, audioElement, setUser, setCurrentSongAndPersist, setPlaylistAndPersist, setPlaylistIndexAndPersist,
     isFirstTimeSetupComplete, requestAppClose,

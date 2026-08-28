@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
-import { Search as SearchIcon, Play, Trash2, Clock, Music, FolderHeart, Award, User, Video, Heart } from 'lucide-react';
+import { Search as SearchIcon, Play, Trash2, Clock, Music, FolderHeart, Award, User, Video, Heart, Radio } from 'lucide-react';
 
 const tabs = [
   { key: 'songs', type: 1, name: '单曲', icon: Music },
@@ -12,7 +12,7 @@ const tabs = [
 ];
 
 export default function Search() {
-  const { navigateTo, playSong, viewData, likedSongIds, toggleLike } = useApp();
+  const { navigateTo, playSong, viewData, likedSongIds, toggleLike, setIsAudioMatchOpen } = useApp();
   const [query, setQuery] = useState('');
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [hotSearches, setHotSearches] = useState([]);
@@ -112,7 +112,7 @@ export default function Search() {
   return (
     <div className="view-container">
       {/* Search Bar Input */}
-      <div className="search-page-input" style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
+      <div className="search-page-input" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
         <div className="search-input-wrap">
           <SearchIcon size={18} color="var(--text-muted)" />
           <input
@@ -124,6 +124,32 @@ export default function Search() {
             onKeyDown={(e) => e.key === 'Enter' && executeSearch(query)}
           />
         </div>
+        <button
+          type="button"
+          className="search-audio-match-btn"
+          onClick={() => setIsAudioMatchOpen(true)}
+          title="听歌识曲 (屏幕声音/麦克风)"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(var(--accent-rgb, 255, 64, 129), 0.15)',
+            border: '1px solid rgba(var(--accent-rgb, 255, 64, 129), 0.35)',
+            borderRadius: '999px',
+            padding: '0 18px',
+            height: '44px',
+            color: 'var(--primary)',
+            fontSize: '13px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            boxShadow: '0 4px 14px var(--primary-glow, rgba(255, 64, 129, 0.25))',
+            transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <Radio size={16} />
+          <span>听歌识曲</span>
+        </button>
       </div>
 
       {/* Tabs */}

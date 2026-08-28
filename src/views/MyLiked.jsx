@@ -162,7 +162,7 @@ export default function MyLiked() {
             boxShadow: '0 10px 25px rgba(255, 64, 129, 0.4)' 
           }}
         >
-          <Heart size={48} color="var(--text-active)" fill="var(--text-active)" />
+          <Heart size={48} color="#ffffff" fill="#ffffff" style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))' }} />
         </div>
         <div>
           <h1 style={{ fontFamily: 'var(--font-title)', fontSize: '28px', fontWeight: 800, color: 'var(--text-active)' }}>我喜欢的音乐</h1>

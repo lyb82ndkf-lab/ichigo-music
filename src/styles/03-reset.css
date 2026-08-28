@@ -16,12 +16,6 @@ body {
   width: 100vw;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  
-  /* Re-evaluate theme primary colors dynamically based on active body theme class */
-  --primary: hsl(var(--primary-hue), var(--primary-sat), var(--primary-light));
-  --primary-hover: hsl(var(--primary-hue), var(--primary-sat), calc(var(--primary-light) - 8%));
-  --primary-glow: hsla(var(--primary-hue), var(--primary-sat), var(--primary-light), 0.35);
-  --primary-subtle: hsla(var(--primary-hue), var(--primary-sat), var(--primary-light), 0.1);
 }
 
 #root {

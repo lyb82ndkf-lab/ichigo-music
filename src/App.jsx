@@ -41,7 +41,7 @@ import LyricAdjusterModal from './components/LyricAdjusterModal';
 import LyricExportModal from './components/LyricExportModal';
 import SleepTimerModal from './components/SleepTimerModal';
 import EqualizerModal from './components/EqualizerModal';
-// Icons
+import AudioMatchModal from './components/AudioMatchModal';
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';
 
 
@@ -80,6 +80,8 @@ function AppContent() {
     setIsQueueOpen,
     isEqualizerOpen,
     setIsEqualizerOpen,
+    isAudioMatchOpen,
+    setIsAudioMatchOpen,
     navigateTo,
     cacheConfig,
     colorMode,
@@ -1493,6 +1495,10 @@ function AppContent() {
         <EqualizerModal
           isOpen={isEqualizerOpen}
           onClose={() => setIsEqualizerOpen(false)}
+        />
+        <AudioMatchModal
+          isOpen={isAudioMatchOpen}
+          onClose={() => setIsAudioMatchOpen(false)}
         />
         <AnimatePresence>
           {updateInfo?.show && (

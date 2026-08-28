@@ -1,9 +1,9 @@
 import React from 'react';
 import { useApp } from '../context/AppContext';
-import { LogOut, LogIn, Maximize2, Minimize2, X } from 'lucide-react';
+import { LogOut, LogIn, Maximize2, Minimize2, X, Radio } from 'lucide-react';
 
 export default function TopBar() {
-  const { user, navigateTo, logout, requestAppClose } = useApp();
+  const { user, navigateTo, logout, requestAppClose, setIsAudioMatchOpen } = useApp();
 
   return (
     <div className="title-bar" style={{
@@ -35,7 +35,30 @@ export default function TopBar() {
 
       {/* Right: User Profile & Window Controls */}
       <div style={{ display: 'flex', alignItems: 'center', WebkitAppRegion: 'no-drag', height: '100%' }}>
-        
+        {/* Audio Match Trigger */}
+        <button
+          type="button"
+          onClick={() => setIsAudioMatchOpen(true)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'var(--glass-bg)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '20px',
+            padding: '5px 12px',
+            color: 'var(--text-main)',
+            fontSize: '12px',
+            fontWeight: 600,
+            cursor: 'pointer',
+            marginRight: '14px'
+          }}
+          title="听歌识曲 (屏幕声音/麦克风)"
+        >
+          <Radio size={14} color="var(--primary)" />
+          <span>听歌识曲</span>
+        </button>
+
         {/* User Login Section */}
         <div style={{ display: 'flex', alignItems: 'center', marginRight: '16px', gap: '12px' }}>
           {user ? (

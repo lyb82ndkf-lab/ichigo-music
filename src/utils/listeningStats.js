@@ -2,8 +2,7 @@
 import { api } from './api.js';
 
 const STATS_STORAGE_KEY = 'ichigo_listening_history_stats';
-const MAX_LOCAL_RECORDS = 1500;
-
+const MAX_LOCAL_RECORDS = 10000;
 // 8 Major Genre Categories & Comprehensive Keyword Lexicon
 export const GENRE_CATEGORIES = [
   { key: 'pop', name: '流行 (Pop)', color: '#ff4081', glow: 'rgba(255, 64, 129, 0.4)' },
@@ -16,15 +15,46 @@ export const GENRE_CATEGORIES = [
   { key: 'classical', name: '古典 / 纯音', color: '#4cc9f0', glow: 'rgba(76, 201, 240, 0.4)' }
 ];
 
+const JAPANESE_CHAR_REGEX = /[\u3040-\u309f\u30a0-\u30ff]/;
+const KOREAN_CHAR_REGEX = /[\uac00-\ud7af\u1100-\u11ff]/;
+const CHINESE_CHAR_REGEX = /[\u4e00-\u9fa5]/;
+
+const ACG_JAPANESE_ARTISTS = [
+  'yoasobi', 'yorushika', 'zutomayo', 'ado', 'aimer', 'lisa', 'eve', 'mafumafu',
+  'radwimps', 'one ok rock', 'king gnu', 'official髭男dism', 'official hige dandism', 'back number',
+  'vaundy', 'yuuri', 'kenshi yonezu', 'yonezu', 'hikaru utada', 'utada', 'miku', 'hatsune miku',
+  'vocaloid', 'deco*27', 'kanaria', 'pinocchiop', 'jin', 'nayutan', 'tuyu', 'honeyworks',
+  'claris', 'garnidelia', 'fripside', 'kalafina', 'egoist', 'supercell', 'sawano', 'sawano hiroyuki',
+  'hiroyuki sawano', 'yuki kajiura', 'kajiura', 'monaca', 'satoru kosaki', 'joe hisaishi', 'hisaishi',
+  'yoko kanno', 'kano', 'reol', 'ryokuoushoku shakai', 'macaroni empitsu', 'saucy dog',
+  'mrs. green apple', 'wanima', 'man with a mission', 'spyair', 'uverworld', 'flow',
+  'unison square garden', 'granrodeo', 'oldcodex', 'my first story', 'fear, and loathing in las vegas',
+  'babymetal', 'coldrain', 'the oral cigarettes', 'polkadot stingray', 'hololive', 'nijisanji',
+  'hoshimachi suisei', 'mori calliope', 'usada pekora', 'minato aqua', 'inori minase', 'kana hanazawa',
+  'saori hayami', 'maaya uchida', 'amamiya sora', 'akari kito', 'aoi yuuki', 'ayane sakura',
+  'risa taneda', 'ai kayano', 'rie kugimiya', 'maaya sakamoto', 'yui ogura', 'sumire uesaka',
+  'rie takahashi', 'nana mizuki', 'megumi hayashibara', 'mika nakashima', 'mai kuraki',
+  'ayumi hamasaki', 'namie amuro', 'ringo sheena', 'sheena ringo', 'miyuki nakajima',
+  'koji tamaki', 'shinji tanimura', 'tatsuro yamashita', 'mariya takeuchi', 'ryuichi sakamoto',
+  'genshin', 'honkai', 'arknights', 'azur lane', 'blue archive', 'fate', 'fgo', 'touhou',
+  'typemoon', 'key', 'clannad', 'air', 'kanon', 'angel beats', 'charlotte', 'summer pockets',
+  '米津玄師', '宇多田ヒカル', 'ずっと真夜中でいいのに', 'ヨルシカ', 'ツユ', '優里', '緑黄色社会',
+  'マカロニえんぴつ', '初音ミク', '鏡音', '巡音', '花譜', '星街すいせい', '水瀬いのり', '花澤香菜',
+  '早見沙織', '内田真礼', '雨宮天', '鬼頭明里', '悠木碧', '佐倉綾音', '種田梨沙', '茅野愛衣',
+  '釘宮理恵', '坂本真綾', '小倉唯', '上坂すみれ', '高橋李依', '水樹奈々', '林原めぐみ', '中島美嘉',
+  '倉木麻衣', '浜崎あゆみ', '安室奈美恵', '椎名林檎', '中島みゆき', '玉置浩二', '谷村新司',
+  '山下達郎', '竹内まりや', '坂本龍一', '久石譲', '菅野よう子', '澤野弘之', '梶浦由記', '神前暁'
+];
+
 const GENRE_KEYWORDS = {
   pop: [
-    'pop', '流行', '华语流行', '欧美流行', '日韩流行', 'k-pop', 'j-pop', 'c-pop',
-    '抒情', '芭乐', 'ballad', 'love', '恋', '爱', '情歌', 'vocal', '甜美', '伤感', '治愈'
+    'pop', '流行', '华语流行', '欧美流行', '日韩流行', 'k-pop', 'c-pop',
+    '抒情', '芭乐', 'ballad', 'love', '情歌', 'vocal', '甜美', '伤感', '治愈'
   ],
   rock: [
     'rock', '摇滚', '金属', 'metal', '朋克', 'punk', 'hard rock', 'heavy metal',
     'post-rock', '后摇', 'indie rock', '独立摇滚', 'alternative', '另类摇滚', 'grunge',
-    'progressive', '核', 'core', 'screamo', 'britpop', '英伦摇滚', 'guitar'
+    'progressive', '核', 'core', 'screamo', 'britpop', '英伦摇滚', 'guitar', 'j-rock', 'band', '乐队'
   ],
   electronic: [
     'electronic', '电子', '电音', 'edm', 'synthwave', 'synth', 'future bass', 'house',
@@ -35,8 +65,9 @@ const GENRE_KEYWORDS = {
     'acg', '动漫', '动画', '二次元', 'vocaloid', '初音', '初音未来', 'miku', 'kagamine',
     'touhou', '东方', '原神', 'genshin', '崩坏', 'honkai', 'arknights', '明日方舟',
     '游戏原声', 'game ost', 'op', 'ed', 'insert song', 'character song', '角色歌',
-    'cv', '声优', 'mafumafu', 'eve', 'yoasobi', 'yorushika', 'zutomayo', 'ado', 'aimer', 'lisa',
-    'sawano', '泽野弘之', '梶浦由记', '神前晓', '久石让', '术力口', 'anisong'
+    'cv', '声优', '术力口', 'anisong', 'j-pop', 'jpop', 'anime', 'animation',
+    'doujin', '同人', 'キャラソン', 'ボカロ', 'ボーカロイド', 'アニソン', 'アニメ',
+    '主題歌', '挿入歌', '声優', '音游', 'bgm'
   ],
   folk: [
     'folk', '民谣', 'acoustic', '原声吉他', '指弹', 'country', '乡村', 'indie folk',
@@ -57,22 +88,32 @@ const GENRE_KEYWORDS = {
   ]
 };
 
-// Classify genre for a song
+// Classify genre and language for a song
 export function classifySongGenre(song) {
-  if (!song) return { pop: 1 };
-  const str = [
-    song.name || '',
-    song.title || '',
-    song.artist || '',
-    song.album?.name || song.al?.name || '',
-    Array.isArray(song.ar) ? song.ar.map(a => a.name).join(' ') : '',
-    Array.isArray(song.artists) ? song.artists.map(a => a.name).join(' ') : '',
-    Array.isArray(song.tns) ? song.tns.join(' ') : '',
-    Array.isArray(song.alia) ? song.alia.join(' ') : ''
-  ].join(' ').toLowerCase();
+  if (!song) return { scores: { pop: 1 }, lang: 'other' };
+  const rawTitle = song.name || song.title || '';
+  const rawArtist = song.artist || (Array.isArray(song.ar) ? song.ar.map(a => a.name).join(' ') : '') || (Array.isArray(song.artists) ? song.artists.map(a => a.name).join(' ') : '');
+  const rawAlbum = song.album?.name || song.al?.name || '';
+  const rawAlia = (Array.isArray(song.alia) ? song.alia.join(' ') : '') + ' ' + (Array.isArray(song.tns) ? song.tns.join(' ') : '');
 
-  const scores = {};
+  const fullRawText = `${rawTitle} ${rawArtist} ${rawAlbum} ${rawAlia}`;
+  const str = fullRawText.toLowerCase();
+
+  // Detect language
+  const isJapaneseChar = JAPANESE_CHAR_REGEX.test(fullRawText);
+  const isKoreanChar = KOREAN_CHAR_REGEX.test(fullRawText);
+  const isJapaneseArtist = ACG_JAPANESE_ARTISTS.some(a => str.includes(a.toLowerCase()));
+  const isJapanese = isJapaneseChar || isJapaneseArtist;
+  const lang = isJapanese ? 'ja' : (isKoreanChar ? 'ko' : (CHINESE_CHAR_REGEX.test(fullRawText) ? 'zh' : 'en'));
+
+  const scores = { pop: 0, rock: 0, electronic: 0, acg: 0, folk: 0, hiphop: 0, jazz: 0, classical: 0 };
   let totalScore = 0;
+
+  // Japanese / ACG boost
+  if (isJapanese) {
+    scores.acg += 6;
+    totalScore += 6;
+  }
 
   for (const [cat, keywords] of Object.entries(GENRE_KEYWORDS)) {
     let score = 0;
@@ -81,22 +122,45 @@ export function classifySongGenre(song) {
         score += kw.length > 3 ? 2 : 1;
       }
     }
-    scores[cat] = score;
+    scores[cat] += score;
     totalScore += score;
   }
 
-  // If no specific genre matched, default to balanced/pop fallback
-  if (totalScore === 0) {
-    scores.pop = 2;
-    scores.classical = 1;
-    totalScore = 3;
+  // Sub-genre shaping for Japanese music
+  if (isJapanese) {
+    if (str.includes('rock') || str.includes('band') || str.includes('ロック') || str.includes('ギター') || str.includes('metal') || str.includes('one ok rock') || str.includes('radwimps') || str.includes('king gnu') || str.includes('spyair') || str.includes('uverworld')) {
+      scores.rock += 4;
+    }
+    if (str.includes('synth') || str.includes('vocaloid') || str.includes('miku') || str.includes('edm') || str.includes('electronic') || str.includes('ボカロ') || str.includes('電音')) {
+      scores.electronic += 4;
+    }
+    if (str.includes('ost') || str.includes('soundtrack') || str.includes('piano') || str.includes('orchestra') || str.includes('symphony') || str.includes('sawano') || str.includes('hisaishi')) {
+      scores.classical += 4;
+    }
+    if (scores.pop === 0 && scores.rock === 0 && scores.electronic === 0) {
+      scores.pop += 2;
+    }
   }
 
-  return scores;
-}
+  // If no specific genre matched at all
+  if (totalScore === 0) {
+    if (isJapanese) {
+      scores.acg = 5;
+      scores.pop = 2;
+    } else {
+      scores.pop = 2;
+      scores.classical = 1;
+    }
+  }
 
+  return {
+    ...scores,
+    scores,
+    lang
+  };
+}
 // Local Storage Helper
-function getLocalLogs() {
+export function getLocalLogs() {
   try {
     const raw = localStorage.getItem(STATS_STORAGE_KEY);
     if (!raw) return [];
@@ -107,7 +171,7 @@ function getLocalLogs() {
   }
 }
 
-function saveLocalLogs(logs) {
+export function saveLocalLogs(logs) {
   try {
     const trimmed = logs.slice(-MAX_LOCAL_RECORDS);
     localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(trimmed));
@@ -151,6 +215,7 @@ export function getLocalListeningStats() {
   const artistCounts = {};
   const songCounts = {};
   const genreTotals = { pop: 0, rock: 0, electronic: 0, acg: 0, folk: 0, hiphop: 0, jazz: 0, classical: 0 };
+  const langCounts = { ja: 0, zh: 0, en: 0, ko: 0, other: 0 };
 
   logs.forEach((item) => {
     const s = item.seconds || 0;
@@ -175,9 +240,12 @@ export function getLocalListeningStats() {
     songCounts[songKey].count += 1;
     songCounts[songKey].seconds += s;
 
-    // Genre Stats
-    const genreScore = classifySongGenre(item);
-    for (const [k, v] of Object.entries(genreScore)) {
+    // Genre & Language Stats
+    const { scores: genreScore, lang } = classifySongGenre(item);
+    if (langCounts[lang] !== undefined) {
+      langCounts[lang] += 1;
+    }
+    for (const [k, v] of Object.entries(genreScore || {})) {
       if (genreTotals[k] !== undefined) {
         genreTotals[k] += v * (s > 30 ? 2 : 1);
       }
@@ -208,29 +276,62 @@ export function getLocalListeningStats() {
     };
   });
 
+  const totalLogged = Math.max(1, logs.length);
+  const languageStats = {
+    jaRatio: (langCounts.ja || 0) / totalLogged,
+    zhRatio: (langCounts.zh || 0) / totalLogged,
+    enRatio: (langCounts.en || 0) / totalLogged,
+    koRatio: (langCounts.ko || 0) / totalLogged
+  };
+
   return {
     totalSeconds,
     todaySeconds,
     totalPlays: logs.length,
     topArtists,
     topSongs,
-    genreDistribution
+    genreDistribution,
+    languageStats
   };
 }
 
-// Generate Personalized Music Persona Label based on top genres
-export function getMusicPersona(genreDistribution = []) {
+// Generate Personalized Music Persona Label based on top genres & language distribution
+export function getMusicPersona(genreDistribution = [], languageStats = { jaRatio: 0, zhRatio: 0, enRatio: 0, koRatio: 0 }) {
   if (!genreDistribution || genreDistribution.length === 0) return '多元音律探索者';
   const sorted = [...genreDistribution].sort((a, b) => b.percentage - a.percentage);
   const top1 = sorted[0];
   const top2 = sorted[1];
+  const isJapaneseDominant = languageStats.jaRatio >= 0.35 || top1?.key === 'acg';
 
-  if (!top1 || top1.percentage < 15) return '全景漫游品鉴官';
+  if (isJapaneseDominant) {
+    if (top1?.key === 'acg') {
+      if (top2?.key === 'electronic') return '二次元电音先锋';
+      if (top2?.key === 'rock') return '日系摇滚激流巡礼者';
+      if (top2?.key === 'classical') return '新海诚风纯音造梦师';
+      if (top2?.key === 'folk') return '日系治愈物语品鉴家';
+      return 'J-Pop 霓虹次元物语家';
+    }
+    if (top1?.key === 'pop') {
+      if (top2?.key === 'rock') return 'J-Rock 流行摇滚热血客';
+      if (top2?.key === 'electronic') return 'J-Pop 电音律动玩家';
+      return 'J-Pop 霓虹流行品鉴官';
+    }
+    if (top1?.key === 'rock') return '日系摇滚激流巡礼者';
+    if (top1?.key === 'electronic') return '二次元电音先锋';
+    if (top1?.key === 'classical') return '新海诚风纯音造梦师';
+    if (top1?.key === 'folk') return '日系治愈物语品鉴家';
+    if (top1?.key === 'jazz') return 'City Pop 霓虹夜行客';
+    return '二次元与 J-Pop 挚友';
+  }
 
   if (top1.key === 'acg') return top2?.key === 'electronic' ? '二次元电音先锋' : '幻境次元物语家';
   if (top1.key === 'electronic') return top2?.key === 'rock' ? '重低音脉冲制造机' : '未来合成波巡航员';
   if (top1.key === 'rock') return top2?.key === 'folk' ? '独立摇滚行吟诗人' : '高能硬核摇滚客';
-  if (top1.key === 'pop') return top2?.key === 'jazz' ? '都市流行律动精粹' : '华语抒情金曲挚友';
+  if (top1.key === 'pop') {
+    if (languageStats.enRatio >= 0.5) return '欧美流行旋律猎手';
+    if (languageStats.koRatio >= 0.4) return 'K-Pop 舞台律动潮人';
+    return top2?.key === 'jazz' ? '都市流行律动精粹' : '华语抒情金曲挚友';
+  }
   if (top1.key === 'folk') return '山海民谣游吟者';
   if (top1.key === 'hiphop') return '硬核说唱节奏律动家';
   if (top1.key === 'jazz') return '复古爵士蓝调夜行客';
@@ -297,10 +398,21 @@ export async function getComprehensiveListeningStats(user = null) {
   });
 
   // Factor in remote top songs
+  const combinedLangCounts = {
+    ja: (local.languageStats?.jaRatio || 0) * (local.totalPlays || 1),
+    zh: (local.languageStats?.zhRatio || 0) * (local.totalPlays || 1),
+    en: (local.languageStats?.enRatio || 0) * (local.totalPlays || 1),
+    ko: (local.languageStats?.koRatio || 0) * (local.totalPlays || 1)
+  };
+
+  // Factor in remote top songs
   remoteTopSongs.forEach(song => {
-    const gScore = classifySongGenre(song);
+    const { scores: gScore, lang } = classifySongGenre(song);
     const weight = Math.max(1, Math.min(20, Math.round(song.playCount / 5)));
-    for (const [k, v] of Object.entries(gScore)) {
+    if (combinedLangCounts[lang] !== undefined) {
+      combinedLangCounts[lang] += weight;
+    }
+    for (const [k, v] of Object.entries(gScore || {})) {
       if (genreTotals[k] !== undefined) {
         genreTotals[k] += v * weight;
       }
@@ -332,7 +444,15 @@ export async function getComprehensiveListeningStats(user = null) {
     topArtists = Object.values(artistMap).sort((a, b) => b.count - a.count).slice(0, 10);
   }
 
-  const persona = getMusicPersona(mergedGenreDistribution);
+  const totalLangWeight = Math.max(1, Object.values(combinedLangCounts).reduce((a, b) => a + b, 0));
+  const finalLanguageStats = {
+    jaRatio: combinedLangCounts.ja / totalLangWeight,
+    zhRatio: combinedLangCounts.zh / totalLangWeight,
+    enRatio: combinedLangCounts.en / totalLangWeight,
+    koRatio: combinedLangCounts.ko / totalLangWeight
+  };
+
+  const persona = getMusicPersona(mergedGenreDistribution, finalLanguageStats);
 
   // Total Hours calculation (Local + Cloud hybrid)
   const localHours = Math.round((local.totalSeconds / 3600) * 10) / 10;

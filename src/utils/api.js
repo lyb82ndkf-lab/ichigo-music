@@ -129,6 +129,14 @@ export const api = {
     return request(`/scrobble/v1?${params.toString()}`, { timeout: 12000 });
   },
   getRecentSongs: (limit = 100) => request(`/record/recent/song?limit=${Math.max(1, Math.min(200, Number(limit) || 100))}&timestamp=${Date.now()}`, { timeout: 12000 }),
+  audioMatch: ({ duration = 3, audioFP }) => {
+    const params = new URLSearchParams({
+      duration: String(duration),
+      audioFP: String(audioFP || '')
+    });
+    return request(`/audio/match?${params.toString()}`, { method: 'POST', timeout: 15000 });
+  },
+  getRecentListenList: () => request(`/recent/listen/list?timestamp=${Date.now()}`),
   getSongDetails: (ids) => request(`/song/detail?ids=${ids}`),
   getLyrics: (id) => request(`/lyric?id=${id}`),
   getMatchedLyrics: ({ id, title, artist, album, durationMs, sources = 'amll,qq,kugou' }) => {

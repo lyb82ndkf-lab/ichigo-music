@@ -1,5 +1,5 @@
 // main-electron.js - Electron main desktop application process
-import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard, net as electronNet, protocol, globalShortcut } from 'electron';
+import { app, BrowserWindow, session, ipcMain, Tray, Menu, nativeImage, shell, dialog, clipboard, net as electronNet, protocol, globalShortcut, desktopCapturer } from 'electron';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import net from 'net';
@@ -1692,6 +1692,21 @@ function createWindow() {
 
     await walk(folderPath);
     return songs;
+  });
+  ipcMain.removeHandler('desktop-capturer-get-sources');
+  ipcMain.handle('desktop-capturer-get-sources', async (_event, opts) => {
+    try {
+      const sources = await desktopCapturer.getSources(opts || { types: ['screen', 'window'] });
+      return sources.map(s => ({
+        id: s.id,
+        name: s.name,
+        display_id: s.display_id,
+        thumbnail: s.thumbnail ? s.thumbnail.toDataURL() : null
+      }));
+    } catch (err) {
+      console.warn('Failed to get desktop sources:', err);
+      return [];
+    }
   });
 
   // Load local Vite dev server or production build

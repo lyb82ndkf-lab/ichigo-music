@@ -74,6 +74,12 @@
   --primary-hue: 350;
   --primary-sat: 85%;
   --primary-light: 60%;
+  --primary-rgb: 255, 51, 102;
+  --accent-rgb: 255, 51, 102;
+  --primary: #ff3366;
+  --primary-hover: #e62055;
+  --primary-glow: rgba(255, 51, 102, 0.35);
+  --primary-subtle: rgba(255, 51, 102, 0.12);
   --primary-text: #ffffff;
   --theme-bg-start: #0f0c1b;
   --theme-bg-end: #050209;
@@ -88,6 +94,12 @@
   --primary-hue: 330;
   --primary-sat: 90%;
   --primary-light: 70%;
+  --primary-rgb: 255, 102, 178;
+  --accent-rgb: 255, 102, 178;
+  --primary: #ff66b2;
+  --primary-hover: #e64d99;
+  --primary-glow: rgba(255, 102, 178, 0.35);
+  --primary-subtle: rgba(255, 102, 178, 0.12);
   --primary-text: #ffffff;
   --theme-bg-start: #1a0f16;
   --theme-bg-end: #080307;
@@ -102,6 +114,12 @@
   --primary-hue: 122;
   --primary-sat: 39%;
   --primary-light: 49%;
+  --primary-rgb: 76, 175, 80;
+  --accent-rgb: 76, 175, 80;
+  --primary: #4caf50;
+  --primary-hover: #3d8b40;
+  --primary-glow: rgba(76, 175, 80, 0.35);
+  --primary-subtle: rgba(76, 175, 80, 0.12);
   --primary-text: #ffffff;
   --theme-bg-start: #0c1210;
   --theme-bg-end: #030705;
@@ -116,6 +134,12 @@
   --primary-hue: 199;
   --primary-sat: 100%;
   --primary-light: 50%;
+  --primary-rgb: 0, 176, 255;
+  --accent-rgb: 0, 176, 255;
+  --primary: #00b0ff;
+  --primary-hover: #0091ea;
+  --primary-glow: rgba(0, 176, 255, 0.35);
+  --primary-subtle: rgba(0, 176, 255, 0.12);
   --primary-text: #ffffff;
   --theme-bg-start: #0a1018;
   --theme-bg-end: #02060b;
@@ -130,6 +154,12 @@
   --primary-hue: 291;
   --primary-sat: 47%;
   --primary-light: 51%;
+  --primary-rgb: 171, 71, 188;
+  --accent-rgb: 171, 71, 188;
+  --primary: #ab47bc;
+  --primary-hover: #8e24aa;
+  --primary-glow: rgba(171, 71, 188, 0.35);
+  --primary-subtle: rgba(171, 71, 188, 0.12);
   --primary-text: #ffffff;
   --theme-bg-start: #100b18;
   --theme-bg-end: #05020a;
@@ -144,7 +174,13 @@
   --primary-hue: 240;
   --primary-sat: 5%;
   --primary-light: 96%;
-  --primary-text: #111111;
+  --primary-rgb: 158, 158, 158;
+  --accent-rgb: 158, 158, 158;
+  --primary: #9e9e9e;
+  --primary-hover: #757575;
+  --primary-glow: rgba(158, 158, 158, 0.35);
+  --primary-subtle: rgba(158, 158, 158, 0.12);
+  --primary-text: #ffffff;
   --theme-bg-start: #09090b;
   --theme-bg-end: #030304;
   --theme-text-main: #f4f4f5;
@@ -153,6 +189,7 @@
   --theme-card-bg: rgba(255, 255, 255, 0.045);
   --theme-card-border: rgba(255, 255, 255, 0.08);
 }
+
 
 .mode-light.theme-strawberry {
   --theme-bg-start: #fff1f2;
@@ -241,6 +278,8 @@ body[class*="theme-"] {
   --primary-glow: var(--custom-primary-color-glow);
   --primary-subtle: var(--custom-primary-color-subtle);
   --primary-text: var(--custom-primary-text, #ffffff);
+  --primary-rgb: var(--custom-primary-rgb, 255, 64, 129);
+  --accent-rgb: var(--custom-primary-rgb, 255, 64, 129);
   --theme-bg-start: var(--custom-bg-start, #0b0c10);
   --theme-bg-end: var(--custom-bg-end, #030406);
   --theme-text-main: var(--custom-text-main, #f3f4f6);
@@ -311,5 +350,7 @@ body[class*="theme-"] {
   --z-player: 1300;
   --z-drawer: 2000;
   --z-toast: 5000;
-  --z-top: 9999;
+  --z-modal-overlay: 9999;
+  --z-modal: 10000;
+  --z-top: 99999;
 }

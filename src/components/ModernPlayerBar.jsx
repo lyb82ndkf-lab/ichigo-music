@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import CachedCover from './CachedCover';
 import {
   Play, Pause, SkipBack, SkipForward, Heart, Shuffle, Repeat, Repeat1,
-  HeartPulse, ListMusic, Volume2, VolumeX, MonitorSpeaker, Sliders, AppWindow
+  HeartPulse, ListMusic, Volume2, VolumeX, MonitorSpeaker, Sliders, AppWindow, Radio
 } from 'lucide-react';
 import {
   Button, IconButton, DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,

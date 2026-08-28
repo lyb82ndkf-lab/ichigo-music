@@ -1,10 +1,10 @@
-﻿import React, { useRef } from 'react';
+import React, { useRef } from 'react';
 import { useApp } from '../context/AppContext';
-import { Home, Settings, User as UserIcon, Search, Minus, Square, X } from 'lucide-react';
+import { Home, Settings, User as UserIcon, Search, Minus, Square, X, Radio } from 'lucide-react';
 import { IconButton, Input, Tooltip, TooltipProvider } from './ui';
 
 export default function ModernTopControls() {
-  const { navigateTo, user, requestAppClose, currentView, viewData } = useApp();
+  const { navigateTo, user, requestAppClose, currentView, viewData, setIsAudioMatchOpen } = useApp();
   const searchInputRef = useRef(null);
   const handleSearch = (event) => {
     if (event.key === 'Enter' && event.target.value.trim()) {
@@ -22,7 +22,43 @@ export default function ModernTopControls() {
         <div className="topbar-left"><span className="desktop-app-title">ICHIGOMUSIC</span></div>
         <div className="topbar-center">
           <Tooltip content="主页"><IconButton className="modern-glass-btn" label="主页" size="sm" onClick={() => navigateTo('home')}><Home size={18} /></IconButton></Tooltip>
-          <Input className="modern-search-input" ref={searchInputRef} icon={<Search size={16} />} type="search" placeholder="搜索音乐、歌手、歌词…" onKeyDown={handleSearch} />
+          <div className="modern-search-box-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <Input
+              className="modern-search-input"
+              ref={searchInputRef}
+              icon={<Search size={16} />}
+              type="search"
+              placeholder="搜索音乐、歌手、歌词…"
+              onKeyDown={handleSearch}
+              style={{ paddingRight: '36px' }}
+            />
+            <Tooltip content="听歌识曲 (屏幕声音/麦克风)">
+              <button
+                type="button"
+                className="search-match-icon-btn"
+                onClick={() => setIsAudioMatchOpen(true)}
+                aria-label="听歌识曲"
+                style={{
+                  position: 'absolute',
+                  right: '6px',
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  border: 'none',
+                  background: 'rgba(var(--accent-rgb, 255, 64, 129), 0.18)',
+                  color: 'var(--primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s cubic-bezier(0.16, 1, 0.3, 1)',
+                  boxShadow: '0 2px 8px var(--primary-glow, rgba(255, 64, 129, 0.25))'
+                }}
+              >
+                <Radio size={14} />
+              </button>
+            </Tooltip>
+          </div>
           <Tooltip content="设置"><IconButton className="modern-glass-btn" label="设置" size="sm" onClick={() => navigateTo('settings')}><Settings size={18} /></IconButton></Tooltip>
           <Tooltip content={user?.nickname || '登录'}><IconButton className="modern-glass-btn user-btn" label={user?.nickname || '登录'} size="sm" onClick={() => navigateTo('settings', { tab: 'account' })}>{user ? <img src={user.avatarUrl} alt="用户头像" className="modern-user-avatar" /> : <UserIcon size={18} />}</IconButton></Tooltip>
         </div>

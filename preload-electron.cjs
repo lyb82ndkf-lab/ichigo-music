@@ -76,4 +76,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   convertFuriganaBatch: (lines) => ipcRenderer.invoke('furigana:convert-batch', lines),
   convertFuriganaText: (text) => ipcRenderer.invoke('furigana:convert-text', text),
   saveLyricFile: (data) => ipcRenderer.invoke('save-lyric-file', data),
+  getDesktopSources: (opts) => ipcRenderer.invoke('desktop-capturer-get-sources', opts),
 });

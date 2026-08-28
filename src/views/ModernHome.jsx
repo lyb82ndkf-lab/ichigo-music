@@ -3,7 +3,7 @@ import { useApp } from '../context/AppContext';
 import {
   Compass, TrendingUp, Heart, History, Settings, Play, Pause, Music,
   Radio, HardDrive, Sparkles, Sun, Moon, Sunrise, Sunset, Search, Disc,
-  Flame, ListMusic, ChevronRight, ChevronLeft, Mic2, ExternalLink
+  Flame, ListMusic, ChevronRight, ChevronLeft, Mic2, ExternalLink, Calendar
 } from 'lucide-react';
 import ResilientCover from '../components/ResilientCover';
 import CachedCover, { useCachedCoverUrl } from '../components/CachedCover';
@@ -269,6 +269,14 @@ export default function ModernHome() {
             <Heart size={15} className="nav-pill-icon" />
             <span>我的喜欢 ({likedSongIds?.size || 0})</span>
           </button>
+          <button className="nav-pill-btn" onClick={() => navigateTo('recent')}>
+            <History size={15} className="nav-pill-icon" />
+            <span>最近播放</span>
+          </button>
+          <button className="nav-pill-btn" onClick={() => navigateTo('recent', { tab: 'heatmap' })}>
+            <Calendar size={15} className="nav-pill-icon" />
+            <span>足迹日历</span>
+          </button>
           <button className="nav-pill-btn" onClick={() => navigateTo('local')}>
             <HardDrive size={15} className="nav-pill-icon" />
             <span>本地曲库</span>
@@ -289,12 +297,25 @@ export default function ModernHome() {
 
         {/* Section 2: Compact Recent Songs Stream */}
         <div className="compact-recent-stream">
-          <div className="compact-stream-head">
+          <div className="compact-stream-head" onClick={() => navigateTo('recent')} style={{ cursor: 'pointer' }}>
             <div className="compact-stream-title">
               <History size={16} />
               <span>继续聆听 / 最近播放</span>
             </div>
-            <span className="compact-stream-tag">{recentlyPlayed?.length || 0} 首足迹</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); navigateTo('recent', { tab: 'heatmap' }); }}
+                className="nav-pill-btn"
+                style={{ padding: '3px 10px', fontSize: '11px', height: '24px', borderRadius: '99px', background: 'var(--primary-subtle, rgba(255,64,129,0.15))', color: 'var(--primary)' }}
+                title="查看听歌历史足迹日历"
+              >
+                <Calendar size={12} />
+                <span>足迹日历</span>
+              </button>
+              <span className="compact-stream-tag">{recentlyPlayed?.length || 0} 首足迹</span>
+              <ChevronRight size={14} color="var(--text-muted)" />
+            </div>
           </div>
 
           <div className="compact-song-list">
