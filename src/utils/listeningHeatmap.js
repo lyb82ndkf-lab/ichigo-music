@@ -1,15 +1,9 @@
 // src/utils/listeningHeatmap.js - Listening Heatmap and Calendar Analytics Utility
 import { api } from './api.js';
-import { saveLocalLogs } from './listeningStats.js';
+import { saveLocalLogs, getLocalLogs, STATS_STORAGE_KEY } from './listeningStats.js';
+
 export function getLocalListeningLogs() {
-  try {
-    const raw = localStorage.getItem(STATS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return getLocalLogs();
 }
 
 // Convert Date or timestamp to 'YYYY-MM-DD'
@@ -39,36 +33,94 @@ export function getLevelFromCount(count) {
   return 4;
 }
 
-// Fetch Remote Recent Songs and normalize to footprint records
-export async function fetchRemoteRecentTracks(limit = 100) {
+// Fetch Remote Recent Songs and normalize to footprint records from multiple Cloud & PC endpoints
+export async function fetchRemoteRecentTracks(limit = 300) {
+  const rawEntries = [];
+
+  // 1. Fetch from standard cloud recent songs endpoint (/record/recent/song)
   try {
     const res = await api.getRecentSongs(limit);
     const list = res?.data?.list || res?.list || [];
-    return list.map(item => {
-      const songData = item.data || item.song || item;
-      const playTime = item.playTime || item.timestamp || Date.now();
-      return {
-        id: songData.id,
-        name: songData.name || songData.title || '未知歌曲',
-        artist: songData.ar?.map(a => a.name).join(' / ') || songData.artists?.map(a => a.name).join(' / ') || songData.artist || '未知歌手',
-        album: songData.al?.name || songData.album?.name || '',
-        coverUrl: songData.al?.picUrl || songData.album?.picUrl || songData.coverUrl || '',
-        duration: Math.round((songData.dt || songData.duration || 0) / 1000) || 180,
-        seconds: Math.round((songData.dt || songData.duration || 0) / 1000) || 180,
-        timestamp: playTime,
-        date: formatToDateKey(playTime)
-      };
-    }).filter(t => t.id && t.date);
+    if (Array.isArray(list)) {
+      list.forEach(item => {
+        const songData = item.data || item.song || item;
+        const playTime = item.playTime || item.timestamp || Date.now();
+        if (songData?.id) {
+          rawEntries.push({
+            id: songData.id,
+            name: songData.name || songData.title || '未知歌曲',
+            artist: songData.ar?.map(a => a.name).join(' / ') || songData.artists?.map(a => a.name).join(' / ') || songData.artist || '未知歌手',
+            album: songData.al?.name || songData.album?.name || '',
+            coverUrl: songData.al?.picUrl || songData.album?.picUrl || songData.coverUrl || '',
+            duration: Math.round((songData.dt || songData.duration || 0) / 1000) || 180,
+            seconds: Math.round((songData.dt || songData.duration || 0) / 1000) || 180,
+            timestamp: playTime,
+            date: formatToDateKey(playTime)
+          });
+        }
+      });
+    }
   } catch (err) {
-    console.debug('Failed to fetch remote recent songs for heatmap:', err);
-    return [];
+    console.debug('Failed to fetch remote recent songs:', err);
   }
-}
 
+  // 2. Fetch from PC client recent listen list (/recent/listen/list) for extra historical coverage
+  try {
+    const pcRes = await api.getRecentListenList();
+    const pcList = pcRes?.data?.list || pcRes?.list || pcRes?.data || [];
+    if (Array.isArray(pcList)) {
+      pcList.forEach(item => {
+        const songData = item.song || item.data || item;
+        const playTime = item.playTime || item.timestamp || item.time || Date.now();
+        if (songData?.id) {
+          rawEntries.push({
+            id: songData.id,
+            name: songData.name || songData.title || '未知歌曲',
+            artist: songData.ar?.map(a => a.name).join(' / ') || songData.artists?.map(a => a.name).join(' / ') || songData.artist || '未知歌手',
+            album: songData.al?.name || songData.album?.name || '',
+            coverUrl: songData.al?.picUrl || songData.album?.picUrl || songData.coverUrl || '',
+            duration: Math.round((songData.dt || songData.duration || 0) / 1000) || 180,
+            seconds: Math.round((songData.dt || songData.duration || 0) / 1000) || 180,
+            timestamp: playTime,
+            date: formatToDateKey(playTime)
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.debug('Failed to fetch PC recent listen list:', err);
+  }
+
+  return rawEntries.filter(t => t.id && t.date);
+}
 // Aggregate All Listening Footprints (Local Logs + Remote Records)
 export async function getListeningHeatmapData(selectedYear = new Date().getFullYear()) {
-  const localLogs = getLocalListeningLogs();
-  const remoteLogs = await fetchRemoteRecentTracks(150);
+  let localLogs = getLocalListeningLogs();
+
+  // Pull from C-Drive Durable Disk Vault (survives uninstall & web cache clears)
+  if (window.electronAPI?.getListeningHistoryVault) {
+    try {
+      const diskVaultLogs = await window.electronAPI.getListeningHistoryVault();
+      if (Array.isArray(diskVaultLogs) && diskVaultLogs.length > 0) {
+        const tempSeen = new Set();
+        const mergedFromVault = [];
+        [...diskVaultLogs, ...localLogs].forEach(item => {
+          if (!item || !item.id) return;
+          const ts = Number(item.timestamp) || Date.now();
+          const key = `${item.id}_${Math.floor(ts / 60000)}`;
+          if (!tempSeen.has(key)) {
+            tempSeen.add(key);
+            mergedFromVault.push(item);
+          }
+        });
+        localLogs = mergedFromVault;
+      }
+    } catch (err) {
+      console.warn('Failed to read durable listening vault from disk:', err);
+    }
+  }
+
+  const remoteLogs = await fetchRemoteRecentTracks(300);
 
   // Normalize local logs
   const normalizedLocal = localLogs.map(item => ({
@@ -83,23 +135,32 @@ export async function getListeningHeatmapData(selectedYear = new Date().getFullY
     date: formatToDateKey(item.timestamp || Date.now())
   })).filter(t => t.id && t.date);
 
-  // Merge unique logs
-  const seen = new Set();
+  // Merge and deduplicate records: songs with same id within 180s are treated as 1 single play session
+  const sortedRaw = [...normalizedLocal, ...remoteLogs]
+    .filter(entry => entry && entry.id)
+    .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+
   const allLogs = [];
+  for (const entry of sortedRaw) {
+    const ts = Number(entry.timestamp) || Date.now();
+    const songId = String(entry.id);
+    const last = allLogs[allLogs.length - 1];
 
-  [...normalizedLocal, ...remoteLogs].forEach(entry => {
-    // Unique key combines songId and timestamp bucket (approx 1 minute window)
-    const key = `${entry.id}_${Math.floor(entry.timestamp / 60000)}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      allLogs.push(entry);
+    if (last && String(last.id) === songId && Math.abs(ts - (Number(last.timestamp) || 0)) <= 180000) {
+      last.seconds = Math.max(Number(last.seconds || 0), Number(entry.seconds || 0));
+      last.duration = last.seconds;
+      last.timestamp = Math.max(Number(last.timestamp || 0), ts);
+      last.date = last.date || entry.date || formatToDateKey(ts);
+    } else {
+      allLogs.push({
+        ...entry,
+        timestamp: ts,
+        date: entry.date || formatToDateKey(ts)
+      });
     }
-  });
+  }
 
-  // Sort logs by timestamp ascending
-  allLogs.sort((a, b) => a.timestamp - b.timestamp);
   saveLocalLogs(allLogs);
-
   // Group by Date Key (YYYY-MM-DD)
   const dateMap = new Map();
   let maxDailyPlays = 0;

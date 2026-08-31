@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Play, Pause, SkipBack, SkipForward, Heart, Volume2, VolumeX,
+  Play, Pause, SkipBack, SkipForward, Heart,
   Maximize2, X, Music
 } from 'lucide-react';
 
@@ -17,8 +17,6 @@ export default function IslandMiniPlayer() {
     immersiveColor: '#ff4081',
     colorMode: 'dark'
   });
-
-  const [localVolume, setLocalVolume] = useState(0.8);
 
   useEffect(() => {
     document.body.style.background = 'transparent';
@@ -41,9 +39,6 @@ export default function IslandMiniPlayer() {
             ...prev,
             ...data
           }));
-          if (typeof data.volume === 'number') {
-            setLocalVolume(data.volume);
-          }
         }
       });
       return cleanup;
@@ -80,6 +75,8 @@ export default function IslandMiniPlayer() {
 
   const coverUrl = currentSong?.coverUrl || currentSong?.al?.picUrl || currentSong?.picUrl || '';
   const progressPct = duration > 0 ? Math.min(100, Math.max(0, (progress / duration) * 100)) : 0;
+  const songTitle = currentSong?.name || currentSong?.title || '未在播放';
+  const artistName = currentSong?.ar?.map(a => a.name).join(' / ') || currentSong?.artists?.map(a => a.name).join(' / ') || currentSong?.artist || '';
 
   // Actions back to main window
   const handleTogglePlay = () => {
@@ -125,24 +122,13 @@ export default function IslandMiniPlayer() {
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif'
       }}
     >
-      {/* Global CSS for Vinyl Needle and Vinyl Spin (Dark & Light Mode Aware) */}
       <style>{`
-        @keyframes vinylSpin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .mini-vinyl-disc {
-          animation: vinylSpin 14s linear infinite;
-        }
-        .mini-vinyl-disc.paused {
-          animation-play-state: paused;
-        }
         .mini-control-btn {
           background: ${isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)'};
           border: 1px solid ${isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.1)'};
           color: ${isLight ? 'rgba(0, 0, 0, 0.75)' : 'rgba(255, 255, 255, 0.85)'};
-          width: 26px;
-          height: 26px;
+          width: 28px;
+          height: 28px;
           border-radius: 50%;
           display: flex;
           align-items: center;
@@ -158,8 +144,8 @@ export default function IslandMiniPlayer() {
           transform: scale(1.08);
         }
         .mini-play-btn {
-          width: 32px;
-          height: 32px;
+          width: 34px;
+          height: 34px;
           border-radius: 50%;
           background: linear-gradient(135deg, ${immersiveColor || '#ff4081'}, #7928ca);
           border: none;
@@ -178,21 +164,24 @@ export default function IslandMiniPlayer() {
           box-shadow: 0 0 20px ${immersiveColor || '#ff4081'}88;
         }
         .mini-top-action-btn {
-          background: none;
-          border: none;
-          color: ${isLight ? 'rgba(0, 0, 0, 0.42)' : 'rgba(255, 255, 255, 0.45)'};
+          background: ${isLight ? 'rgba(0, 0, 0, 0.04)' : 'rgba(255, 255, 255, 0.06)'};
+          border: 1px solid ${isLight ? 'rgba(0, 0, 0, 0.06)' : 'rgba(255, 255, 255, 0.08)'};
+          color: ${isLight ? 'rgba(0, 0, 0, 0.45)' : 'rgba(255, 255, 255, 0.55)'};
           cursor: pointer;
-          padding: 2px;
+          width: 20px;
+          height: 20px;
           display: flex;
           align-items: center;
           justify-content: center;
-          border-radius: 4px;
-          transition: all 0.15s;
+          border-radius: 6px;
+          transition: all 0.15s ease;
           -webkit-app-region: no-drag;
+          padding: 0;
         }
         .mini-top-action-btn:hover {
           color: ${isLight ? '#000000' : '#ffffff'};
-          background: ${isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.15)'};
+          background: ${isLight ? 'rgba(0, 0, 0, 0.12)' : 'rgba(255, 255, 255, 0.2)'};
+          transform: scale(1.05);
         }
       `}</style>
 
@@ -201,16 +190,16 @@ export default function IslandMiniPlayer() {
         style={{
           width: '100%',
           height: '100%',
-          borderRadius: '38px',
+          borderRadius: '28px',
           background: isLight
-            ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(246, 244, 252, 0.97) 100%)'
-            : 'linear-gradient(135deg, rgba(22, 16, 32, 0.94) 0%, rgba(10, 8, 16, 0.96) 100%)',
-          backdropFilter: 'blur(30px) saturate(180%)',
-          WebkitBackdropFilter: 'blur(30px) saturate(180%)',
-          border: `1px solid ${isLight ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.15)'}`,
+            ? 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(246, 244, 252, 0.98) 100%)'
+            : 'linear-gradient(135deg, rgba(24, 18, 36, 0.95) 0%, rgba(12, 10, 20, 0.98) 100%)',
+          backdropFilter: 'blur(32px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(32px) saturate(180%)',
+          border: `1px solid ${isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)'}`,
           boxShadow: isLight
-            ? `0 12px 32px rgba(0, 0, 0, 0.16), 0 0 20px ${immersiveColor}35`
-            : `0 12px 32px rgba(0, 0, 0, 0.65), 0 0 20px ${immersiveColor}28`,
+            ? `0 10px 28px rgba(0, 0, 0, 0.14), 0 0 16px ${immersiveColor}30`
+            : `0 10px 28px rgba(0, 0, 0, 0.6), 0 0 16px ${immersiveColor}25`,
           display: 'flex',
           alignItems: 'center',
           padding: '0 14px',
@@ -220,142 +209,143 @@ export default function IslandMiniPlayer() {
           WebkitAppRegion: 'drag'
         }}
       >
-        {/* Left: Vinyl Disc & Rotating Tonearm / Needle */}
-        <div style={{ position: 'relative', width: '64px', height: '64px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {/* Vinyl Record Disc */}
-          <div
-            className={`mini-vinyl-disc ${!isPlaying ? 'paused' : ''}`}
-            style={{
-              width: '58px',
-              height: '58px',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, #1a1a1a 0%, #111 40%, #2a2a2a 45%, #151515 70%, #080808 100%)',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.6), inset 0 0 6px rgba(255,255,255,0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '1px solid rgba(255, 255, 255, 0.12)'
-            }}
+        {/* Top-Right Maximize & Close Buttons */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            right: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            zIndex: 10,
+            WebkitAppRegion: 'no-drag'
+          }}
+        >
+          <button
+            type="button"
+            className="mini-top-action-btn"
+            onClick={handleRestoreMain}
+            title="还原展开完整窗口"
           >
-            {/* Center Album Cover */}
-            <div
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                background: '#222',
-                border: '2px solid #000',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}
-            >
-              {coverUrl ? (
-                <img
-                  src={coverUrl}
-                  alt="cover"
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  draggable={false}
-                />
-              ) : (
-                <Music size={14} color="#ff4081" />
-              )}
-            </div>
-          </div>
+            <Maximize2 size={11} />
+          </button>
+          <button
+            type="button"
+            className="mini-top-action-btn"
+            onClick={handleClose}
+            title="关闭迷你播放器"
+          >
+            <X size={12} />
+          </button>
+        </div>
 
-          {/* Tonearm / Needle (旋转唱针) */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '0px',
-              right: '2px',
-              width: '24px',
-              height: '32px',
-              pointerEvents: 'none',
-              transformOrigin: '20px 4px',
-              transform: isPlaying ? 'rotate(24deg)' : 'rotate(-8deg)',
-              transition: 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)'
-            }}
-          >
-            {/* Stylus needle graphic */}
-            <svg width="24" height="32" viewBox="0 0 24 32" fill="none">
-              {/* Pivot Base */}
-              <circle cx="20" cy="4" r="3.5" fill={isLight ? '#9ca3af' : '#d1d5db'} stroke={isLight ? '#4b5563' : '#374151'} strokeWidth="1" />
-              <circle cx="20" cy="4" r="1.5" fill={immersiveColor || '#ff4081'} />
-              {/* Arm Rod */}
-              <path d="M19 6 L12 24 L10 28" stroke={isLight ? '#6b7280' : '#e5e7eb'} strokeWidth="1.5" strokeLinecap="round" />
-              {/* Cartridge Head */}
-              <rect x="7" y="26" width="6" height="5" rx="1" fill={isLight ? '#1f2937' : '#374151'} stroke={isLight ? '#4b5563' : '#9ca3af'} strokeWidth="0.8" />
-            </svg>
-          </div>
+        {/* Left: Pure Clean Album Cover */}
+        <div
+          style={{
+            width: '54px',
+            height: '54px',
+            borderRadius: '13px',
+            overflow: 'hidden',
+            flexShrink: 0,
+            background: isLight ? '#f0edf6' : '#1b1726',
+            boxShadow: `0 4px 14px rgba(0, 0, 0, 0.3), 0 0 12px ${immersiveColor}35`,
+            border: `1px solid ${isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)'}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            position: 'relative'
+          }}
+        >
+          {coverUrl ? (
+            <img
+              src={coverUrl}
+              alt="cover"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                display: 'block'
+              }}
+              draggable={false}
+            />
+          ) : (
+            <Music size={22} color={immersiveColor || '#ff4081'} />
+          )}
         </div>
 
         {/* Center: Song info & Single-Line Dynamic Lyric */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '3px' }}>
-          {/* Top Row: Track Name & Mini Window Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            gap: '4px',
+            paddingRight: '6px'
+          }}
+        >
+          {/* Top Row: Track Name & Artist */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'baseline',
+              gap: '6px',
+              minWidth: 0,
+              width: '100%',
+              overflow: 'hidden'
+            }}
+          >
+            <span
+              title={songTitle}
+              style={{
+                fontSize: '13px',
+                fontWeight: 800,
+                color: isLight ? '#1a192b' : '#ffffff',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flexShrink: 1,
+                minWidth: 0
+              }}
+            >
+              {songTitle}
+            </span>
+            {artistName && (
               <span
+                title={artistName}
                 style={{
-                  fontSize: '12px',
-                  fontWeight: 700,
-                  color: isLight ? '#1a192b' : '#ffffff',
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  color: isLight ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.55)',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  flexShrink: 2,
+                  minWidth: 0
                 }}
               >
-                {currentSong?.name || currentSong?.title || '未在播放'}
+                · {artistName}
               </span>
-              {(currentSong?.ar?.[0]?.name || currentSong?.artist) && (
-                <span
-                  style={{
-                    fontSize: '10px',
-                    color: isLight ? 'rgba(0, 0, 0, 0.55)' : 'rgba(255, 255, 255, 0.5)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}
-                >
-                  · {currentSong?.ar?.[0]?.name || currentSong?.artist}
-                </span>
-              )}
-            </div>
-
-            {/* Window Top Buttons */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
-              <button
-                type="button"
-                className="mini-top-action-btn"
-                onClick={handleRestoreMain}
-                title="展开为主窗口"
-              >
-                <Maximize2 size={12} />
-              </button>
-              <button
-                type="button"
-                className="mini-top-action-btn"
-                onClick={handleClose}
-                title="关闭迷你播放器"
-              >
-                <X size={13} />
-              </button>
-            </div>
+            )}
           </div>
 
           {/* Middle: Single-Line Dynamic Scrolling Lyrics */}
           <div
+            title={currentLyricLine}
             style={{
               fontSize: '12px',
               fontWeight: 600,
-              color: isPlaying ? (immersiveColor || '#ff4081') : (isLight ? 'rgba(0, 0, 0, 0.8)' : 'rgba(255, 255, 255, 0.8)'),
+              color: isPlaying ? (immersiveColor || '#ff4081') : (isLight ? 'rgba(0, 0, 0, 0.65)' : 'rgba(255, 255, 255, 0.65)'),
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap',
               lineHeight: '16px',
-              textShadow: !isLight && isPlaying ? `0 0 10px ${immersiveColor}66` : 'none',
-              transition: 'all 0.3s ease'
+              textShadow: !isLight && isPlaying ? `0 0 8px ${immersiveColor}55` : 'none',
+              transition: 'all 0.3s ease',
+              width: '100%',
+              minWidth: 0
             }}
           >
             {currentLyricLine}
@@ -369,7 +359,7 @@ export default function IslandMiniPlayer() {
               background: isLight ? 'rgba(0, 0, 0, 0.08)' : 'rgba(255, 255, 255, 0.12)',
               borderRadius: '2px',
               overflow: 'hidden',
-              marginTop: '2px'
+              marginTop: '1px'
             }}
           >
             <div
@@ -385,7 +375,16 @@ export default function IslandMiniPlayer() {
         </div>
 
         {/* Right: Transport Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            flexShrink: 0,
+            marginTop: '4px',
+            WebkitAppRegion: 'no-drag'
+          }}
+        >
           {/* Like Button */}
           <button
             type="button"

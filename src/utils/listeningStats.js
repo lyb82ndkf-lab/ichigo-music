@@ -1,8 +1,8 @@
 // src/utils/listeningStats.js - Personal Listening Analytics & Genre Radar Engine
 import { api } from './api.js';
 
-const STATS_STORAGE_KEY = 'ichigo_listening_history_stats';
-const MAX_LOCAL_RECORDS = 10000;
+export const STATS_STORAGE_KEY = 'ichigo_listening_history_stats';
+export const MAX_LOCAL_RECORDS = 50000;
 // 8 Major Genre Categories & Comprehensive Keyword Lexicon
 export const GENRE_CATEGORIES = [
   { key: 'pop', name: '流行 (Pop)', color: '#ff4081', glow: 'rgba(255, 64, 129, 0.4)' },
@@ -175,18 +175,34 @@ export function saveLocalLogs(logs) {
   try {
     const trimmed = logs.slice(-MAX_LOCAL_RECORDS);
     localStorage.setItem(STATS_STORAGE_KEY, JSON.stringify(trimmed));
+    if (window.electronAPI?.saveListeningHistoryVault) {
+      window.electronAPI.saveListeningHistoryVault(trimmed).catch(() => {});
+    }
   } catch (err) {
     console.warn('Failed to save listening stats log:', err);
   }
 }
 
-// Record a playback event into persistent local analytics
+// Record a playback event into persistent local analytics & disk vault
 export function recordPlayEvent({ song, playedSeconds, totalDuration }) {
   if (!song?.id || !playedSeconds || playedSeconds < 3) return;
   const duration = Math.min(Math.round(playedSeconds), totalDuration > 0 ? Math.round(totalDuration) : 600);
   const artistName = Array.isArray(song.ar)
     ? song.ar.map(a => a.name).join(' / ')
     : (Array.isArray(song.artists) ? song.artists.map(a => a.name).join(' / ') : (song.artist || '未知艺术家'));
+
+  const now = Date.now();
+  const logs = getLocalLogs();
+
+  // Anti-duplicate protection: If the latest logged entry is the same song within 180s (3 min), update duration instead of pushing duplicate!
+  const lastEntry = logs[logs.length - 1];
+  if (lastEntry && String(lastEntry.id) === String(song.id) && Math.abs(now - Number(lastEntry.timestamp || 0)) <= 180000) {
+    lastEntry.seconds = Math.max(Number(lastEntry.seconds || 0), duration);
+    lastEntry.duration = lastEntry.seconds;
+    lastEntry.timestamp = Math.max(Number(lastEntry.timestamp || 0), now);
+    saveLocalLogs(logs);
+    return;
+  }
 
   const entry = {
     id: song.id,
@@ -196,12 +212,76 @@ export function recordPlayEvent({ song, playedSeconds, totalDuration }) {
     album: song.al?.name || song.album?.name || '',
     coverUrl: song.al?.picUrl || song.album?.picUrl || song.coverUrl || '',
     seconds: duration,
-    timestamp: Date.now()
+    duration: duration,
+    timestamp: now,
+    date: new Date(now).toISOString().slice(0, 10)
   };
 
-  const logs = getLocalLogs();
   logs.push(entry);
   saveLocalLogs(logs);
+  if (window.electronAPI?.appendListeningHistoryVault) {
+    window.electronAPI.appendListeningHistoryVault(entry).catch(() => {});
+  }
+}
+// Export full listening history to JSON Blob for backup
+export function exportListeningHistoryJSON() {
+  const logs = getLocalLogs();
+  const exportPayload = {
+    version: '2.6.0',
+    exportedAt: new Date().toISOString(),
+    totalRecords: logs.length,
+    logs
+  };
+  const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ichigomusic-footprints-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Import and merge listening history from JSON string or object
+export function importListeningHistoryJSON(jsonContent) {
+  try {
+    const data = typeof jsonContent === 'string' ? JSON.parse(jsonContent) : jsonContent;
+    const importedLogs = Array.isArray(data) ? data : (Array.isArray(data?.logs) ? data.logs : []);
+    if (importedLogs.length === 0) return { success: false, count: 0, message: '未检测到有效的听歌记录数据' };
+
+    const currentLogs = getLocalLogs();
+    const seen = new Set();
+    const merged = [];
+
+    [...currentLogs, ...importedLogs].forEach(entry => {
+      if (!entry || !entry.id) return;
+      const ts = Number(entry.timestamp) || Date.now();
+      const key = `${entry.id}_${Math.floor(ts / 60000)}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        merged.push({
+          id: entry.id,
+          name: entry.name || '未知曲目',
+          artist: entry.artist || '未知艺术家',
+          album: entry.album || '',
+          coverUrl: entry.coverUrl || '',
+          seconds: Number(entry.seconds) || 180,
+          timestamp: ts
+        });
+      }
+    });
+
+    merged.sort((a, b) => a.timestamp - b.timestamp);
+    saveLocalLogs(merged);
+    return {
+      success: true,
+      count: merged.length,
+      newAdded: Math.max(0, merged.length - currentLogs.length)
+    };
+  } catch (err) {
+    return { success: false, count: 0, message: err?.message || '解析导入文件失败' };
+  }
 }
 
 // Calculate Local Analytics

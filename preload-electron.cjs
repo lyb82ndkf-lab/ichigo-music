@@ -77,4 +77,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   convertFuriganaText: (text) => ipcRenderer.invoke('furigana:convert-text', text),
   saveLyricFile: (data) => ipcRenderer.invoke('save-lyric-file', data),
   getDesktopSources: (opts) => ipcRenderer.invoke('desktop-capturer-get-sources', opts),
+
+  // Durable C-Drive Listening History Vault IPC
+  getListeningHistoryVault: () => ipcRenderer.invoke('get-listening-history-vault'),
+  saveListeningHistoryVault: (records) => ipcRenderer.invoke('save-listening-history-vault', records),
+  appendListeningHistoryVault: (recordOrList) => ipcRenderer.invoke('append-listening-history-vault', recordOrList),
 });

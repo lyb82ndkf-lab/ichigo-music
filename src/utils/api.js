@@ -128,7 +128,7 @@ export const api = {
     });
     return request(`/scrobble/v1?${params.toString()}`, { timeout: 12000 });
   },
-  getRecentSongs: (limit = 100) => request(`/record/recent/song?limit=${Math.max(1, Math.min(200, Number(limit) || 100))}&timestamp=${Date.now()}`, { timeout: 12000 }),
+  getRecentSongs: (limit = 300) => request(`/record/recent/song?limit=${Math.max(1, Math.min(300, Number(limit) || 300))}&timestamp=${Date.now()}`, { timeout: 15000 }),
   audioMatch: ({ duration = 3, audioFP }) => {
     const params = new URLSearchParams({
       duration: String(duration),

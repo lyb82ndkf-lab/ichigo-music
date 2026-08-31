@@ -85,8 +85,8 @@ if (!settingsSrc.includes('<EqualizerPanel')) {
 
 // 5. Verify Island Mini Player View and Controls
 const miniPlayerSrc = fs.readFileSync(path.join(root, 'src/views/IslandMiniPlayer.jsx'), 'utf8');
-if (!miniPlayerSrc.includes('mini-vinyl-disc') || !miniPlayerSrc.includes('rotate(')) {
-  throw new Error('IslandMiniPlayer must include rotating vinyl disc and needle tonearm');
+if (!miniPlayerSrc.includes('coverUrl') || !miniPlayerSrc.includes('handleRestoreMain') || !miniPlayerSrc.includes('handleClose')) {
+  throw new Error('IslandMiniPlayer must include album cover and window controls');
 }
 if (!miniPlayerSrc.includes('currentLyricLine') || !miniPlayerSrc.includes('handleTogglePlay')) {
   throw new Error('IslandMiniPlayer must include dynamic single-line lyrics and playback controls');

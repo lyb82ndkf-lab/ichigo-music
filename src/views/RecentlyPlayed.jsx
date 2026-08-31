@@ -108,9 +108,9 @@ export default function RecentlyPlayed() {
             <div>
               <h1 style={{ fontFamily: 'var(--font-title)', fontSize: '28px', fontWeight: 800, color: 'var(--text-active, var(--text-main))' }}>最近播放</h1>
               <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span>记录上限: 100 首</span>
+                <span>双轨永久归档</span>
                 <span>·</span>
-                <span>当前已存: {recentlyPlayed.length} 首</span>
+                <span>当前已沉淀: {recentlyPlayed.length} 首</span>
               </div>
               {recentlyPlayed.length > 0 && (
                 <button 

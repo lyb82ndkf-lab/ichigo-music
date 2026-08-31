@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Calendar, Flame, Disc, Music, Play, RefreshCw, ChevronLeft, ChevronRight,
-  TrendingUp, Clock, Sparkles, Award, Heart, Plus, ListMusic, Check
+  TrendingUp, Clock, Sparkles, Award, Heart, Plus, ListMusic, Check,
+  Download, Upload, ShieldCheck
 } from 'lucide-react';
 import {
   getListeningHeatmapData,
@@ -13,7 +14,10 @@ import {
   formatDateChinese,
   getLevelFromCount
 } from '../utils/listeningHeatmap';
-
+import {
+  exportListeningHistoryJSON,
+  importListeningHistoryJSON
+} from '../utils/listeningStats';
 export default function ListeningHeatmap() {
   const { playSong, likedSongIds, toggleLike, navigateTo, colorMode } = useApp();
 
@@ -25,7 +29,28 @@ export default function ListeningHeatmap() {
   const [selectedDateKey, setSelectedDateKey] = useState(() => formatToDateKey(Date.now()));
   const [hoveredDay, setHoveredDay] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [syncNotice, setSyncNotice] = useState('');
+  const fileInputRef = React.useRef(null);
 
+  const handleImportFile = async (e) => {
+    const file = e.target?.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const result = importListeningHistoryJSON(text);
+      if (result.success) {
+        setSyncNotice(`✅ 成功导入并合并 ${result.count} 首足迹记录（新增 ${result.newAdded} 首）`);
+        loadData();
+      } else {
+        alert(`导入失败: ${result.message}`);
+      }
+    } catch (err) {
+      alert(`文件读取异常: ${err.message}`);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setTimeout(() => setSyncNotice(''), 4000);
+    }
+  };
   // Light Mode Detection
   const isLight = useMemo(() => {
     if (colorMode === 'light') return true;
@@ -335,7 +360,62 @@ export default function ListeningHeatmap() {
             </div>
           )}
 
-          {/* Refresh Button */}
+          {/* Hidden File Input for Import */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".json"
+            onChange={handleImportFile}
+            style={{ display: 'none' }}
+          />
+
+          {/* Export JSON Button */}
+          <button
+            type="button"
+            onClick={() => exportListeningHistoryJSON()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)',
+              border: isLight ? '1px solid rgba(0, 0, 0, 0.12)' : '1px solid rgba(255, 255, 255, 0.14)',
+              borderRadius: '10px',
+              padding: '6px 12px',
+              color: 'var(--text-main, #1e1e2d)',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+            title="导出全部本地听歌足迹为 JSON 备份文件"
+          >
+            <Download size={14} />
+            <span>导出备份</span>
+          </button>
+
+          {/* Import JSON Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)',
+              border: isLight ? '1px solid rgba(0, 0, 0, 0.12)' : '1px solid rgba(255, 255, 255, 0.14)',
+              borderRadius: '10px',
+              padding: '6px 12px',
+              color: 'var(--text-main, #1e1e2d)',
+              fontSize: '12.5px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+            title="导入历史备份并与当前足迹智能合并"
+          >
+            <Upload size={14} />
+            <span>导入记录</span>
+          </button>
+
+          {/* Refresh & Sync Button */}
           <button
             type="button"
             onClick={loadData}
@@ -344,21 +424,42 @@ export default function ListeningHeatmap() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              background: isLight ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.08)',
-              border: isLight ? '1px solid rgba(0, 0, 0, 0.12)' : '1px solid rgba(255, 255, 255, 0.14)',
+              background: 'var(--primary)',
+              border: 'none',
               borderRadius: '10px',
               padding: '6px 14px',
-              color: 'var(--text-main, #1e1e2d)',
+              color: '#ffffff',
               fontSize: '12.5px',
               fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer'
+              cursor: loading ? 'not-allowed' : 'pointer',
+              boxShadow: '0 2px 8px rgba(255, 64, 129, 0.25)'
             }}
+            title="同步云端最新记录并永久沉淀到本地数据库"
           >
             <RefreshCw size={14} className={loading ? 'spin' : ''} />
-            <span>刷新足迹</span>
+            <span>同步云端与沉淀</span>
           </button>
         </div>
       </div>
+
+      {/* Sync Notice Banner */}
+      {syncNotice && (
+        <div style={{
+          background: 'rgba(74, 222, 128, 0.15)',
+          border: '1px solid rgba(74, 222, 128, 0.35)',
+          color: '#22c55e',
+          padding: '8px 16px',
+          borderRadius: '10px',
+          fontSize: '13px',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <ShieldCheck size={16} />
+          <span>{syncNotice}</span>
+        </div>
+      )}
 
       {/* 4 Metric Stats Cards */}
       <div style={{

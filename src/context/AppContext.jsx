@@ -4,7 +4,8 @@ import { DEFAULT_PROFILE, deepMerge, loadProfile, saveProfile } from '../utils/s
 import { extractWarmColdColors } from '../utils/colorExtractor';
 import { isLegacyFileMediaSource, isLocalMediaSource } from '../utils/audioSource';
 import { getPersistentSongCoverUrl, getSongCoverUrl, isLocalCoverUrl, isRemoteCoverUrl } from '../utils/songCover';
-
+import { recordPlayEvent, saveLocalLogs, getLocalLogs } from '../utils/listeningStats';
+import { appendRuntimeLog } from '../utils/runtimeLog';
 import pkg from '../../package.json';
 
 const AppContext = createContext();
@@ -269,11 +270,12 @@ export function AppProvider({ children }) {
     updateProfile({ lastSession: { playlistIndex: numeric } });
   }, [updateProfile]);
 
-  // Add to recently played list (max 100 items)
+  // Add to recently played list (up to 5000 items)
   const addToRecent = useCallback((song) => {
+    if (!song?.id) return;
     const { recentlyPlayed } = stateRef.current;
     const listWithoutCurrent = (Array.isArray(recentlyPlayed) ? recentlyPlayed : []).filter(item => item && item.id !== song?.id);
-    const newRecent = [song, ...listWithoutCurrent].slice(0, 100);
+    const newRecent = [song, ...listWithoutCurrent].slice(0, 5000);
     setRecentlyPlayed(newRecent);
     updateProfile({ recentlyPlayed: newRecent });
   }, [updateProfile, setRecentlyPlayed]);
@@ -611,22 +613,41 @@ export function AppProvider({ children }) {
   // remained stale.
   const fetchRemoteRecentlyPlayed = useCallback(async () => {
     try {
-      const response = await api.getRecentSongs(100);
-      const rows = response?.data?.list || response?.list || [];
-      const remote = Array.isArray(rows)
-        ? rows.map(row => row?.data || row?.song || row?.resource || row).filter(item => item?.id)
-        : [];
-      if (remote.length === 0) return;
+      const remoteItems = [];
+      try {
+        const response = await api.getRecentSongs(300); // api.getRecentSongs(100)
+        const rows = response?.data?.list || response?.list || [];
+        if (Array.isArray(rows)) {
+          rows.forEach(row => {
+            const item = row?.data || row?.song || row?.resource || row;
+            if (item?.id) remoteItems.push(item);
+          });
+        }
+      } catch (e) {}
+
+      try {
+        const pcRes = await api.getRecentListenList();
+        const pcList = pcRes?.data?.list || pcRes?.list || pcRes?.data || [];
+        if (Array.isArray(pcList)) {
+          pcList.forEach(row => {
+            const item = row?.song || row?.data || row;
+            if (item?.id) remoteItems.push(item);
+          });
+        }
+      } catch (e) {}
+
       const local = stateRef.current.recentlyPlayed || [];
       const merged = [];
       const seen = new Set();
-      [...remote, ...local].forEach(song => {
+
+      [...remoteItems, ...local].forEach(song => {
         const id = String(song?.id ?? '');
         if (!id || seen.has(id)) return;
         seen.add(id);
         merged.push(song);
       });
-      const next = merged.slice(0, 100);
+
+      const next = merged.slice(0, 5000);
       setRecentlyPlayed(next);
       updateProfile({ recentlyPlayed: next });
     } catch (err) {
@@ -1243,10 +1264,13 @@ export function AppProvider({ children }) {
   }, [isPlaying, playSong, setIsPlaying]);
 
   const heartBasePoolRef = useRef([]);
+  const heartDiscoveryPoolRef = useRef([]);
+  const heartDiscoveryStepRef = useRef(0);
 
   const fetchHeartRecommendedPool = useCallback(async (seedSong, playlistId) => {
     if (!seedSong?.id) return [];
     const pid = playlistId || stateRef.current.likedPlaylistId || '';
+    const likedSet = new Set(Array.from(stateRef.current.likedSongIds || []).map(String));
     let recList = [];
 
     // Tier 1: NetEase Cloud Music official intelligence list
@@ -1278,10 +1302,15 @@ export function AppProvider({ children }) {
     }
 
     // Tier 2: Simi songs + Daily recommend / Personalized newsongs
-    if (recList.length < 6) {
-      try {
-        const simiRes = await api.getSimiSongs(seedSong.id).catch(() => null);
-        const simis = (simiRes?.songs || []).map(s => ({
+    try {
+      const [simiRes, recRes, newRes] = await Promise.allSettled([
+        api.getSimiSongs(seedSong.id, 30),
+        api.getRecommendSongs(),
+        api.getPersonalizedNewsongs(30)
+      ]);
+
+      if (simiRes.status === 'fulfilled' && Array.isArray(simiRes.value?.songs)) {
+        const simis = simiRes.value.songs.map(s => ({
           ...s,
           coverUrl: s.album?.picUrl || s.al?.picUrl || s.coverUrl || '',
           ar: s.artists || s.ar || [{ name: s.artist || '未知艺术家' }],
@@ -1289,49 +1318,70 @@ export function AppProvider({ children }) {
           isHeartRecommend: true
         }));
         recList = [...recList, ...simis];
-
-        if (recList.length < 8) {
-          const recRes = await api.getRecommendSongs().catch(() => null);
-          const dailySongs = (recRes?.data?.dailySongs || recRes?.recommend || []).map(s => ({
-            ...s,
-            coverUrl: s.al?.picUrl || s.album?.picUrl || s.coverUrl || '',
-            ar: s.artists || s.ar || [{ name: s.artist || '未知艺术家' }],
-            al: s.album || s.al || { picUrl: s.coverUrl || '' },
-            isHeartRecommend: true
-          }));
-          recList = [...recList, ...dailySongs];
-        }
-
-        if (recList.length < 8) {
-          const newRes = await api.getPersonalizedNewsongs(20).catch(() => null);
-          const newSongs = (newRes?.result || []).map(item => {
-            const s = item.song || item;
-            return {
-              ...s,
-              id: s.id || item.id,
-              name: item.name || s.name,
-              ar: s.artists || s.ar || [{ name: s.artist || '未知艺术家' }],
-              al: s.album || s.al || { picUrl: item.picUrl || '' },
-              coverUrl: item.picUrl || s.al?.picUrl || s.album?.picUrl || '',
-              isHeartRecommend: true
-            };
-          });
-          recList = [...recList, ...newSongs];
-        }
-      } catch (err) {
-        appendRuntimeLog('warn', '心动推荐拉取失败', { error: err?.message }, 'player');
       }
+
+      if (recRes.status === 'fulfilled') {
+        const dailySongs = (recRes.value?.data?.dailySongs || recRes.value?.recommend || []).map(s => ({
+          ...s,
+          coverUrl: s.al?.picUrl || s.album?.picUrl || s.coverUrl || '',
+          ar: s.artists || s.ar || [{ name: s.artist || '未知艺术家' }],
+          al: s.album || s.al || { picUrl: s.coverUrl || '' },
+          isHeartRecommend: true
+        }));
+        recList = [...recList, ...dailySongs];
+      }
+
+      if (newRes.status === 'fulfilled' && Array.isArray(newRes.value?.result)) {
+        const newSongs = newRes.value.result.map(item => {
+          const s = item.song || item;
+          return {
+            ...s,
+            id: s.id || item.id,
+            name: item.name || s.name,
+            ar: s.artists || s.ar || [{ name: s.artist || '未知艺术家' }],
+            al: s.album || s.al || { picUrl: item.picUrl || '' },
+            coverUrl: item.picUrl || s.al?.picUrl || s.album?.picUrl || '',
+            isHeartRecommend: true
+          };
+        });
+        recList = [...recList, ...newSongs];
+      }
+    } catch (err) {
+      appendRuntimeLog('warn', '心动推荐拉取失败', { error: err?.message }, 'player');
     }
 
-    // Deduplicate recommendations
+    // Deduplicate recommendations & explicitly prioritize UNLIKED new songs (不在我喜欢列表里的歌)
     const seen = new Set();
     seen.add(String(seedSong.id));
-    return (Array.isArray(recList) ? recList : []).filter(s => {
+    const unlikedRecs = [];
+    const otherRecs = [];
+
+    (Array.isArray(recList) ? recList : []).forEach(s => {
       const id = String(s?.id || '');
-      if (!id || seen.has(id)) return false;
+      if (!id || seen.has(id)) return;
       seen.add(id);
-      return true;
+      if (!likedSet.has(id)) {
+        unlikedRecs.push(s);
+      } else {
+        otherRecs.push(s);
+      }
     });
+
+    const finalPool = [...unlikedRecs, ...otherRecs];
+    // Cache unliked discovery pool for dynamic surprise playback
+    if (unlikedRecs.length > 0) {
+      const currentDiscovery = heartDiscoveryPoolRef.current || [];
+      const discSeen = new Set(currentDiscovery.map(d => String(d.id)));
+      unlikedRecs.forEach(item => {
+        if (!discSeen.has(String(item.id))) {
+          discSeen.add(String(item.id));
+          currentDiscovery.push(item);
+        }
+      });
+      heartDiscoveryPoolRef.current = currentDiscovery.slice(0, 50);
+    }
+
+    return finalPool;
   }, []);
 
   // Dynamic Smart Radio Queue Builder with Progressive Discovery Pacing
@@ -1446,13 +1496,16 @@ export function AppProvider({ children }) {
 
     // Entering Heart Mode
     if (mode === 'heart' && prevMode !== 'heart') {
+      heartDiscoveryStepRef.current = 0;
       const currentList = stateRef.current.playlist || [];
       const current = stateRef.current.currentSong || currentList[0];
+      if (current) {
+        fetchHeartRecommendedPool(current, stateRef.current.likedPlaylistId).catch(() => {});
+      }
       if (currentList.length > 0 && current) {
         startHeartMode(current, stateRef.current.likedPlaylistId, currentList);
       }
     }
-    // Exiting Heart Mode
     else if (prevMode === 'heart' && mode !== 'heart') {
       if (originalPlaylistBackupRef.current && originalPlaylistBackupRef.current.length > 0) {
         const restored = originalPlaylistBackupRef.current;
@@ -1470,6 +1523,40 @@ export function AppProvider({ children }) {
     const { playlist, playlistIndex, playMode, currentSong } = stateRef.current;
     if (playlist.length === 0) return;
 
+    // Heart Mode: Smart Big-Data Discovery Interleaving (随机智能插入未红心宝藏歌曲)
+    if (playMode === 'heart') {
+      heartDiscoveryStepRef.current += 1;
+      const shouldDiscover = (heartDiscoveryStepRef.current % 2 === 0) || (Math.random() < 0.5);
+      const discoveryPool = heartDiscoveryPoolRef.current || [];
+
+      if (shouldDiscover && discoveryPool.length > 0) {
+        const surpriseTrack = discoveryPool.shift();
+        if (surpriseTrack) {
+          appendRuntimeLog('info', '心动模式为您智能插入未红心大数据宝藏歌曲', {
+            songId: surpriseTrack.id,
+            songName: surpriseTrack.name,
+            artist: surpriseTrack.artist || surpriseTrack.ar?.[0]?.name
+          }, 'player');
+
+          if (discoveryPool.length < 6 && !isFetchingHeartRef.current) {
+            isFetchingHeartRef.current = true;
+            fetchHeartRecommendedPool(surpriseTrack, stateRef.current.likedPlaylistId)
+              .finally(() => { isFetchingHeartRef.current = false; });
+          }
+
+          playSong(surpriseTrack);
+          return;
+        }
+      }
+
+      // If discovery pool is low, background fetch more
+      if (discoveryPool.length < 6 && !isFetchingHeartRef.current) {
+        isFetchingHeartRef.current = true;
+        fetchHeartRecommendedPool(currentSong || playlist[playlistIndex], stateRef.current.likedPlaylistId)
+          .finally(() => { isFetchingHeartRef.current = false; });
+      }
+    }
+
     let nextIndex = playlistIndex;
     if (playMode === 'random') {
       nextIndex = Math.floor(Math.random() * playlist.length);
@@ -1477,48 +1564,11 @@ export function AppProvider({ children }) {
       nextIndex = (playlistIndex + 1) % playlist.length;
     }
 
-    // Auto-fetch and dynamically append more in Heart / Smart Radio Mode when approaching end of queue
-    if (playMode === 'heart' && playlistIndex >= playlist.length - 4 && !isFetchingHeartRef.current) {
-      isFetchingHeartRef.current = true;
-      const lastSong = playlist[playlist.length - 1] || currentSong;
-      const basePool = originalPlaylistBackupRef.current || playlist;
-      
-      fetchHeartRecommendedPool(lastSong, stateRef.current.likedPlaylistId).then(moreRecs => {
-        if (moreRecs.length > 0 || basePool.length > 0) {
-          const existingIds = new Set(stateRef.current.playlist.map(s => s.id));
-          const newRecs = (Array.isArray(moreRecs) ? moreRecs : []).filter(s => s && !existingIds.has(s.id));
-          const newBase = (Array.isArray(basePool) ? basePool : []).filter(s => s && !existingIds.has(s.id)).sort(() => Math.random() - 0.5).slice(0, 12);
-          
-          const appendBatch = [];
-          let bIdx = 0;
-          let rIdx = 0;
-          while (bIdx < newBase.length || rIdx < newRecs.length) {
-            // Progressive batch: 1~2 base -> 2 rec
-            const bCount = Math.random() > 0.5 ? 2 : 1;
-            for (let i = 0; i < bCount && bIdx < newBase.length; i += 1) {
-              appendBatch.push({ ...newBase[bIdx], isHeartRecommend: false });
-              bIdx += 1;
-            }
-            for (let j = 0; j < 2 && rIdx < newRecs.length; j += 1) {
-              appendBatch.push({ ...newRecs[rIdx], isHeartRecommend: true });
-              rIdx += 1;
-            }
-          }
-
-          if (appendBatch.length > 0) {
-            setPlaylistAndPersist([...stateRef.current.playlist, ...appendBatch]);
-          }
-        }
-      }).catch(() => {}).finally(() => {
-        isFetchingHeartRef.current = false;
-      });
-    }
     const nextSong = playlist[nextIndex];
     if (nextSong) {
       playSong(nextSong);
     }
-  }, [playSong, fetchHeartRecommendedPool, setPlaylistAndPersist]);
-
+  }, [playSong, fetchHeartRecommendedPool]);
   const playPrev = useCallback(() => {
     if (stateRef.current.listenPlaybackLocked) return;
     const { playlist, playlistIndex, playMode } = stateRef.current;

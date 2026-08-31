@@ -71,6 +71,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Register Furigana IPC Handlers
+const KANJI_REGEX = /[\u4e00-\u9faf\u3400-\u4dbf]/;
 const JAPANESE_KANA_REGEX = /[\u3040-\u309f\u30a0-\u30ff\u31f0-\u31ff\uff66-\uff9f]/;
 ipcMain.handle('furigana:convert-batch', async (event, lines) => {
   const ks = await getKuroshiro();
@@ -1025,8 +1026,8 @@ function toggleMiniPlayer() {
     miniPlayerPos = loadMiniPlayerPosition();
   }
   miniPlayerWindow = new BrowserWindow({
-    width: 350,
-    height: 105,
+    width: 380,
+    height: 100,
     x: miniPlayerPos ? miniPlayerPos.x : undefined,
     y: miniPlayerPos ? miniPlayerPos.y : undefined,
     transparent: true,
@@ -1099,6 +1100,108 @@ function toggleMiniPlayer() {
   });
 }
 
+// =========================================================================
+// Durable C-Drive Listening History Vault (Survives App Uninstall & Reinstall)
+// =========================================================================
+function getListeningVaultPaths() {
+  const paths = [];
+  try {
+    const userDataPath = path.join(app.getPath('userData'), 'ichigo_listening_history_vault.json');
+    paths.push(userDataPath);
+  } catch {}
+  try {
+    const homeVault = path.join(app.getPath('home'), '.ichigomusic', 'ichigo_listening_history_vault.json');
+    paths.push(homeVault);
+  } catch {}
+  try {
+    if (process.env.APPDATA) {
+      const appDataVault = path.join(process.env.APPDATA, 'ICHIGOMusic', 'ichigo_listening_history_vault.json');
+      if (!paths.includes(appDataVault)) paths.push(appDataVault);
+    }
+  } catch {}
+  return paths;
+}
+
+function deduplicateListeningRecords(records = []) {
+  if (!Array.isArray(records)) return [];
+  const sorted = [...records]
+    .filter(r => r && r.id)
+    .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+
+  const deduplicated = [];
+  for (const entry of sorted) {
+    const ts = Number(entry.timestamp) || Date.now();
+    const songId = String(entry.id);
+    const last = deduplicated[deduplicated.length - 1];
+
+    // If previous entry is same song played within 180 seconds, merge them!
+    if (last && String(last.id) === songId && Math.abs(ts - (Number(last.timestamp) || 0)) <= 180000) {
+      last.seconds = Math.max(Number(last.seconds || 0), Number(entry.seconds || 0));
+      last.duration = last.seconds;
+      last.timestamp = Math.max(Number(last.timestamp || 0), ts);
+      last.date = last.date || entry.date;
+    } else {
+      deduplicated.push({
+        id: entry.id,
+        name: entry.name || entry.title || '未知歌曲',
+        artist: entry.artist || entry.ar?.map(a => a.name).join(' / ') || entry.artists?.map(a => a.name).join(' / ') || '未知歌手',
+        album: entry.album || entry.al?.name || '',
+        coverUrl: entry.coverUrl || entry.al?.picUrl || '',
+        duration: Number(entry.duration || entry.seconds) || 180,
+        seconds: Number(entry.seconds || entry.duration) || 180,
+        timestamp: ts,
+        date: entry.date || (new Date(ts).toISOString().slice(0, 10))
+      });
+    }
+  }
+  return deduplicated;
+}
+
+async function readListeningVaultFromDisk() {
+  const vaultPaths = getListeningVaultPaths();
+  const allRawRecords = [];
+
+  for (const filePath of vaultPaths) {
+    try {
+      if (fs.existsSync(filePath)) {
+        const raw = await fs.promises.readFile(filePath, 'utf8');
+        const parsed = JSON.parse(raw);
+        const list = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.records) ? parsed.records : []);
+        list.forEach(entry => {
+          if (entry && entry.id) allRawRecords.push(entry);
+        });
+      }
+    } catch (err) {
+      console.warn('[Vault] Failed to read from', filePath, err?.message);
+    }
+  }
+
+  return deduplicateListeningRecords(allRawRecords);
+}
+
+async function writeListeningVaultToDisk(incomingRecords = []) {
+  if (!Array.isArray(incomingRecords)) return false;
+  const existingRecords = await readListeningVaultFromDisk();
+  const merged = deduplicateListeningRecords([...existingRecords, ...incomingRecords]);
+
+  const payload = JSON.stringify({
+    version: '2.6.0',
+    updatedAt: new Date().toISOString(),
+    totalCount: merged.length,
+    records: merged
+  }, null, 2);
+
+  const vaultPaths = getListeningVaultPaths();
+  for (const filePath of vaultPaths) {
+    try {
+      await ensureDir(path.dirname(filePath));
+      await fs.promises.writeFile(filePath, payload, 'utf8');
+    } catch (err) {
+      console.warn('[Vault] Failed to write to', filePath, err?.message);
+    }
+  }
+  return true;
+}
 
 function createWindow() {
   if (!tray) {
@@ -1337,23 +1440,20 @@ function createWindow() {
       globalShortcut.unregisterAll();
       if (!enabled) return;
 
-      globalShortcut.register('MediaPlayPause', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-play-pause');
-      });
-      globalShortcut.register('MediaTrackNext', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-next');
-      });
-      globalShortcut.register('MediaTrackPrevious', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-prev');
-      });
-      globalShortcut.register('Alt+Shift+Space', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-play-pause');
-      });
-      globalShortcut.register('Alt+Shift+Right', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-next');
-      });
-      globalShortcut.register('Alt+Shift+Left', () => {
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('media-prev');
+      const shortcuts = [
+        { keys: ['MediaPlayPause', 'Alt+Shift+Space'], action: 'media-play-pause' },
+        { keys: ['MediaNextTrack', 'MediaTrackNext', 'Alt+Shift+Right'], action: 'media-next' },
+        { keys: ['MediaPreviousTrack', 'MediaTrackPrevious', 'Alt+Shift+Left'], action: 'media-prev' }
+      ];
+
+      shortcuts.forEach(({ keys, action }) => {
+        keys.forEach(key => {
+          try {
+            globalShortcut.register(key, () => {
+              if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(action);
+            });
+          } catch {}
+        });
       });
     } catch (err) {
       console.warn('Failed to register global shortcut:', err);
@@ -1622,6 +1722,43 @@ function createWindow() {
       return { success: false, error: err?.message || String(err) };
     }
   });
+
+  // =========================================================================
+  // Durable C-Drive Listening History Vault IPC Handlers
+  // =========================================================================
+  ipcMain.removeHandler('get-listening-history-vault');
+  ipcMain.handle('get-listening-history-vault', async () => {
+    try {
+      return await readListeningVaultFromDisk();
+    } catch (err) {
+      console.error('Failed to get listening history vault:', err);
+      return [];
+    }
+  });
+
+  ipcMain.removeHandler('save-listening-history-vault');
+  ipcMain.handle('save-listening-history-vault', async (_event, records) => {
+    try {
+      await writeListeningVaultToDisk(records);
+      return true;
+    } catch (err) {
+      console.error('Failed to save listening history vault:', err);
+      return false;
+    }
+  });
+
+  ipcMain.removeHandler('append-listening-history-vault');
+  ipcMain.handle('append-listening-history-vault', async (_event, recordOrList) => {
+    try {
+      const list = Array.isArray(recordOrList) ? recordOrList : [recordOrList];
+      await writeListeningVaultToDisk(list);
+      return true;
+    } catch (err) {
+      console.error('Failed to append listening history vault:', err);
+      return false;
+    }
+  });
+
   ipcMain.removeHandler('select-local-music-folder');
   ipcMain.handle('select-local-music-folder', async () => {
     const result = await dialog.showOpenDialog(mainWindow, {
@@ -1757,28 +1894,56 @@ function createWindow() {
 app.setAppUserModelId("ICHIGOMusic");
 app.name = "ICHIGOMusic";
 
-app.whenReady().then(async () => {
-  registerCacheProtocol();
-  startAudioProxy().catch(error => console.warn('Failed to start audio proxy:', error));
-  migrateLegacyCache().catch(error => console.warn('Failed to migrate legacy cache:', error));
-  await startApiServer();
-  createWindow();
+const gotTheLock = app.requestSingleInstanceLock();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+if (!gotTheLock) {
+  try {
+    dialog.showMessageBoxSync({
+      type: 'warning',
+      title: 'ICHIGOMusic 正在运行',
+      message: 'ICHIGOMusic 已在运行中',
+      detail: '请勿重复打开播放器。请先退出当前正在运行的进程，或切换至已打开的播放器窗口。',
+      buttons: ['确定'],
+      defaultId: 0,
+      noLink: true
+    });
+  } catch (err) {
+    console.warn('Failed to show single instance prompt dialog:', err);
+  }
+  app.quit();
+} else {
+  app.on('second-instance', (_event, _commandLine, _workingDirectory) => {
+    // When a second instance is triggered, focus the existing window
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      if (!mainWindow.isVisible()) mainWindow.show();
+      mainWindow.focus();
     }
   });
-});
 
-app.on('before-quit', () => {
-  app.isQuitting = true;
-  mainRuntimeLogs.length = 0;
-  mainRuntimeSequence = 0;
-});
+  app.whenReady().then(async () => {
+    registerCacheProtocol();
+    startAudioProxy().catch(error => console.warn('Failed to start audio proxy:', error));
+    migrateLegacyCache().catch(error => console.warn('Failed to migrate legacy cache:', error));
+    await startApiServer();
+    createWindow();
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
-});
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+
+  app.on('before-quit', () => {
+    app.isQuitting = true;
+    mainRuntimeLogs.length = 0;
+    mainRuntimeSequence = 0;
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit();
+    }
+  });
+}

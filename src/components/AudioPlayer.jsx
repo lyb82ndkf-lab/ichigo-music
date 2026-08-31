@@ -69,7 +69,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     const audio = audioRef.current;
     if (!song?.id || !audio) return;
     if (scrobbleRef.current.songId !== song.id) {
-      scrobbleRef.current = { songId: song.id, lastTime: 0, reported: false, inFlight: false };
+      scrobbleRef.current = { songId: song.id, lastTime: 0, reported: false, inFlight: false, localLogged: false };
     }
     const total = Number.isFinite(audio.duration) && audio.duration > 0
       ? audio.duration
@@ -80,6 +80,11 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (played < minimum || scrobbleRef.current.reported || scrobbleRef.current.inFlight) return;
     if (!force && total > 0 && played < total * 0.95) return;
 
+    // Record into local permanent history exactly once per song play
+    if (!scrobbleRef.current.localLogged) {
+      scrobbleRef.current.localLogged = true;
+      recordPlayEvent({ song, playedSeconds: played, totalDuration: total });
+    }
     const sourceid = song.sourceid || song.sourceId || song.playlistId
       || song.al?.id || song.album?.id || song.id;
     const payload = {
@@ -115,7 +120,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
         endpoint,
         ...extra
       }, 'audio');
-      recordPlayEvent({ song, playedSeconds: payload.time, totalDuration: payload.total });
       window.setTimeout(() => refreshRecentlyPlayed?.(), 1800);
     };
     api.scrobble(payload)
@@ -189,6 +193,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     }, 'audio');
     const localSourceUnavailable = (
       isLocalMediaSource(audioSource)
+      && Boolean(audio.error)
       && audio.readyState === HTMLMediaElement.HAVE_NOTHING
       && audio.networkState === HTMLMediaElement.NETWORK_NO_SOURCE
     );
@@ -414,28 +419,14 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   }, [isPlaying, audioSource, crossOriginMode, playSong, currentSong]);
 
   const audioRoutingMode = isWebAudioEligibleSource(audioSource) ? 'web-audio' : 'direct';
-  const effectiveCrossOriginMode = audioRoutingMode === 'direct'
-    ? null
-    : crossOriginMode;
+  const effectiveCrossOriginMode = audioRoutingMode === 'direct' ? null : crossOriginMode;
 
   // Expose audio element to global context
   useEffect(() => {
     if (audioRef.current) {
       setAudioElement(audioRef.current);
     }
-  }, [audioRoutingMode, setAudioElement]);
-
-  useEffect(() => {
-    if (audioRoutingMode !== 'direct') return;
-    window.ichigoAnalyser = null;
-    if (sourceNodeRef.current) {
-      try {
-        sourceNodeRef.current.disconnect();
-      } catch (err) {}
-      sourceNodeRef.current = null;
-      sourceElementRef.current = null;
-    }
-  }, [audioRoutingMode]);
+  }, [setAudioElement]);
 
   // Apply Equalizer 10-Band Gains
   const applyEqBands = useCallback(() => {
@@ -469,8 +460,8 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   // Initialize Web Audio API Analyser, 10-Band EQ & Gain Node
   const setupWebAudio = () => {
-    const localMedia = isLocalMediaSource(audioSource);
-    if (!audioRef.current || !isWebAudioEligibleSource(audioSource) || (crossOriginMode === null && !localMedia)) return;
+    const audio = audioRef.current;
+    if (!audio) return;
 
     try {
       let audioCtx = audioContextRef.current;
@@ -537,36 +528,26 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       try { analyser.disconnect(); } catch {}
       analyser.connect(audioCtx.destination);
 
-      // 4. Connect source element to first filter in chain
-      const audio = audioRef.current;
-      if (!sourceNodeRef.current || sourceElementRef.current !== audio) {
-        if (sourceNodeRef.current) {
-          try {
-            sourceNodeRef.current.disconnect();
-          } catch (err) {}
-        }
-        const sourceNode = audioCtx.createMediaElementSource(audio);
-        const firstFilter = eqFiltersRef.current[0];
-        if (firstFilter) {
-          sourceNode.connect(firstFilter);
-        } else {
-          sourceNode.connect(gainNode);
-        }
+      // 4. Connect source element to first filter in chain (safely reuse node attached to element)
+      let sourceNode = audio.__ichigoSourceNode || sourceNodeRef.current;
+      if (!sourceNode) {
+        sourceNode = audioCtx.createMediaElementSource(audio);
+        audio.__ichigoSourceNode = sourceNode;
         sourceNodeRef.current = sourceNode;
         sourceElementRef.current = audio;
       }
 
+      const firstFilter = eqFiltersRef.current[0];
+      try { sourceNode.disconnect(); } catch {}
+      if (firstFilter) {
+        sourceNode.connect(firstFilter);
+      } else {
+        sourceNode.connect(gainNode);
+      }
+
       applyEqBands();
     } catch (err) {
-      console.warn("Web Audio API not supported or CORS restricted:", err);
-      window.ichigoAnalyser = null;
-      if (sourceNodeRef.current) {
-        try {
-          sourceNodeRef.current.disconnect();
-        } catch (e) {}
-      }
-      sourceNodeRef.current = null;
-      sourceElementRef.current = null;
+      console.warn("Web Audio API setup notice:", err);
     }
   };
   useEffect(() => {
@@ -615,15 +596,21 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     const crossfadeDur = Math.max(0, Math.min(10, Number(audioConfig?.crossfade ?? 1.0)));
     const audioCtx = audioContextRef.current;
     const gainNode = gainNodeRef.current;
-    if (audioCtx && gainNode && crossfadeDur > 0.05) {
+    if (audioCtx && gainNode) {
       try {
-        const fadeTime = Math.min(crossfadeDur, 3.0);
-        gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
-        gainNode.gain.setValueAtTime(0.001, audioCtx.currentTime);
-        gainNode.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + fadeTime);
+        if (crossfadeDur > 0.05) {
+          const fadeTime = Math.min(crossfadeDur, 3.0);
+          gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+          gainNode.gain.setValueAtTime(0.01, audioCtx.currentTime);
+          gainNode.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + fadeTime);
+        } else {
+          gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+          gainNode.gain.setValueAtTime(1.0, audioCtx.currentTime);
+        }
       } catch (err) {}
     }
   };
+
   const handlePause = () => {
     playPendingRef.current = null;
     const audio = audioRef.current;
@@ -803,7 +790,6 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   return (
     <audio
-      key={`ichigo-audio-element-${audioRoutingMode}`}
       ref={audioRef}
       src={audioSource || undefined}
       crossOrigin={effectiveCrossOriginMode}
