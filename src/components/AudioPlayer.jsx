@@ -716,11 +716,23 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     sourceTransitionRef.current = false;
 
     if (code && isStreamMediaSource(audioSource) && rawSourceRef.current && rawSourceRef.current !== audioSource) {
+      const currentPos = audio?.currentTime || 0;
+      const totalDur = Number.isFinite(audio?.duration) ? audio.duration : 0;
+      // If the song was already near the end, don't restart from 0; finish and play next!
+      if (totalDur > 10 && currentPos >= totalDur - 5) {
+        appendRuntimeLog('info', '歌曲已接近尾声，直接播放下一首', { songId: currentSong?.id }, 'audio');
+        handleEnded();
+        return;
+      }
+
       console.warn(`Stream proxy failed (code ${code}); falling back to direct source`);
       appendRuntimeLog('warn', '音频流代理加载失败，已回退到直连地址', {
         songId: currentSong?.id || null,
         code
       }, 'audio');
+      if (currentPos > 1 && (totalDur <= 0 || currentPos < totalDur - 5)) {
+        setResumeTime(currentPos);
+      }
       window.ichigoAnalyser = null;
       sourceTransitionRef.current = true;
       setCrossOriginMode(null);

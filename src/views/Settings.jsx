@@ -7,15 +7,15 @@ import { DEFAULT_PROFILE, EQ_PRESETS, EQ_PRESET_NAMES, EQ_BAND_LABELS, EQ_BAND_F
 import {
   Airplay, Check, CheckCircle, Command, Copy, FileText, HardDrive, Image, Menu,
   Monitor, Music4, Palette, Power, Sliders, Trash2, UserCheck, Sparkles,
-  Volume2, Eye, RefreshCw, Layers, ShieldCheck, Zap, Download, Activity
+  Volume2, Eye, RefreshCw, Layers, ShieldCheck, Zap, Download, Activity,
+  AlertTriangle
 } from 'lucide-react';
 import LyricExportModal from '../components/LyricExportModal';
 import EqualizerPanel from '../components/EqualizerPanel';
 import ListeningStatsReport from '../components/ListeningStatsReport';
 import { IMMERSIVE_MODE_OPTIONS, IMMERSIVE_MODE_PARAMETER_KEYS, normalizeImmersiveMode, KTV_TEMPLATE_GALLERY } from '../utils/immersiveModes';
 import { IMMERSIVE_PRESETS, IMMERSIVE_PRESET_MAP } from '../utils/immersivePresets';
-import { clearRuntimeLogs, formatRuntimeLogs, getRuntimeLogs, subscribeRuntimeLogs } from '../utils/runtimeLog';
-
+import { clearRuntimeLogs, formatRuntimeLogs, formatErrorWarnLogs, getRuntimeLogs, subscribeRuntimeLogs } from '../utils/runtimeLog';
 const T = {
   title: '系统设置与偏好',
   themeTab: '界面与外观',
@@ -965,47 +965,88 @@ export default function Settings() {
   };
 
   /* ================= 8. TAB: 运行日志 ================= */
-  const renderLogsTab = () => (
-    <div className="settings-stack">
-      <div className="settings-section runtime-log-section">
-        <div className="runtime-log-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div>
-            <h3 className="settings-title" style={{ margin: 0 }}><FileText size={18} />运行时日志记录</h3>
-            <p className="settings-desc" style={{ margin: '4px 0 0' }}>记录本次会话的播放器与网络状态，退出应用后自动销毁。</p>
+  const renderLogsTab = () => {
+    const errorWarnLogs = runtimeLogs.filter(e => e.level === 'warn' || e.level === 'error');
+
+    return (
+      <div className="settings-stack">
+        <div className="settings-section runtime-log-section">
+          <div className="runtime-log-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h3 className="settings-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <FileText size={18} />运行时日志记录
+              </h3>
+              <p className="settings-desc" style={{ margin: '4px 0 0' }}>
+                记录本次会话的播放器与网络状态，退出应用后自动销毁（共 {runtimeLogs.length} 条，含 {errorWarnLogs.length} 条报错警告）。
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="setting-btn compact"
+                style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={async () => {
+                  await navigator.clipboard.writeText(formatErrorWarnLogs(runtimeLogs));
+                  setLogCopyState('已复制报错警告');
+                  setTimeout(() => setLogCopyState(''), 1800);
+                }}
+                title="仅复制本次会话的错误 (ERROR) 和警告 (WARN) 日志"
+              >
+                <AlertTriangle size={14} color="#f59e0b" />
+                <span style={{ whiteSpace: 'nowrap' }}>{logCopyState === '已复制报错警告' ? '已复制报错警告' : `复制报错警告日志 (${errorWarnLogs.length})`}</span>
+              </button>
+              <button
+                type="button"
+                className="setting-btn compact"
+                style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={async () => {
+                  await navigator.clipboard.writeText(formatRuntimeLogs(runtimeLogs));
+                  setLogCopyState('已复制全部');
+                  setTimeout(() => setLogCopyState(''), 1800);
+                }}
+                title="复制本次会话的全部日志"
+              >
+                <Copy size={14} />
+                <span style={{ whiteSpace: 'nowrap' }}>{logCopyState === '已复制全部' ? '已复制全部' : `复制全部日志 (${runtimeLogs.length})`}</span>
+              </button>
+              <button
+                type="button"
+                className="setting-btn danger compact"
+                style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                onClick={() => clearRuntimeLogs({ addMarker: true })}
+                title="清空当前日志记录"
+              >
+                <Trash2 size={14} />
+                <span style={{ whiteSpace: 'nowrap' }}>清空</span>
+              </button>
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button className="setting-btn compact" onClick={async () => {
-              await navigator.clipboard.writeText(formatRuntimeLogs(runtimeLogs));
-              setLogCopyState('已复制');
-              setTimeout(() => setLogCopyState(''), 1500);
-            }}>
-              <Copy size={14} /> {logCopyState || '复制日志'}
-            </button>
-            <button className="setting-btn danger compact" onClick={() => clearRuntimeLogs({ addMarker: true })}>
-              <Trash2 size={14} /> 清空
-            </button>
-          </div>
-        </div>
-        <div className="runtime-log-list" style={{ maxHeight: 400, overflowY: 'auto' }}>
-          {runtimeLogs.length === 0 ? (
-            <div className="runtime-log-empty">暂无运行日志</div>
-          ) : (
-            runtimeLogs.map((entry) => (
-              <div key={entry.id} className={`runtime-log-entry level-${entry.level}`}>
-                <div className="runtime-log-meta">
-                  <time>{new Date(entry.timestamp).toLocaleTimeString()}</time>
-                  <span>{entry.level.toUpperCase()}</span>
-                  <span>{entry.source}</span>
+          <div className="runtime-log-list" style={{ maxHeight: 440, overflowY: 'auto' }}>
+            {runtimeLogs.length === 0 ? (
+              <div className="runtime-log-empty">暂无运行日志</div>
+            ) : (
+              runtimeLogs.map((entry) => (
+                <div key={entry.id} className={`runtime-log-entry level-${entry.level}`}>
+                  <div className="runtime-log-meta">
+                    <time>{new Date(entry.timestamp).toLocaleTimeString('zh-CN', { hour12: false, fractionalSecondDigits: 3 })}</time>
+                    <span className={`log-badge log-badge-${entry.level}`}>{entry.level.toUpperCase()}</span>
+                    <span className="log-source">{entry.source}</span>
+                    {entry.count > 1 && <span className="log-count">×{entry.count}</span>}
+                  </div>
+                  <div className="runtime-log-message">{entry.message}</div>
+                  {entry.details && (
+                    <pre style={{ margin: '4px 0 0', fontSize: '11px', opacity: 0.8, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+                      {entry.details}
+                    </pre>
+                  )}
                 </div>
-                <div className="runtime-log-message">{entry.message}</div>
-              </div>
-            ))
-          )}
+              ))
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-
+    );
+  };
   /* ================= 9. TAB: 账号中心 ================= */
   const renderAccountTab = () => (
     <div className="settings-stack">

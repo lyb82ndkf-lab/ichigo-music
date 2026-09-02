@@ -227,7 +227,7 @@ export function recordPlayEvent({ song, playedSeconds, totalDuration }) {
 export function exportListeningHistoryJSON() {
   const logs = getLocalLogs();
   const exportPayload = {
-    version: '2.6.0',
+    version: '2.7.0',
     exportedAt: new Date().toISOString(),
     totalRecords: logs.length,
     logs

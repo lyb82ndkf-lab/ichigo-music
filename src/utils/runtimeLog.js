@@ -103,6 +103,20 @@ export function formatRuntimeLogs(logs = entries) {
   }).join('\n')}`;
 }
 
+export function formatErrorWarnLogs(logs = entries) {
+  const filtered = logs.filter(e => e.level === 'warn' || e.level === 'error');
+  const started = new Date(sessionStartedAt).toLocaleString();
+  const header = `ICHIGOMusic error & warning log\nSession: ${started}\nEntries: ${filtered.length} (Filtered from ${logs.length} total)\n`;
+  if (filtered.length === 0) {
+    return `${header}\n(本次运行会话未检测到任何报错或警告)`;
+  }
+  return `${header}\n${filtered.map(entry => {
+    const time = new Date(entry.timestamp).toLocaleTimeString('zh-CN', { hour12: false, fractionalSecondDigits: 3 });
+    const repeated = entry.count > 1 ? ` ×${entry.count}` : '';
+    return `[${time}] [${entry.level.toUpperCase()}] [${entry.source}] ${entry.message}${repeated}${entry.details ? `\n  ${entry.details}` : ''}`;
+  }).join('\n')}`;
+}
+
 export function installRuntimeLogging() {
   if (installed || typeof window === 'undefined') return;
   installed = true;
