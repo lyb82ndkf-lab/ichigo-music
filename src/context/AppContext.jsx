@@ -192,7 +192,32 @@ export function AppProvider({ children }) {
 
   const originalPlaylistBackupRef = useRef(null);
   const isFetchingHeartRef = useRef(false);
+  const heartBasePoolRef = useRef([]);
+  const heartDiscoveryPoolRef = useRef([]);
+  const heartDiscoveryStepRef = useRef(0);
+  const heartBaseCountSinceLastRecRef = useRef(0);
+  const heartPlayedBaseIdsRef = useRef(new Set());
+  const playbackHistoryRef = useRef([]);
+  const historyIndexRef = useRef(-1);
+  const isNavigatingHistoryRef = useRef(false);
 
+  const recordPlayHistory = useCallback((song) => {
+    if (!song?.id) return;
+    if (isNavigatingHistoryRef.current) return;
+    const history = playbackHistoryRef.current;
+    const currentIdx = historyIndexRef.current;
+    const trimmed = currentIdx >= 0 && currentIdx < history.length - 1
+      ? history.slice(0, currentIdx + 1)
+      : [...history];
+    if (trimmed.length > 0 && sameSongId(trimmed[trimmed.length - 1]?.id, song.id)) {
+      historyIndexRef.current = trimmed.length - 1;
+      return;
+    }
+    trimmed.push(song);
+    if (trimmed.length > 100) trimmed.shift();
+    playbackHistoryRef.current = trimmed;
+    historyIndexRef.current = trimmed.length - 1;
+  }, []);
   const setUser = useCallback((nextUser) => {
     setUserState(nextUser);
     updateProfile({
@@ -1053,6 +1078,7 @@ export function AppProvider({ children }) {
       } catch {}
       setIsPlaying(true);
       addToRecent(currentSong);
+      recordPlayHistory(currentSong);
       return;
     }
 
@@ -1077,7 +1103,16 @@ export function AppProvider({ children }) {
         setPlaylistIndexAndPersist(newQueue.findIndex(item => sameSongId(item.id, song.id)));
       } else {
         const existingIdx = playlist.findIndex(item => sameSongId(item.id, song.id));
-        if (existingIdx !== -1) setPlaylistIndexAndPersist(existingIdx);
+        if (existingIdx !== -1) {
+          setPlaylistIndexAndPersist(existingIdx);
+        } else {
+          const currentIdx = stateRef.current.playlistIndex;
+          const insertIdx = currentIdx >= 0 && currentIdx < playlist.length ? currentIdx + 1 : playlist.length;
+          const updatedPlaylist = [...playlist];
+          updatedPlaylist.splice(insertIdx, 0, optimisticSong);
+          setPlaylistAndPersist(updatedPlaylist);
+          setPlaylistIndexAndPersist(insertIdx);
+        }
       }
 
       // AudioPlayer owns source replacement. Calling pause() here emits a
@@ -1087,6 +1122,7 @@ export function AppProvider({ children }) {
       cacheCoverInBackground(optimisticSong);
       setIsPlaying(true);
       addToRecent(optimisticSong);
+      recordPlayHistory(optimisticSong);
       return;
     }
 
@@ -1154,15 +1190,19 @@ export function AppProvider({ children }) {
         if (existingIdx !== -1) {
           setPlaylistIndexAndPersist(existingIdx);
         } else {
-          const updatedPlaylist = [...playlist, songWithUrl];
+          const currentIdx = stateRef.current.playlistIndex;
+          const insertIdx = currentIdx >= 0 && currentIdx < playlist.length ? currentIdx + 1 : playlist.length;
+          const updatedPlaylist = [...playlist];
+          updatedPlaylist.splice(insertIdx, 0, songWithUrl);
           setPlaylistAndPersist(updatedPlaylist);
-          setPlaylistIndexAndPersist(updatedPlaylist.length - 1);
+          setPlaylistIndexAndPersist(insertIdx);
         }
       }
       setCurrentSongAndPersist(songWithUrl);
       cacheCoverInBackground(songWithUrl);
       setIsPlaying(true);
       addToRecent(songWithUrl);
+      recordPlayHistory(songWithUrl);
 
       // Download a short look-ahead window so next/skip playback can start from disk.
       try {
@@ -1190,7 +1230,7 @@ export function AppProvider({ children }) {
         setIsPlaying(false);
       }
     }
-  }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent, getPlayableSongUrl, cacheCoverInBackground]);
+  }, [persistResumeTime, setPlaylistAndPersist, setPlaylistIndexAndPersist, setCurrentSongAndPersist, setIsPlaying, addToRecent, getPlayableSongUrl, cacheCoverInBackground, recordPlayHistory]);
 
   useEffect(() => {
     if (!currentSong?.id || !cacheConfig?.enabled) return;
@@ -1262,10 +1302,6 @@ export function AppProvider({ children }) {
     }
     setIsPlaying(prev => !prev);
   }, [isPlaying, playSong, setIsPlaying]);
-
-  const heartBasePoolRef = useRef([]);
-  const heartDiscoveryPoolRef = useRef([]);
-  const heartDiscoveryStepRef = useRef(0);
 
   const fetchHeartRecommendedPool = useCallback(async (seedSong, playlistId) => {
     if (!seedSong?.id) return [];
@@ -1452,42 +1488,35 @@ export function AppProvider({ children }) {
       : (stateRef.current.playlist && stateRef.current.playlist.length > 0 ? stateRef.current.playlist : []);
     if (currentList.length === 0) return;
 
-    // Backup original list
-    if (stateRef.current.playMode !== 'heart' || !originalPlaylistBackupRef.current) {
-      originalPlaylistBackupRef.current = [...currentList];
-    }
-    const baseBackup = originalPlaylistBackupRef.current || [...currentList];
+    // Backup original list & initialize heart base pool in original order
+    originalPlaylistBackupRef.current = [...currentList];
+    heartBasePoolRef.current = [...currentList];
+    heartPlayedBaseIdsRef.current.clear();
+    playbackHistoryRef.current = [];
+    historyIndexRef.current = -1;
+    heartBaseCountSinceLastRecRef.current = 0;
+    heartDiscoveryStepRef.current = 0;
 
     // Pick seed song
-    const seed = startSong || baseBackup[Math.floor(Math.random() * baseBackup.length)] || currentList[0];
+    const seed = startSong || currentList[Math.floor(Math.random() * currentList.length)] || currentList[0];
     if (!seed) return;
 
-    // 1. Immediately create an initial progressive queue starting with seed
-    const baseWithoutSeed = (Array.isArray(baseBackup) ? baseBackup : []).filter(s => s && s.id !== seed.id);
-    const initialShuffled = [{ ...seed, isHeartRecommend: false }, ...([...baseWithoutSeed].sort(() => Math.random() - 0.5))];
+    heartPlayedBaseIdsRef.current.add(String(seed.id));
+    heartBaseCountSinceLastRecRef.current = 1;
 
-    // 2. Update playMode, playlist and start playback immediately
+    // Keep playlist in its natural order (do NOT shuffle the playlist itself!)
+    const seedIdx = currentList.findIndex(s => sameSongId(s.id, seed.id));
     updateProfile({ playback: { playMode: 'heart' } });
-    setPlaylistAndPersist(initialShuffled);
-    setPlaylistIndexAndPersist(0);
-    playSong(seed, initialShuffled);
+    setPlaylistAndPersist(currentList);
+    setPlaylistIndexAndPersist(seedIdx >= 0 ? seedIdx : 0);
+    playSong(seed, currentList);
 
-    // 3. Concurrently fetch multi-tier recommendations and rebuild with dynamic pacing
+    // Concurrently fetch multi-tier recommendations into discovery pool
     const pid = playlistId || stateRef.current.likedPlaylistId || '';
-    fetchHeartRecommendedPool(seed, pid).then(recList => {
-      if (recList.length > 0) {
-        const currentPlaying = stateRef.current.currentSong || seed;
-        const remainingBase = (Array.isArray(initialShuffled) ? initialShuffled : []).filter(s => s && s.id !== currentPlaying.id);
-        const dynamicQueue = buildDynamicSmartRadioQueue(currentPlaying, remainingBase, recList);
-        
-        setPlaylistAndPersist(dynamicQueue);
-        const idx = dynamicQueue.findIndex(s => s.id === currentPlaying.id);
-        setPlaylistIndexAndPersist(idx >= 0 ? idx : 0);
-      }
-    }).catch(err => {
-      console.warn('Background smart radio recommendation interleave failed:', err);
+    fetchHeartRecommendedPool(seed, pid).catch(err => {
+      console.warn('Background smart radio recommendation fetch failed:', err);
     });
-  }, [fetchHeartRecommendedPool, buildDynamicSmartRadioQueue, updateProfile, setPlaylistAndPersist, setPlaylistIndexAndPersist, playSong]);
+  }, [fetchHeartRecommendedPool, updateProfile, setPlaylistAndPersist, setPlaylistIndexAndPersist, playSong]);
 
   const setPlayModeAndPersist = useCallback(async (mode) => {
     if (stateRef.current.listenPlaybackLocked) return;
@@ -1499,9 +1528,6 @@ export function AppProvider({ children }) {
       heartDiscoveryStepRef.current = 0;
       const currentList = stateRef.current.playlist || [];
       const current = stateRef.current.currentSong || currentList[0];
-      if (current) {
-        fetchHeartRecommendedPool(current, stateRef.current.likedPlaylistId).catch(() => {});
-      }
       if (currentList.length > 0 && current) {
         startHeartMode(current, stateRef.current.likedPlaylistId, currentList);
       }
@@ -1511,7 +1537,7 @@ export function AppProvider({ children }) {
         const restored = originalPlaylistBackupRef.current;
         const current = stateRef.current.currentSong;
         setPlaylistAndPersist(restored);
-        const idx = current ? restored.findIndex(s => s.id === current.id) : 0;
+        const idx = current ? restored.findIndex(s => sameSongId(s.id, current.id)) : 0;
         setPlaylistIndexAndPersist(idx >= 0 ? idx : 0);
         originalPlaylistBackupRef.current = null;
       }
@@ -1523,20 +1549,58 @@ export function AppProvider({ children }) {
     const { playlist, playlistIndex, playMode, currentSong } = stateRef.current;
     if (playlist.length === 0) return;
 
-    // Heart Mode: Smart Big-Data Discovery Interleaving (随机智能插入未红心宝藏歌曲)
+    // 1. History forward replay if user previously used playPrev
+    if ((playMode === 'random' || playMode === 'heart') && historyIndexRef.current >= 0 && historyIndexRef.current < playbackHistoryRef.current.length - 1) {
+      historyIndexRef.current += 1;
+      const targetSong = playbackHistoryRef.current[historyIndexRef.current];
+      if (targetSong) {
+        isNavigatingHistoryRef.current = true;
+        try {
+          const songIdx = playlist.findIndex(item => sameSongId(item.id, targetSong.id));
+          if (songIdx !== -1) {
+            setPlaylistIndexAndPersist(songIdx);
+            playSong(targetSong);
+          } else {
+            playSong(targetSong);
+          }
+        } finally {
+          isNavigatingHistoryRef.current = false;
+        }
+        return;
+      }
+    }
+
+    // 2. Heart Mode: True Random with Smart Recommendations Interleaved
     if (playMode === 'heart') {
       heartDiscoveryStepRef.current += 1;
-      const shouldDiscover = (heartDiscoveryStepRef.current % 2 === 0) || (Math.random() < 0.5);
+      const baseSongs = (heartBasePoolRef.current && heartBasePoolRef.current.length > 0)
+        ? heartBasePoolRef.current
+        : (originalPlaylistBackupRef.current && originalPlaylistBackupRef.current.length > 0)
+          ? originalPlaylistBackupRef.current
+          : playlist.filter(s => !s.isHeartRecommend);
+
+      // Pacing: insert recommendation after at least 2 base tracks or periodically
+      const shouldDiscover = (heartBaseCountSinceLastRecRef.current >= 2) || (heartDiscoveryStepRef.current % 3 === 0);
       const discoveryPool = heartDiscoveryPoolRef.current || [];
 
       if (shouldDiscover && discoveryPool.length > 0) {
         const surpriseTrack = discoveryPool.shift();
         if (surpriseTrack) {
+          surpriseTrack.isHeartRecommend = true;
           appendRuntimeLog('info', '心动模式为您智能插入未红心大数据宝藏歌曲', {
             songId: surpriseTrack.id,
             songName: surpriseTrack.name,
             artist: surpriseTrack.artist || surpriseTrack.ar?.[0]?.name
           }, 'player');
+
+          // Insert right after current song in playlist (NOT appended to end!)
+          const currentIdx = playlist.findIndex(item => sameSongId(item.id, currentSong?.id));
+          const baseIndex = currentIdx !== -1 ? currentIdx : playlistIndex;
+          const insertIdx = baseIndex >= 0 ? baseIndex + 1 : playlist.length;
+          const updatedPlaylist = [...playlist];
+          updatedPlaylist.splice(insertIdx, 0, surpriseTrack);
+
+          heartBaseCountSinceLastRecRef.current = 0;
 
           if (discoveryPool.length < 6 && !isFetchingHeartRef.current) {
             isFetchingHeartRef.current = true;
@@ -1544,7 +1608,7 @@ export function AppProvider({ children }) {
               .finally(() => { isFetchingHeartRef.current = false; });
           }
 
-          playSong(surpriseTrack);
+          playSong(surpriseTrack, updatedPlaylist);
           return;
         }
       }
@@ -1555,38 +1619,114 @@ export function AppProvider({ children }) {
         fetchHeartRecommendedPool(currentSong || playlist[playlistIndex], stateRef.current.likedPlaylistId)
           .finally(() => { isFetchingHeartRef.current = false; });
       }
+
+      // Pick next base song via TRUE RANDOM from songs unplayed in current cycle
+      let unplayedBase = baseSongs.filter(s => !heartPlayedBaseIdsRef.current.has(String(s.id)));
+      if (unplayedBase.length === 0) {
+        // Cycle complete: reset cycle tracking (keeping only current song)
+        heartPlayedBaseIdsRef.current.clear();
+        if (currentSong?.id) heartPlayedBaseIdsRef.current.add(String(currentSong.id));
+        unplayedBase = baseSongs.filter(s => String(s.id) !== String(currentSong?.id));
+      }
+
+      const nextBaseSong = unplayedBase.length > 0
+        ? unplayedBase[Math.floor(Math.random() * unplayedBase.length)]
+        : (baseSongs.find(s => String(s.id) !== String(currentSong?.id)) || baseSongs[0]);
+
+      if (nextBaseSong) {
+        heartPlayedBaseIdsRef.current.add(String(nextBaseSong.id));
+        heartBaseCountSinceLastRecRef.current += 1;
+
+        let nextIdx = playlist.findIndex(item => sameSongId(item.id, nextBaseSong.id));
+        if (nextIdx !== -1) {
+          setPlaylistIndexAndPersist(nextIdx);
+          playSong(nextBaseSong);
+        } else {
+          // If for any reason not in current playlist, insert it next to current song
+          const currentIdx = playlist.findIndex(item => sameSongId(item.id, currentSong?.id));
+          const baseIndex = currentIdx !== -1 ? currentIdx : playlistIndex;
+          const insertIdx = baseIndex >= 0 ? baseIndex + 1 : playlist.length;
+          const updatedPlaylist = [...playlist];
+          updatedPlaylist.splice(insertIdx, 0, nextBaseSong);
+          playSong(nextBaseSong, updatedPlaylist);
+        }
+        return;
+      }
     }
 
-    let nextIndex = playlistIndex;
+    // 3. Normal Random Mode: True Random selection avoiding immediate repeat
     if (playMode === 'random') {
-      nextIndex = Math.floor(Math.random() * playlist.length);
-    } else {
-      nextIndex = (playlistIndex + 1) % playlist.length;
+      const currentIdx = playlist.findIndex(item => sameSongId(item.id, currentSong?.id));
+      const validIndices = playlist
+        .map((_, idx) => idx)
+        .filter(idx => playlist.length <= 1 || idx !== currentIdx);
+      const nextIndex = validIndices.length > 0
+        ? validIndices[Math.floor(Math.random() * validIndices.length)]
+        : 0;
+      const nextSong = playlist[nextIndex];
+      if (nextSong) {
+        setPlaylistIndexAndPersist(nextIndex);
+        playSong(nextSong);
+      }
+      return;
     }
 
+    // 4. Sequential / Single loop mode
+    const nextIndex = (playlistIndex + 1) % playlist.length;
     const nextSong = playlist[nextIndex];
     if (nextSong) {
+      setPlaylistIndexAndPersist(nextIndex);
       playSong(nextSong);
     }
-  }, [playSong, fetchHeartRecommendedPool]);
+  }, [playSong, fetchHeartRecommendedPool, setPlaylistIndexAndPersist]);
+
   const playPrev = useCallback(() => {
     if (stateRef.current.listenPlaybackLocked) return;
     const { playlist, playlistIndex, playMode } = stateRef.current;
     if (playlist.length === 0) return;
 
-    let prevIndex = playlistIndex;
-    if (playMode === 'random') {
-      prevIndex = Math.floor(Math.random() * playlist.length);
-    } else {
-      prevIndex = playlistIndex - 1;
-      if (prevIndex < 0) prevIndex = playlist.length - 1;
+    if (playMode === 'random' || playMode === 'heart') {
+      if (historyIndexRef.current > 0) {
+        historyIndexRef.current -= 1;
+        const targetSong = playbackHistoryRef.current[historyIndexRef.current];
+        if (targetSong) {
+          isNavigatingHistoryRef.current = true;
+          try {
+            const songIdx = playlist.findIndex(item => sameSongId(item.id, targetSong.id));
+            if (songIdx !== -1) {
+              setPlaylistIndexAndPersist(songIdx);
+              playSong(targetSong);
+            } else {
+              playSong(targetSong);
+            }
+          } finally {
+            isNavigatingHistoryRef.current = false;
+          }
+          return;
+        }
+      }
+      // Fallback if no prior history
+      let prevIndex = Math.floor(Math.random() * playlist.length);
+      if (playlist.length > 1 && prevIndex === playlistIndex) {
+        prevIndex = (prevIndex + 1) % playlist.length;
+      }
+      const prevSong = playlist[prevIndex];
+      if (prevSong) {
+        setPlaylistIndexAndPersist(prevIndex);
+        playSong(prevSong);
+      }
+      return;
     }
 
+    // Sequential / Single loop mode
+    let prevIndex = playlistIndex - 1;
+    if (prevIndex < 0) prevIndex = playlist.length - 1;
     const prevSong = playlist[prevIndex];
     if (prevSong) {
+      setPlaylistIndexAndPersist(prevIndex);
       playSong(prevSong);
     }
-  }, [playSong]);
+  }, [playSong, setPlaylistIndexAndPersist]);
 
   // Logout action (shared central method)
   const logout = useCallback(async () => {

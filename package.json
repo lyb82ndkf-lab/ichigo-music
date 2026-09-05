@@ -1,6 +1,6 @@
 {
     "name": "ichigomusic",
-    "version": "2.7.0",
+    "version": "2.8.0",
     "description": "A beautiful music player with desktop lyrics and particle visualizers.",
     "author": "Antigravity",
     "private": true,
@@ -16,7 +16,8 @@
         "check:listening-stats": "node scripts/check-listening-stats-and-smart-radio.mjs",
         "check:heatmap-match": "node scripts/check-heatmap-and-audio-match.mjs",
         "check:vault": "node scripts/check-vault-and-single-instance.mjs",
-        "check": "npm run build && npm run check:ui && npm run check:audio-engine && npm run check:listening-stats && npm run check:heatmap-match && npm run check:vault && npm run check:immersive && npm run check:desktop-lyrics && npm run check:furigana-e2e && npm run check:user-lyrics && npm run check:cover && npm run check:playback && npm run check:runtime && npm run check:packaged-entry && npm run check:listen && npm run check:ktv && npm run check:ktv-pv && npm run check:playlist && npm run check:lyrics && node --check main-electron.js && node --check preload-electron.cjs",
+        "check:heart-playback": "node scripts/check-heart-mode-playback.mjs",
+        "check": "npm run build && npm run check:ui && npm run check:audio-engine && npm run check:listening-stats && npm run check:heart-playback && npm run check:heatmap-match && npm run check:vault && npm run check:immersive && npm run check:desktop-lyrics && npm run check:furigana-e2e && npm run check:user-lyrics && npm run check:cover && npm run check:playback && npm run check:runtime && npm run check:packaged-entry && npm run check:listen && npm run check:ktv && npm run check:ktv-pv && npm run check:playlist && npm run check:lyrics && node --check main-electron.js && node --check preload-electron.cjs",
         "electron": "electron .",
         "electron:build": "vite build && electron-builder",
         "check:cover": "node scripts/check-cover-state.mjs",
@@ -85,7 +86,7 @@
         "productName": "ICHIGOMusic",
         "asar": true,
         "directories": {
-            "output": "dist_electron"
+            "output": "release"
         },
         "files": [
             "dist/**/*",

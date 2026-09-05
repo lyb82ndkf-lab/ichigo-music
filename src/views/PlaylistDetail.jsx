@@ -4,7 +4,7 @@ import { api } from '../utils/api';
 import { Play, Heart, MessageSquare, Clock, HeartPulse } from 'lucide-react';
 
 export default function PlaylistDetail() {
-  const { viewData, playSong, startHeartMode, playMode, likedSongIds, toggleLike, navigateTo } = useApp();
+  const { viewData, playSong, startHeartMode, playMode, setPlayMode, likedSongIds, toggleLike, navigateTo } = useApp();
   const [playlist, setPlaylist] = useState(null);
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -184,25 +184,21 @@ export default function PlaylistDetail() {
             </button>
 
             <button
-              className={`secondary-btn ${playMode === 'heart' ? 'heart-mode-btn-active' : ''}`}
-              style={{
-                borderRadius: '99px',
-                padding: '10px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                border: '1px solid var(--primary-glow, rgba(255,64,129,0.3))',
-                background: playMode === 'heart' ? 'var(--primary)' : 'var(--glass-bg)',
-                color: playMode === 'heart' ? '#fff' : 'var(--text-active)',
-                transition: 'all 0.2s ease'
+              className={`heart-mode-pill-btn ${playMode === 'heart' ? 'is-active heart-mode-btn-active' : ''}`}
+              style={{ padding: '10px 20px', fontSize: '13px' }}
+              onClick={() => {
+                if (songs.length === 0) return;
+                if (playMode === 'heart') {
+                  setPlayMode('sequence');
+                } else {
+                  startHeartMode(null, playlist?.id, songs);
+                }
               }}
-              onClick={() => songs.length > 0 && startHeartMode(null, playlist?.id, songs)}
-              title="开启心动模式：基于本歌单随机播放并智能穿插推荐相似歌曲"
+              title={playMode === 'heart' ? '点击退出心动模式（恢复原列表）' : '开启心动模式：基于本歌单真随机播放并智能穿插推荐相似歌曲'}
             >
-              <HeartPulse size={16} color={playMode === 'heart' ? '#fff' : 'var(--primary)'} className="heart-mode-icon" /> 心动模式
+              <HeartPulse size={16} className="heart-mode-icon" />
+              <span>心动模式</span>
+              {playMode === 'heart' && <span className="heart-mode-badge">播放中</span>}
             </button>
             
             <button

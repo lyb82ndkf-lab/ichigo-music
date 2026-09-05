@@ -1723,7 +1723,8 @@
    ========================================================================== */
 .heart-mode-icon {
   animation: heartBeatPulse 1.8s ease-in-out infinite;
-  color: var(--primary) !important;
+  color: var(--primary);
+  flex-shrink: 0;
 }
 
 @keyframes heartBeatPulse {
@@ -1757,12 +1758,85 @@
   line-height: 1.4;
 }
 
+/* Base Heart Mode Pill Button - Dark Mode Default */
+.heart-mode-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 9999px;
+  padding: 8px 18px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 64, 129, 0.32);
+  background: rgba(255, 64, 129, 0.08);
+  color: var(--text-active, #f1f5f9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  user-select: none;
+}
+
+.heart-mode-pill-btn:hover {
+  background: rgba(255, 64, 129, 0.16);
+  border-color: rgba(255, 64, 129, 0.55);
+  box-shadow: 0 4px 16px rgba(255, 64, 129, 0.25);
+  transform: translateY(-1px);
+}
+
+.heart-mode-pill-btn:active {
+  transform: translateY(0);
+}
+
+/* Light Mode Overrides for Heart Mode Pill Button */
+.mode-light .heart-mode-pill-btn {
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 64, 129, 0.35);
+  color: #1f2937;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(255, 64, 129, 0.08);
+}
+
+.mode-light .heart-mode-pill-btn:hover {
+  background: #ffffff;
+  border-color: var(--primary, #ff4081);
+  color: #111827;
+  box-shadow: 0 4px 14px rgba(255, 64, 129, 0.2);
+}
+
+/* Active State in both Dark and Light Modes */
+.heart-mode-pill-btn.is-active,
+.heart-mode-pill-btn.heart-mode-btn-active {
+  background: linear-gradient(135deg, var(--primary, #ff4081) 0%, #ff1744 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 4px 16px var(--primary-glow, rgba(255, 64, 129, 0.45)), 0 0 18px rgba(255, 23, 68, 0.25) !important;
+}
+
+.heart-mode-pill-btn.is-active .heart-mode-icon,
+.heart-mode-pill-btn.heart-mode-btn-active .heart-mode-icon,
+.heart-mode-btn-active .heart-mode-icon {
+  color: #ffffff !important;
+}
+
+.heart-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  line-height: 1.3;
+  letter-spacing: 0.3px;
+}
+
 .heart-mode-btn-active {
   background: linear-gradient(135deg, var(--primary), #ff6090) !important;
   color: #fff !important;
   box-shadow: 0 4px 14px var(--primary-glow) !important;
 }
-
 
 
 
