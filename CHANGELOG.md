@@ -3,6 +3,18 @@
 All notable changes to **ICHIGOMusic** will be documented in this file.
 
 ---
+## [2.9.0] - 2026-09-07
+
+### 🛠️ 缓存系统与网络健壮性全面升级
+
+- **修复封面与音频缓存网络异常**：
+  - 彻底修复音乐播放过程中 `cache-cover` 报错 `TypeError: terminated (node:internal/deps/undici/undici)` 的问题。
+  - 主进程网络请求全面切换至 Electron 原生 Chromium 网络栈（`electronNet.fetch`），支持更强大的 HTTP/HTTPS 连接池管理与自动重连。
+  - 为封面（20s）与音频（60s）缓存下载增加超时机制与完整的异常兜底保护，网络抖动或连接被 CDN 中断时平滑降级，绝不打断音乐播放与切歌。
+  - 强化 Windows 下的写入流关闭与临时文件清理逻辑，杜绝文件句柄占用引发的残留报错。
+
+---
+
 
 ## [2.8.0] - 2026-09-05
 

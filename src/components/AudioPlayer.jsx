@@ -362,7 +362,9 @@ export default function AudioPlayer({ canControlPlayback = true }) {
       const stillLoading = audio.readyState < HTMLMediaElement.HAVE_CURRENT_DATA;
       if (!stuckAtStart) return;
       const elapsed = Date.now() - (zeroTimeRecoveryRef.current.startedAt || Date.now());
-      if (stillLoading && !audio.error && elapsed < 3500) return;
+      const isActivelyBuffering = audio.networkState === 2 && audio.readyState < HTMLMediaElement.HAVE_FUTURE_DATA;
+      const stallThreshold = isActivelyBuffering ? 8000 : 5000;
+      if (stillLoading && !audio.error && elapsed < stallThreshold) return;
 
       const key = `${audioSource}|${crossOriginMode ?? 'no-cors'}`;
       const recovery = zeroTimeRecoveryRef.current;
@@ -426,7 +428,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
     if (audioRef.current) {
       setAudioElement(audioRef.current);
     }
-  }, [setAudioElement]);
+  }, [setAudioElement, audioRoutingMode]);
 
   // Apply Equalizer 10-Band Gains
   const applyEqBands = useCallback(() => {
@@ -462,7 +464,10 @@ export default function AudioPlayer({ canControlPlayback = true }) {
   const setupWebAudio = () => {
     const audio = audioRef.current;
     if (!audio) return;
-
+    if (audioRoutingMode === 'direct') {
+      window.ichigoAnalyser = null;
+      return;
+    }
     try {
       let audioCtx = audioContextRef.current;
       if (!audioCtx) {
@@ -802,6 +807,7 @@ export default function AudioPlayer({ canControlPlayback = true }) {
 
   return (
     <audio
+      key={audioRoutingMode}
       ref={audioRef}
       src={audioSource || undefined}
       crossOrigin={effectiveCrossOriginMode}

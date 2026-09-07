@@ -214,22 +214,32 @@ const startAudioProxy = () => {
         const token = parsed.searchParams.get('token');
         const corsHeaders = {
           'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': '*',
           'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
           'Accept-Ranges': 'bytes'
         };
 
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204, corsHeaders);
+          res.end();
+          return;
+        }
+
         if (remoteUrl && /^https?:\/\//i.test(remoteUrl)) {
           const headers = { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' };
           if (req.headers.range) headers.Range = req.headers.range;
+          if (req.headers.accept) headers.Accept = req.headers.accept;
           try {
             const controller = new AbortController();
             const timer = setTimeout(() => {
               try { controller.abort(); } catch {}
-            }, 12000);
+            }, 30000);
             req.on('close', () => {
               try { controller.abort(); } catch {}
             });
-            const remote = await electronNet.fetch(remoteUrl, {
+            const remote = await (electronNet?.fetch ? electronNet.fetch.bind(electronNet) : fetch)(remoteUrl, {
+              method: req.method === 'HEAD' ? 'HEAD' : 'GET',
               headers,
               redirect: 'follow',
               signal: controller.signal
@@ -244,6 +254,10 @@ const startAudioProxy = () => {
               ...(contentLength ? { 'Content-Length': contentLength } : {}),
               ...(contentRange ? { 'Content-Range': contentRange } : {})
             });
+            if (req.method === 'HEAD') {
+              res.end();
+              return;
+            }
             if (remote.body) {
               const nodeStream = Readable.fromWeb(remote.body);
               req.on('close', () => {
@@ -257,6 +271,7 @@ const startAudioProxy = () => {
               res.end();
             }
           } catch (fetchErr) {
+            console.warn('[audioProxy] Proxy fetch error for:', remoteUrl, fetchErr?.message || fetchErr);
             try {
               res.writeHead(502, corsHeaders);
               res.end();
@@ -384,7 +399,7 @@ const savePerformanceConfig = (cfg) => {
 };
 
 const githubRequest = async (url) => {
-  const response = await fetch(url, {
+  const response = await netFetch(url, {
     headers: {
       Accept: 'application/vnd.github+json',
       'User-Agent': 'ICHIGOMusic-Updater'
@@ -489,6 +504,11 @@ const migrateLegacyCache = async () => {
   }
 };
 
+const netFetch = (url, options) => {
+  const fn = electronNet?.fetch ? electronNet.fetch.bind(electronNet) : fetch;
+  return fn(url, options);
+};
+
 const writeResponseToFile = async (response, tempPath) => {
   if (!response.body) throw new Error('Response body is empty');
   const readable = Readable.fromWeb(response.body);
@@ -496,8 +516,9 @@ const writeResponseToFile = async (response, tempPath) => {
   try {
     await pipeline(readable, writable);
   } catch (error) {
-    readable.destroy();
-    writable.destroy();
+    try { readable.destroy(); } catch {}
+    try { writable.destroy(); } catch {}
+    await new Promise(resolve => setTimeout(resolve, 50));
     await fs.promises.rm(tempPath, { force: true }).catch(() => {});
     throw error;
   }
@@ -1259,7 +1280,7 @@ function createWindow() {
       throw new Error('未找到可用的 Windows 安装包');
     }
     const tempPath = path.join(app.getPath('temp'), `ICHIGOMusic-${release.version}-setup.exe`);
-    const response = await fetch(release.assetUrl, { headers: { 'User-Agent': 'ICHIGOMusic-Updater' } });
+    const response = await netFetch(release.assetUrl, { headers: { 'User-Agent': 'ICHIGOMusic-Updater' } });
     if (!response.ok || !response.body) throw new Error(`下载安装包失败：${response.status}`);
     const total = Number(response.headers.get('content-length') || release.assetSize || 0);
     const reader = response.body.getReader();
@@ -1545,34 +1566,57 @@ function createWindow() {
     if (existingRequest) return existingRequest;
 
     const request = (async () => {
-    const audioDir = path.join(root, 'audio');
-    await ensureDir(audioDir);
+      let tempPath = null;
+      try {
+        const audioDir = path.join(root, 'audio');
+        await ensureDir(audioDir);
 
-    const existing = await findCachedAudioFile(root, songId, quality);
-    if (existing) return { url: getAudioResourceUrl(existing), path: existing, cached: true };
+        const existing = await findCachedAudioFile(root, songId, quality);
+        if (existing) return { url: getAudioResourceUrl(existing), path: existing, cached: true };
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
+        let response;
+        try {
+          response = await netFetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            redirect: 'follow',
+            signal: controller.signal
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        if (!response.ok || !response.body) {
+          console.warn(`[cache-audio] Audio cache download failed for song ${songId}: HTTP ${response?.status}`);
+          return null;
+        }
+
+        const ext = inferAudioExtension(url, response.headers.get('content-type') || '');
+        const base = getAudioCacheBase(songId, quality);
+        const filePath = path.join(audioDir, `${base}.${ext}`);
+        tempPath = `${filePath}.tmp-${Date.now()}`;
+
+        await writeResponseToFile(response, tempPath);
+        if (!(await isPlayableAudioCacheFile(tempPath))) {
+          await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+          tempPath = null;
+          console.warn(`[cache-audio] Audio cache download is not a supported media file for song ${songId}`);
+          return null;
+        }
+        await fs.promises.rename(tempPath, filePath);
+        tempPath = null;
+        await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
+        return { url: getAudioResourceUrl(filePath), path: filePath, cached: true };
+      } catch (error) {
+        console.warn(`[cache-audio] Failed to cache audio for song ${songId}:`, error?.message || error);
+        if (tempPath) {
+          await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+        }
+        return null;
       }
-    });
-    if (!response.ok || !response.body) throw new Error(`Audio cache download failed: ${response.status}`);
-    const ext = inferAudioExtension(url, response.headers.get('content-type') || '');
-    const base = getAudioCacheBase(songId, quality);
-    const filePath = path.join(audioDir, `${base}.${ext}`);
-    const tempPath = `${filePath}.tmp-${Date.now()}`;
-    try {
-      await writeResponseToFile(response, tempPath);
-      if (!(await isPlayableAudioCacheFile(tempPath))) {
-        throw new Error('Audio cache download is not a supported media file');
-      }
-      await fs.promises.rename(tempPath, filePath);
-    } catch (error) {
-      await fs.promises.rm(tempPath, { force: true }).catch(() => {});
-      throw error;
-    }
-    await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
-    return { url: getAudioResourceUrl(filePath), path: filePath, cached: true };
     })().finally(() => cacheDownloadInFlight.delete(requestKey));
     cacheDownloadInFlight.set(requestKey, request);
     return request;
@@ -1593,28 +1637,52 @@ function createWindow() {
     if (existingRequest) return existingRequest;
 
     const request = (async () => {
-    const coverDir = path.join(root, 'covers');
-    await ensureDir(coverDir);
-    const existing = !forceRefresh && await findCachedCoverFile(root, songId);
-    if (existing) return { url: getCoverResourceUrl(existing), path: existing, cached: true };
+      let tempPath = null;
+      try {
+        const coverDir = path.join(root, 'covers');
+        await ensureDir(coverDir);
+        const existing = !forceRefresh && await findCachedCoverFile(root, songId);
+        if (existing) return { url: getCoverResourceUrl(existing), path: existing, cached: true };
 
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
-    });
-    if (!response.ok || !response.body) throw new Error(`Cover cache download failed: ${response.status}`);
-    const ext = inferImageExtension(url, response.headers.get('content-type') || '');
-    const filePath = path.join(coverDir, `${getCoverCacheBase(songId)}.${ext}`);
-    const tempPath = `${filePath}.tmp-${Date.now()}`;
-    await writeResponseToFile(response, tempPath);
-    if (forceRefresh) {
-      const entries = await fs.promises.readdir(coverDir, { withFileTypes: true }).catch(() => []);
-      await Promise.all(entries
-        .filter(entry => entry.isFile() && entry.name.startsWith(`${getCoverCacheBase(songId)}.`))
-        .map(entry => fs.promises.unlink(path.join(coverDir, entry.name)).catch(() => {})));
-    }
-    await fs.promises.rename(tempPath, filePath);
-    await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
-    return { url: getCoverResourceUrl(filePath), path: filePath, cached: true };
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000);
+        let response;
+        try {
+          response = await netFetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+            redirect: 'follow',
+            signal: controller.signal
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+
+        if (!response.ok || !response.body) {
+          console.warn(`[cache-cover] Download failed for song ${songId}: HTTP ${response?.status}`);
+          return null;
+        }
+
+        const ext = inferImageExtension(url, response.headers.get('content-type') || '');
+        const filePath = path.join(coverDir, `${getCoverCacheBase(songId)}.${ext}`);
+        tempPath = `${filePath}.tmp-${Date.now()}`;
+        await writeResponseToFile(response, tempPath);
+        if (forceRefresh) {
+          const entries = await fs.promises.readdir(coverDir, { withFileTypes: true }).catch(() => []);
+          await Promise.all(entries
+            .filter(entry => entry.isFile() && entry.name.startsWith(`${getCoverCacheBase(songId)}.`))
+            .map(entry => fs.promises.unlink(path.join(coverDir, entry.name)).catch(() => {})));
+        }
+        await fs.promises.rename(tempPath, filePath);
+        tempPath = null;
+        await pruneCache(root, Number(maxBytes) || 1024 * 1024 * 1024);
+        return { url: getCoverResourceUrl(filePath), path: filePath, cached: true };
+      } catch (error) {
+        console.warn(`[cache-cover] Failed to cache cover for song ${songId}:`, error?.message || error);
+        if (tempPath) {
+          await fs.promises.rm(tempPath, { force: true }).catch(() => {});
+        }
+        return null;
+      }
     })().finally(() => cacheDownloadInFlight.delete(requestKey));
     cacheDownloadInFlight.set(requestKey, request);
     return request;
