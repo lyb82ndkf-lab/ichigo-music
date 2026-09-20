@@ -941,8 +941,9 @@
 
 .layout-modern .compact-song-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px 10px;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px 12px;
+  align-content: start;
   flex: 1;
   min-height: 0;
   overflow-y: auto;

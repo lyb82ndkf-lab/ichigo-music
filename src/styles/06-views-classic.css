@@ -992,3 +992,408 @@
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
   color: #111827 !important;
 }
+
+/* ==========================================================================
+   PLAYLIST DETAIL UNIFIED ACTION PILLS & INLINE SONG COMMENTS
+   ========================================================================== */
+
+/* 1. Header Unified Action Pill Buttons */
+.playlist-actions-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.playlist-action-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 20px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+  box-sizing: border-box;
+}
+
+/* Primary Pill Button (播放全部) */
+.playlist-action-pill-btn.primary {
+  background: linear-gradient(135deg, var(--primary, #ff4081) 0%, color-mix(in srgb, var(--primary, #ff4081) 75%, #ff1744) 100%);
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--primary, #ff4081) 40%, transparent);
+}
+
+.playlist-action-pill-btn.primary:hover {
+  background: linear-gradient(135deg, var(--primary-hover, #ff6090) 0%, #ff1744 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--primary, #ff4081) 55%, transparent);
+}
+
+.playlist-action-pill-btn.primary:active {
+  transform: translateY(0);
+}
+
+/* Secondary Pill Button (心动模式等) - Dark Mode */
+.playlist-action-pill-btn.secondary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: var(--text-active, #f1f5f9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.playlist-action-pill-btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
+  transform: translateY(-1px);
+  color: #ffffff;
+}
+
+.playlist-action-pill-btn.secondary:active {
+  transform: translateY(0);
+}
+
+/* Secondary Pill Button - Light Mode */
+.mode-light .playlist-action-pill-btn.secondary {
+  background: rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #1f2937;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03);
+}
+
+.mode-light .playlist-action-pill-btn.secondary:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: #111827;
+}
+
+/* Secondary Pill Button Active State (心动模式激活) */
+.playlist-action-pill-btn.secondary.is-active,
+.playlist-action-pill-btn.secondary.heart-mode-btn-active {
+  background: linear-gradient(135deg, var(--primary, #ff4081) 0%, #ff1744 100%) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 4px 16px var(--primary-glow, rgba(255, 64, 129, 0.45)), 0 0 16px rgba(255, 23, 68, 0.25) !important;
+}
+
+.playlist-action-pill-btn.secondary.is-active .heart-mode-icon,
+.playlist-action-pill-btn.secondary.heart-mode-btn-active .heart-mode-icon {
+  color: #ffffff !important;
+}
+
+/* 2. Song Row Comment Toggle Button */
+.song-comment-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-muted, #94a3b8);
+  transition: all 0.18s ease;
+  flex-shrink: 0;
+}
+
+.song-comment-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-active, #f1f5f9);
+}
+
+.song-comment-toggle-btn.active {
+  background: var(--primary-subtle, rgba(255, 64, 129, 0.18));
+  border-color: var(--primary, #ff4081);
+  color: var(--primary, #ff4081);
+}
+
+.mode-light .song-comment-toggle-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #64748b;
+}
+
+.mode-light .song-comment-toggle-btn:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #111827;
+}
+
+.mode-light .song-comment-toggle-btn.active {
+  background: var(--primary-subtle, rgba(255, 64, 129, 0.12));
+  border-color: var(--primary, #ff4081);
+  color: var(--primary, #ff4081);
+}
+
+/* 3. Inline Expandable Song Comments Card */
+.song-inline-comments-tr td {
+  padding: 0 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+}
+
+.mode-light .song-inline-comments-tr td {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+}
+
+.song-comments-inline-card {
+  margin: 6px 12px 14px 12px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: song-comment-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes song-comment-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mode-light .song-comments-inline-card {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.04);
+}
+
+.song-comments-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.mode-light .song-comments-card-header {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.song-comments-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-active, #f1f5f9);
+}
+
+.mode-light .song-comments-header-title {
+  color: #111827;
+}
+
+.song-comments-header-title .sparkle-icon {
+  color: var(--primary, #ff4081);
+}
+
+.song-comments-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.song-comments-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.mode-light .song-comments-pagination {
+  color: #64748b;
+}
+
+.song-comments-page-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-main, #e2e8f0);
+  transition: all 0.16s ease;
+}
+
+.song-comments-page-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+}
+
+.song-comments-page-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.mode-light .song-comments-page-btn {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #374151;
+}
+
+.mode-light .song-comments-page-btn:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+  color: #111827;
+}
+
+.song-comments-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted, #94a3b8);
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.song-comments-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.mode-light .song-comments-close-btn {
+  color: #64748b;
+}
+
+.mode-light .song-comments-close-btn:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #111827;
+}
+
+/* Comment Item List */
+.song-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.song-comment-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 0.15s ease;
+}
+
+.song-comment-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.mode-light .song-comment-item {
+  background: rgba(0, 0, 0, 0.015);
+}
+
+.mode-light .song-comment-item:hover {
+  background: rgba(0, 0, 0, 0.035);
+}
+
+.song-comment-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.song-comment-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.song-comment-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.song-comment-user {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-active, #f1f5f9);
+}
+
+.mode-light .song-comment-user {
+  color: #111827;
+}
+
+.song-comment-time {
+  font-size: 10.5px;
+  color: var(--text-muted, #94a3b8);
+  margin-left: 8px;
+}
+
+.mode-light .song-comment-time {
+  color: #94a3b8;
+}
+
+.song-comment-likes {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.mode-light .song-comment-likes {
+  color: #64748b;
+}
+
+.song-comment-content {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-main, #cbd5e1);
+  word-break: break-word;
+  margin: 0;
+}
+
+.mode-light .song-comment-content {
+  color: #374151;
+}
+
+.song-comments-empty,
+.song-comments-loading {
+  text-align: center;
+  padding: 24px 0;
+  font-size: 12.5px;
+  color: var(--text-muted, #94a3b8);
+}
+
+.mode-light .song-comments-empty,
+.mode-light .song-comments-loading {
+  color: #64748b;
+}

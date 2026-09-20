@@ -194,7 +194,7 @@ export const DEFAULT_PROFILE = {
     staggeredScroll: true,
     fontFamily: 'Inter',
     titleFontFamily: 'Outfit',
-    lyricsPositionY: 61,
+    lyricsPositionY: 50,
     showTranslation: true,
     showFurigana: true,
     lyricsMode: 'regular',

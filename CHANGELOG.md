@@ -15,6 +15,22 @@ All notable changes to **ICHIGOMusic** will be documented in this file.
 
 ---
 
+### 🔊 音频流路由与 Web Audio CORS 零声音问题修复
+
+- **彻底解决“进度条在走但没有声音” (CORS access restrictions) 故障**：
+  - 深入排查并修复控制台报错 `MediaElementAudioSource outputs zeroes due to CORS access restrictions`。
+  - **Web Audio 节点解绑与原生直出**：
+    - 查明 Web Audio API 会永久劫持 `<audio>` 元素声音输出并因无 CORS 授权强制静音输出全 0 的底层行为。
+    - 为 `<audio>` 标签绑定 `key={audioRoutingMode}` 响应式重挂载机制；在切换到直出模式时立即解绑老节点并挂载全新原生音频 DOM。
+    - 在 `setupWebAudio()` 中增加路由守护，直连模式下坚决阻断 `createMediaElementSource` 介入，使音频直通操作系统声卡硬件。
+  - **智能缓冲识别与超时放宽**：
+    - 修复大体积无损 FLAC 音频在首次建立 TLS 连接与分块传输时因 1.2s 超时被误判为卡死并错误切断代理的逻辑。
+    - 引入 `audio.networkState === 2`（正在缓冲）动态识别，将判定窗口合理调整至 5s～8s，确保大码率音质从容加载。
+  - **本地音频代理完善**：
+    - 主进程音频代理增加标准 HTTP `OPTIONS` 跨域预检响应（204 No Content 并附带完整 CORS 授权头）。
+    - 增加对 `HEAD` 试探请求的识别与原样透传，强化 `Range` 范围流分段传输的稳定性。
+---
+
 
 ## [2.8.0] - 2026-09-05
 

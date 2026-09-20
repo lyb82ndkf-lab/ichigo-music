@@ -1,7 +1,128 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import { api } from '../utils/api';
-import { Play, Heart, MessageSquare, Clock, HeartPulse } from 'lucide-react';
+import { Play, Heart, MessageSquare, Clock, HeartPulse, Sparkles, X, ChevronLeft, ChevronRight, ThumbsUp } from 'lucide-react';
+
+function SongInlineComments({ song, onClose }) {
+  const [loading, setLoading] = useState(true);
+  const [hotComments, setHotComments] = useState([]);
+  const [comments, setComments] = useState([]);
+  const [page, setPage] = useState(1);
+  const pageSize = 4;
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setPage(1);
+    api.getComments(song.id, 60, 0).then(res => {
+      if (cancelled) return;
+      setHotComments(res?.hotComments || []);
+      setComments(res?.comments || []);
+      setLoading(false);
+    }).catch(err => {
+      console.error('Failed to load song comments:', err);
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [song.id]);
+
+  const allComments = useMemo(() => {
+    const list = [...hotComments];
+    const seen = new Set(list.map(c => c.commentId));
+    for (const c of comments) {
+      if (c?.commentId && !seen.has(c.commentId)) {
+        seen.add(c.commentId);
+        list.push(c);
+      }
+    }
+    return list;
+  }, [hotComments, comments]);
+
+  const totalPages = Math.max(1, Math.ceil(allComments.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const currentComments = allComments.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  return (
+    <div className="song-comments-inline-card">
+      <div className="song-comments-card-header">
+        <div className="song-comments-header-title">
+          <Sparkles size={14} className="sparkle-icon" />
+          <span>《{song.name}》精选热评 {allComments.length > 0 && `(${allComments.length})`}</span>
+        </div>
+        <div className="song-comments-header-actions">
+          {totalPages > 1 && (
+            <div className="song-comments-pagination">
+              <button
+                type="button"
+                className="song-comments-page-btn"
+                disabled={currentPage <= 1}
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+              >
+                <ChevronLeft size={12} />
+                <span>上一页</span>
+              </button>
+              <span>{currentPage} / {totalPages}</span>
+              <button
+                type="button"
+                className="song-comments-page-btn"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              >
+                <span>下一页</span>
+                <ChevronRight size={12} />
+              </button>
+            </div>
+          )}
+          <button
+            type="button"
+            className="song-comments-close-btn"
+            onClick={onClose}
+            title="收起评论"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="song-comments-loading">
+          🍓 正在加载《{song.name}》的热评...
+        </div>
+      ) : allComments.length === 0 ? (
+        <div className="song-comments-empty">
+          这首歌暂无热门评论，快去网易云留下你的第一条精彩评论吧 🍓
+        </div>
+      ) : (
+        <div className="song-comments-list">
+          {currentComments.map((c) => (
+            <div key={c.commentId} className="song-comment-item">
+              <img
+                src={c.user?.avatarUrl || 'https://p2.music.126.net/UeTuwE7Cx877Y2gCGIseYg==/109951163026279185.jpg'}
+                alt=""
+                className="song-comment-avatar"
+              />
+              <div className="song-comment-body">
+                <div className="song-comment-meta">
+                  <div>
+                    <span className="song-comment-user">{c.user?.nickname || '云音乐用户'}</span>
+                    <span className="song-comment-time">{c.timeStr || ''}</span>
+                  </div>
+                  {typeof c.likedCount === 'number' && c.likedCount > 0 && (
+                    <span className="song-comment-likes">
+                      <ThumbsUp size={11} />
+                      <span>{c.likedCount}</span>
+                    </span>
+                  )}
+                </div>
+                <p className="song-comment-content">{c.content}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PlaylistDetail() {
   const { viewData, playSong, startHeartMode, playMode, setPlayMode, likedSongIds, toggleLike, navigateTo } = useApp();
@@ -9,10 +130,7 @@ export default function PlaylistDetail() {
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [showComments, setShowComments] = useState(false);
-  const [comments, setComments] = useState([]);
-  const [hotComments, setHotComments] = useState([]);
-  
+  const [expandedSongId, setExpandedSongId] = useState(null);
   const [visibleCount, setVisibleCount] = useState(100);
 
   useEffect(() => {
@@ -41,7 +159,7 @@ export default function PlaylistDetail() {
     const fetchDetails = async () => {
       setLoading(true);
       setLoadingMore(false);
-      setShowComments(false);
+      setExpandedSongId(null);
       try {
         const detailRes = await api.getPlaylistDetail(viewData.id);
         if (cancelled) return;
@@ -93,26 +211,7 @@ export default function PlaylistDetail() {
     };
   }, [viewData]);
 
-  // Load comments if toggled
-  const toggleComments = async () => {
-    if (showComments) {
-      setShowComments(false);
-      return;
-    }
-    
-    if (songs.length === 0) return;
-    
-    // Fetch comments for the first song or a sample song in playlist
-    const sampleSongId = songs[0].id;
-    try {
-      const res = await api.getComments(sampleSongId, 15);
-      setComments(res.comments || []);
-      setHotComments(res.hotComments || []);
-      setShowComments(true);
-    } catch (err) {
-      console.error(err);
-    }
-  };
+
 
   const playAll = () => {
     if (songs.length > 0) {
@@ -174,18 +273,17 @@ export default function PlaylistDetail() {
             </p>
           )}
 
-          <div style={{ display: 'flex', gap: '12px', marginTop: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="playlist-actions-row">
             <button 
-              className="play-pause-btn"
-              style={{ borderRadius: '99px', width: 'auto', height: 'auto', padding: '10px 24px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', fontWeight: 600 }}
+              className="playlist-action-pill-btn primary"
               onClick={playAll}
             >
-              <Play size={16} fill="currentColor" /> 播放全部
+              <Play size={16} fill="currentColor" />
+              <span>播放全部</span>
             </button>
 
             <button
-              className={`heart-mode-pill-btn ${playMode === 'heart' ? 'is-active heart-mode-btn-active' : ''}`}
-              style={{ padding: '10px 20px', fontSize: '13px' }}
+              className={`playlist-action-pill-btn secondary ${playMode === 'heart' ? 'is-active heart-mode-btn-active' : ''}`}
               onClick={() => {
                 if (songs.length === 0) return;
                 if (playMode === 'heart') {
@@ -200,14 +298,6 @@ export default function PlaylistDetail() {
               <span>心动模式</span>
               {playMode === 'heart' && <span className="heart-mode-badge">播放中</span>}
             </button>
-            
-            <button
-              onClick={toggleComments}
-              style={{ background: 'var(--glass-bg)', border: '1px solid var(--card-border)', color: 'var(--text-active)', borderRadius: '99px', padding: '10px 20px', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s' }}
-            >
-              <MessageSquare size={16} /> 
-              {showComments ? '隐藏歌曲热评' : '歌曲热评'}
-            </button>
           </div>
           {loadingMore && (
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
@@ -217,25 +307,24 @@ export default function PlaylistDetail() {
         </div>
       </div>
 
-      {/* Main Grid: Track table / Comments Section */}
-      <div style={{ display: 'grid', gridTemplateColumns: showComments ? '60% 40%' : '100%', gap: '30px' }}>
-        {/* Track table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table className="songs-table" style={{ marginTop: 0 }}>
-            <thead>
-              <tr>
-                <th style={{ width: '40%' }}>歌名</th>
-                <th style={{ width: '30%' }}>歌手</th>
-                <th style={{ width: '20%' }}>专辑</th>
-                <th style={{ width: '10%' }}>时长</th>
-              </tr>
-            </thead>
-            <tbody>
-              {songs.slice(0, visibleCount).map((song, index) => {
-                const isLiked = likedSongIds.has(song.id);
-                return (
+      {/* Main Track Table */}
+      <div style={{ width: '100%', overflowX: 'auto' }}>
+        <table className="songs-table" style={{ marginTop: 0, width: '100%' }}>
+          <thead>
+            <tr>
+              <th style={{ width: '38%' }}>歌名</th>
+              <th style={{ width: '28%' }}>歌手</th>
+              <th style={{ width: '20%' }}>专辑</th>
+              <th style={{ width: '14%' }}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {songs.slice(0, visibleCount).map((song, index) => {
+              const isLiked = likedSongIds.has(song.id);
+              const isCommentsOpen = expandedSongId === song.id;
+              return (
+                <React.Fragment key={song.id}>
                   <tr 
-                    key={song.id} 
                     className="song-row"
                     onDoubleClick={() => playSong(song, songs)}
                   >
@@ -281,75 +370,45 @@ export default function PlaylistDetail() {
                       </span>
                     </td>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: 'var(--text-muted)' }}>
-                        <span>{formatDuration(song.dt)}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-muted)' }}>
+                        <span style={{ minWidth: '38px' }}>{formatDuration(song.dt)}</span>
                         <button 
                           className={`player-like-btn ${isLiked ? 'liked' : ''}`}
-                          onClick={() => toggleLike(song.id)}
+                          onClick={(e) => { e.stopPropagation(); toggleLike(song.id); }}
+                          title={isLiked ? '取消喜欢' : '喜欢'}
                           style={{ padding: 0 }}
                         >
                           <Heart size={14} fill={isLiked ? 'currentColor' : 'none'} />
                         </button>
+                        <button
+                          className={`song-comment-toggle-btn ${isCommentsOpen ? 'active' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpandedSongId(prev => (prev === song.id ? null : song.id));
+                          }}
+                          title={isCommentsOpen ? '收起热评' : '查看这首歌的热评'}
+                        >
+                          <MessageSquare size={12} />
+                          <span>{isCommentsOpen ? '收起' : '热评'}</span>
+                        </button>
                       </div>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Comments section */}
-        {showComments && (
-          <div style={{ background: 'var(--surface-bg)', border: '1px solid var(--card-border)', borderRadius: 'var(--border-radius-lg)', padding: '20px', height: 'fit-content', maxHeight: '600px', overflowY: 'auto' }}>
-            <h3 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-main)', borderBottom: '1px solid var(--card-border)', paddingBottom: '10px' }}>
-              首推曲目评论区
-            </h3>
-            
-            {/* Hot Comments */}
-            {hotComments.length > 0 && (
-              <div style={{ marginBottom: '24px' }}>
-                <span style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>精彩评论</span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '10px' }}>
-                  {hotComments.map(c => (
-                    <div key={c.commentId} style={{ display: 'flex', gap: '10px', fontSize: '12px' }}>
-                      <img src={c.user.avatarUrl} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
-                      <div style={{ flex: 1 }}>
-                        <div>
-                          <span style={{ fontWeight: 600, color: 'var(--text-active)' }}>{c.user.nickname}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: '10px', marginLeft: '8px' }}>{c.timeStr}</span>
-                        </div>
-                        <p style={{ color: 'var(--text-main)', marginTop: '4px', lineHeight: '1.4' }}>{c.content}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Recent Comments */}
-            <div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' }}>最新评论</span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '10px' }}>
-                {comments.map(c => (
-                  <div key={c.commentId} style={{ display: 'flex', gap: '10px', fontSize: '12px' }}>
-                    <img src={c.user.avatarUrl} alt="" style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
-                    <div style={{ flex: 1 }}>
-                      <div>
-                        <span style={{ fontWeight: 600, color: 'var(--text-active)' }}>{c.user.nickname}</span>
-                        <span style={{ color: 'var(--text-muted)', fontSize: '10px', marginLeft: '8px' }}>{c.timeStr}</span>
-                      </div>
-                      <p style={{ color: 'var(--text-main)', marginTop: '4px', lineHeight: '1.4' }}>{c.content}</p>
-                    </div>
-                  </div>
-                ))}
-                {comments.length === 0 && (
-                  <div style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>暂无评论记录</div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+                  {isCommentsOpen && (
+                    <tr className="song-inline-comments-tr">
+                      <td colSpan={4}>
+                        <SongInlineComments
+                          song={song}
+                          onClose={() => setExpandedSongId(null)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );

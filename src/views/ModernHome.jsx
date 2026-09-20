@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Compass, TrendingUp, Heart, History, Settings, Play, Pause, Music,
@@ -129,8 +129,21 @@ export default function ModernHome() {
   const currentAlbumName = currentSong?.al?.name || currentSong?.album?.name || '未知专辑';
   const GreetingIcon = greeting.Icon;
 
+  const [visibleRecentCount, setVisibleRecentCount] = useState(100);
+
   const recentSongs = useMemo(() => {
-    return (recentlyPlayed || []).slice(0, 10);
+    return (recentlyPlayed || []).slice(0, visibleRecentCount);
+  }, [recentlyPlayed, visibleRecentCount]);
+
+  const handleRecentSongsScroll = useCallback((e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 240) {
+      setVisibleRecentCount(prev => {
+        const total = recentlyPlayed?.length || 0;
+        if (prev >= total) return prev;
+        return Math.min(prev + 50, total);
+      });
+    }
   }, [recentlyPlayed]);
 
   const playlistScrollRef = React.useRef(null);
@@ -318,13 +331,13 @@ export default function ModernHome() {
             </div>
           </div>
 
-          <div className="compact-song-list">
+          <div className="compact-song-list" onScroll={handleRecentSongsScroll}>
             {recentSongs && recentSongs.length > 0 ? (
-              recentSongs.map(song => (
+              recentSongs.map((song, index) => (
                 <CompactRecentSongItem
-                  key={song.id}
+                  key={song.id ? `${song.id}-${index}` : index}
                   song={song}
-                  onPlay={playSong}
+                  onPlay={(s) => playSong(s || song, recentlyPlayed)}
                   onNavigateArtist={(artistId) => navigateTo('artist-detail', { id: artistId })}
                 />
               ))

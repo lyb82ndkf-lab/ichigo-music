@@ -83,7 +83,6 @@ function MonetPosterLayout({
   const railContainerRef = useRef(null);
   const coverPaneRef = useRef(null);
   const coverImgRef = useRef(null);
-  const [coverAlignedRatio, setCoverAlignedRatio] = useState(0.5);
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -96,23 +95,24 @@ function MonetPosterLayout({
         maxWidthPx: clientWidth * 0.95,
         railHeight: clientHeight
       });
-
-      if (showCover && coverPaneRef.current && railContainerRef.current) {
-        const coverRect = coverPaneRef.current.getBoundingClientRect();
-        const railRect = railContainerRef.current.getBoundingClientRect();
-        if (railRect.height > 0) {
-          const coverCenterY = coverRect.top + coverRect.height / 2;
-          const relativeY = coverCenterY - railRect.top;
-          const ratio = Math.max(0.1, Math.min(0.9, relativeY / railRect.height));
-          setCoverAlignedRatio(ratio);
-        }
-      }
     };
 
     updateDimensions();
     window.addEventListener('resize', updateDimensions);
-    return () => window.removeEventListener('resize', updateDimensions);
-  }, [fontScale, showCover]);
+
+    let ro = null;
+    if (typeof ResizeObserver !== 'undefined' && railContainerRef.current) {
+      ro = new ResizeObserver(() => {
+        updateDimensions();
+      });
+      ro.observe(railContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener('resize', updateDimensions);
+      if (ro) ro.disconnect();
+    };
+  }, [fontScale]);
 
   const displayLyrics = useMemo(() => {
     return lyrics && lyrics.length > 0 ? lyrics : [{
@@ -323,12 +323,9 @@ function MonetPosterLayout({
               showGlow={advancedLyricConfig?.showGlow === true}
               glowIntensity={advancedLyricConfig?.lyricGlowIntensity ?? 1}
               activeAnchorRatio={(() => {
-                if (showCover) {
-                  const userExtraOffset = ((advancedLyricConfig?.lyricsPositionY ?? 50) - 50) / 100;
-                  return Math.min(0.82, Math.max(0.18, coverAlignedRatio + userExtraOffset));
-                } else {
-                  return (advancedLyricConfig?.lyricsPositionY ?? 50) / 100;
-                }
+                const userPos = advancedLyricConfig?.lyricsPositionY;
+                const ratio = (userPos !== undefined && userPos !== null) ? Number(userPos) / 100 : 0.5;
+                return Math.min(0.85, Math.max(0.15, ratio));
               })()}
               onWheel={handleWheel}
               onLyricClick={handleLyricClick}

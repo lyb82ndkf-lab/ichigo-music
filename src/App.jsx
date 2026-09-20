@@ -1022,9 +1022,23 @@ function AppContent() {
                               onChange={(e) => updateAdvancedLyricConfig({ visibleLines: Number(e.target.value) })} />
                           </label>
                           <label className="setting-row-inline">
-                            <span>歌词纵向位置：{advancedLyricConfig.lyricsPositionY || 40}%</span>
-                            <input type="range" min="20" max="70" value={advancedLyricConfig.lyricsPositionY || 40}
-                              onChange={(e) => updateAdvancedLyricConfig({ lyricsPositionY: Number(e.target.value) })} />
+                            <span>歌词纵向位置：{advancedLyricConfig.lyricsPositionY ?? 50}% {((advancedLyricConfig.lyricsPositionY ?? 50) === 50) ? '(垂直居中)' : ''}</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
+                              <input type="range" min="20" max="80" value={advancedLyricConfig.lyricsPositionY ?? 50}
+                                onChange={(e) => updateAdvancedLyricConfig({ lyricsPositionY: Number(e.target.value) })}
+                                style={{ flex: 1, maxWidth: '160px' }} />
+                              {(advancedLyricConfig.lyricsPositionY ?? 50) !== 50 && (
+                                <button
+                                  type="button"
+                                  className="nav-pill-btn"
+                                  style={{ padding: '2px 8px', fontSize: '11px', height: '22px', borderRadius: '4px' }}
+                                  onClick={() => updateAdvancedLyricConfig({ lyricsPositionY: 50 })}
+                                  title="重置为垂直居中(50%)"
+                                >
+                                  恢复居中
+                                </button>
+                              )}
+                            </div>
                           </label>
                           <label className="setting-row-inline">
                             <span>顶部标题字体</span>

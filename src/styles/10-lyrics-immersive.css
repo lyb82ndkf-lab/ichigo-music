@@ -95,31 +95,127 @@
 }
 
 .mode-light.lyrics-open #player-bar .modern-player-track-title,
-.mode-light.lyrics-open #player-bar .modern-player-time {
+.mode-light .lyrics-open #player-bar .modern-player-track-title,
+.mode-light.lyrics-open #player-bar .modern-player-time,
+.mode-light .lyrics-open #player-bar .modern-player-time {
   color: #111827 !important;
 }
 
-.mode-light.lyrics-open #player-bar .modern-player-track-artist {
+.mode-light.lyrics-open #player-bar .modern-player-track-artist,
+.mode-light .lyrics-open #player-bar .modern-player-track-artist {
   color: #64748b !important;
 }
 
-.mode-light.lyrics-open #player-bar .ctrl-btn {
-  color: #4b5563 !important;
+.mode-light.lyrics-open #player-bar .ctrl-btn,
+.mode-light .lyrics-open #player-bar .ctrl-btn {
+  color: #374151 !important;
+}
+
+.mode-light.lyrics-open #player-bar .ctrl-btn svg,
+.mode-light .lyrics-open #player-bar .ctrl-btn svg {
+  color: inherit !important;
+  stroke: currentColor !important;
 }
 
 .mode-light.lyrics-open #player-bar .ctrl-btn:hover,
-.mode-light.lyrics-open #player-bar .ctrl-btn.active {
+.mode-light .lyrics-open #player-bar .ctrl-btn:hover,
+.mode-light.lyrics-open #player-bar .ctrl-btn.active,
+.mode-light .lyrics-open #player-bar .ctrl-btn.active {
   color: #111827 !important;
   background: rgba(0, 0, 0, 0.06) !important;
 }
 
-.mode-light.lyrics-open #player-bar .play-btn {
-  color: #111827 !important;
-  background: rgba(0, 0, 0, 0.06) !important;
+.mode-light.lyrics-open #player-bar .play-btn,
+.mode-light .lyrics-open #player-bar .play-btn {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--primary, #ff4081) 0%, color-mix(in srgb, var(--primary, #ff4081) 75%, #000) 100%) !important;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--primary, #ff4081) 40%, transparent) !important;
 }
 
-.mode-light.lyrics-open #player-bar #progress-bar {
+.mode-light.lyrics-open #player-bar #progress-bar,
+.mode-light .lyrics-open #player-bar #progress-bar {
   background: rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light.lyrics-open #player-bar #progress-fill,
+.mode-light .lyrics-open #player-bar #progress-fill {
+  background: linear-gradient(90deg, var(--primary, #ff4081), color-mix(in srgb, var(--primary, #ff4081) 85%, #ff1744)) !important;
+}
+
+/* Light Mode Overrides specifically during PV mode (kpv-stage) */
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.9) !important;
+}
+
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:first-child > div > span:first-child,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:first-child > div > span:first-child,
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:last-child > span,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:last-child > span {
+  color: #111827 !important;
+}
+
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:first-child > div > span:nth-child(2),
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar #player-controls > div:first-child > div > span:nth-child(2) {
+  color: #4b5563 !important;
+}
+
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn {
+  color: #1f2937 !important;
+}
+
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn svg,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn svg {
+  color: inherit !important;
+  stroke: currentColor !important;
+}
+
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn:hover,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn:hover,
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn.active,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar .ctrl-btn.active {
+  color: #000000 !important;
+  background: rgba(0, 0, 0, 0.08) !important;
+}
+
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar .play-btn,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar .play-btn {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, var(--primary, #ff4081) 0%, #ff1744 100%) !important;
+  box-shadow: 0 4px 14px var(--primary-glow, rgba(255, 64, 129, 0.4)) !important;
+}
+
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar #progress-bar,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar #progress-bar {
+  background: rgba(0, 0, 0, 0.1) !important;
+}
+
+.mode-light.lyrics-open:has(.kpv-stage) #player-bar #progress-fill,
+.mode-light .lyrics-open:has(.kpv-stage) #player-bar #progress-fill {
+  background: linear-gradient(90deg, var(--primary, #ff4081), #ff1744) !important;
+}
+
+/* Classic Layout player bar in light mode during immersive / PV mode */
+.mode-light.lyrics-open .app-player-bar,
+.mode-light .lyrics-open .app-player-bar {
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: #111827 !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+.mode-light.lyrics-open .app-player-bar .control-btn,
+.mode-light .lyrics-open .app-player-bar .control-btn {
+  color: #1f2937 !important;
+}
+.mode-light.lyrics-open .app-player-bar .player-song-name,
+.mode-light .lyrics-open .app-player-bar .player-song-name {
+  color: #111827 !important;
+}
+.mode-light.lyrics-open .app-player-bar .player-song-artists,
+.mode-light .lyrics-open .app-player-bar .player-song-artists {
+  color: #64748b !important;
 }
 /* 3. Queue sidebar and overlay rules during immersive lyrics */
 .lyrics-open .modern-queue-overlay {
