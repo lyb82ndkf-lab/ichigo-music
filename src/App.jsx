@@ -986,16 +986,9 @@ function AppContent() {
                                 }}>
                                 <option value="auto">自动：智能匹配封面色彩</option>
                                 <option value="multi">多选：随机轮播风格池</option>
-                                <optgroup label="JIZURA 潮流视觉风格">
-                                  {(Array.isArray(JIZURA_GALLERY_STYLES) ? JIZURA_GALLERY_STYLES : []).map(s => (
-                                    <option key={s.key} value={s.key}>{s.name} ({s.en}) · {s.tag}</option>
-                                  ))}
-                                </optgroup>
-                                <optgroup label="经典传统模板库">
-                                  {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([val, label]) => (
-                                    <option key={val} value={val}>{label}</option>
-                                  ))}
-                                </optgroup>
+                                {(Array.isArray(JIZURA_GALLERY_STYLES) ? JIZURA_GALLERY_STYLES : []).map(s => (
+                                  <option key={s.key} value={s.key}>{s.name} ({s.en}) · {s.tag}</option>
+                                ))}
                               </select>
                             </div>
                           </div>

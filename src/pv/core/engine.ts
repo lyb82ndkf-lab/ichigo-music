@@ -1887,7 +1887,7 @@ export class PVEngine {
   }
 
   setStyle(styleKey: string) {
-    this.jizura?.setStyle(styleKey);
+    return this.jizura?.setStyle(styleKey);
   }
 
   setMood(moodKey: string) {

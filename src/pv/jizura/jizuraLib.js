@@ -3741,6 +3741,16 @@ J.previewPlan = (project, group, key) => {
 };
 
 J.designSize = (aspect) => {
+  if (Array.isArray(aspect) && aspect.length >= 2) {
+    const aw = Math.max(320, Math.round(Number(aspect[0]) || 1920));
+    const ah = Math.max(240, Math.round(Number(aspect[1]) || 1080));
+    return [aw, ah];
+  }
+  if (typeof aspect === 'object' && aspect && aspect.W && aspect.H) {
+    const aw = Math.max(320, Math.round(Number(aspect.W) || 1920));
+    const ah = Math.max(240, Math.round(Number(aspect.H) || 1080));
+    return [aw, ah];
+  }
   if (aspect === '9:16') return [1080, 1920];
   if (aspect === '1:1') return [1440, 1440];
   if (aspect === '4:5') return [1440, 1800];
@@ -3961,12 +3971,17 @@ class Renderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.filter = 'none';
     ctx.clearRect(0, 0, cw, ch);
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    const offsetX = opt.offsetX != null ? opt.offsetX : Math.round((cw - W * scale) / 2);
+    const offsetY = opt.offsetY != null ? opt.offsetY : Math.round((ch - H * scale) / 2);
     // ---------- background ----------
     const key = plan.keyBg && J.KEY_BG && J.KEY_BG[plan.keyBg] ? plan.keyBg : null;   // 合成用: white-on-black, finished in keyFinish()
-    if (key && !opt.transparent) { ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, W, H); }
-    else if (!opt.transparent) {
-      ctx.fillStyle = sc.bg; ctx.fillRect(0, 0, W, H);
+    if (key && !opt.transparent) {
+      ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, cw, ch);
+    } else if (!opt.transparent) {
+      ctx.fillStyle = sc.bg; ctx.fillRect(0, 0, cw, ch);
+    }
+    ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
+    if (!opt.transparent && !key) {
       const g = ctx.createRadialGradient(W / 2, H * 0.45, 0, W / 2, H / 2, Math.hypot(W, H) * 0.6);
       const lift = J.lum(sc.bg) < 0.5 ? 'rgba(255,255,255,0.045)' : 'rgba(255,255,255,0.10)';
       g.addColorStop(0, lift); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -4033,7 +4048,7 @@ class Renderer {
       if (layerBlur) {
         const L = this.ensure(this.camLayer || (this.camLayer = mk(2, 2)), cw, ch);
         LX = L.getContext('2d'); LX.setTransform(1, 0, 0, 1, 0, 0); LX.globalAlpha = 1; LX.globalCompositeOperation = 'source-over'; LX.filter = 'none';
-        LX.clearRect(0, 0, cw, ch); LX.setTransform(scale, 0, 0, scale, 0, 0);
+        LX.clearRect(0, 0, cw, ch); LX.setTransform(scale, 0, 0, scale, offsetX, offsetY);
       }
     }
     for (const P of passes) {
@@ -4078,7 +4093,7 @@ class Renderer {
       ctx.filter = `blur(${(layerBlur * scale).toFixed(1)}px)`; ctx.drawImage(LX.canvas, 0, 0); ctx.restore();
     }
     if (morphOn && layer !== 'back') {
-      const L = this.morphLogs(plan, mPrev, MC, cw, ch, scale, opt);
+      const L = this.morphLogs(plan, mPrev, MC, cw, ch, scale, opt, offsetX, offsetY);
       const k = J.clamp(mlt / MC.morph.dur), e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2;
       this.drawMorph(ctx, L, e, allowFilter);
     }
@@ -4089,7 +4104,7 @@ class Renderer {
       if (lt < dur && prev && Math.abs(prev.end - mainCut.start) < 0.06) {
         const A = this.ensure(this.transA || (this.transA = mk(2, 2)), cw, ch), B = this.ensure(this.transB || (this.transB = mk(2, 2)), cw, ch);
         const bx = B.getContext('2d'); bx.setTransform(1, 0, 0, 1, 0, 0); bx.globalCompositeOperation = 'copy'; bx.drawImage(ctx.canvas, 0, 0); bx.globalCompositeOperation = 'source-over';
-        this.frame(A.getContext('2d'), plan, Math.max(prev.start, prev.end - 1e-3), Object.assign({}, opt, { noTrans: true, noPost: true, noHud: true }));
+        this.frame(A.getContext('2d'), plan, Math.max(prev.start, prev.end - 1e-3), Object.assign({}, opt, { scale, offsetX, offsetY, noTrans: true, noPost: true, noHud: true }));
         const psc = st.schemes[prev.scheme % st.schemes.length] || st.schemes[0];
         ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.filter = 'none';
         try { J.TRANS[mainCut.trans].draw(ctx, A, B, J.clamp(lt / dur), { cw, ch, sc, scPrev: psc, st, P: mainCut.transP || {}, step, t, scale, allowFilter, seed: mainCut.seed | 0, tmp: (w, h) => this.ensure(this.transC || (this.transC = mk(2, 2)), w, h) }); }
@@ -4135,12 +4150,12 @@ class Renderer {
   }
 
   /* モーフ: where every glyph of the previous cut rests at its end, and where this cut's glyphs land (cached) */
-  morphLogs(plan, A, B, cw, ch, scale, opt) {
+  morphLogs(plan, A, B, cw, ch, scale, opt, offsetX = 0, offsetY = 0) {
     if (!this.morphCache || this.morphCache.plan !== plan) this.morphCache = { plan, map: new Map() };
-    const key = A.index + ':' + B.index + ':' + cw + 'x' + ch + ':' + scale.toFixed(4), M = this.morphCache.map;
+    const key = A.index + ':' + B.index + ':' + cw + 'x' + ch + ':' + scale.toFixed(4) + ':' + offsetX.toFixed(1) + ':' + offsetY.toFixed(1), M = this.morphCache.map;
     if (M.has(key)) return M.get(key);
     const cv = this.ensure(this.morphCv || (this.morphCv = mk(2, 2)), cw, ch), x = cv.getContext('2d');
-    const o2 = { scale, noPost: true, noHud: true, noTrans: true, noGhost: true, transparent: opt.transparent, fast: true };
+    const o2 = { scale, offsetX, offsetY, noPost: true, noHud: true, noTrans: true, noGhost: true, transparent: opt.transparent, fast: true };
     const la = [], lb = [];
     this.frame(x, plan, Math.max(A.start, A.end - 1e-3), Object.assign({}, o2, { glyphLog: la }));
     this.frame(x, plan, B.start + B.morph.dur + 1e-3, Object.assign({}, o2, { glyphLog: lb }));

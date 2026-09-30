@@ -4,6 +4,7 @@ import { templates, getTemplate } from '../../pv/templates';
 import { subscribeLyricClock } from '../../utils/lyricClock';
 import { parseDisplayTokens } from './MonetLyricsEngine';
 import { isPlaceholderLyricText } from '../../pv/jizura/plannerBridge';
+import { JIZURA_GALLERY_STYLES } from '../../utils/immersiveModes';
 import { Sparkles } from 'lucide-react';
 
 // 模板名称映射（兼容旧预设 ID、中文名称与 JIZURA 新风格 ID）
@@ -255,22 +256,31 @@ export default function KineticKtvLyrics({
     }));
   }, []);
 
+  // 查找风格友好展示名称
+  const getStyleDisplayName = useCallback((key) => {
+    const fromGallery = JIZURA_GALLERY_STYLES.find(s => s.key === key);
+    if (fromGallery) return `${fromGallery.name} (${fromGallery.en})`;
+    const fromPopular = JIZURA_POPULAR_STYLES.find(s => s.key === key);
+    if (fromPopular) return fromPopular.name;
+    return key;
+  }, []);
+
   // 触发 JIZURA Omakase 换案
   const handleOmakase = useCallback(() => {
     const pv = engineInstanceRef.current;
     if (!pv || !pv.omakase) return;
     const res = pv.omakase();
     if (res) {
-      const nextCount = proposalCount + 1;
+      const nextCount = res.proposalIndex || (proposalCount + 1);
       setProposalCount(nextCount);
       const nextStyle = res.style || 'noir';
       setActiveStyle(nextStyle);
-      const styleLabel = JIZURA_POPULAR_STYLES.find(s => s.key === nextStyle)?.name || nextStyle;
-      const moodText = res.mood ? ` (${res.mood})` : '';
+      const styleLabel = getStyleDisplayName(nextStyle);
+      const moodText = res.mood ? ` · ${res.mood}` : '';
       showToast(`🎲 案 #${nextCount}: ${styleLabel}${moodText}`);
       broadcastStatus(nextStyle, nextCount, res.mood);
     }
-  }, [proposalCount, showToast, broadcastStatus]);
+  }, [proposalCount, showToast, broadcastStatus, getStyleDisplayName]);
 
   const handleUndo = useCallback(() => {
     const pv = engineInstanceRef.current;
@@ -278,12 +288,17 @@ export default function KineticKtvLyrics({
     const res = pv.undoOmakase();
     if (res) {
       const nextStyle = res.style || 'noir';
+      const nextCount = res.proposalIndex || Math.max(1, proposalCount - 1);
+      setProposalCount(nextCount);
       setActiveStyle(nextStyle);
-      const styleLabel = JIZURA_POPULAR_STYLES.find(s => s.key === nextStyle)?.name || nextStyle;
-      showToast(`◀ 已返回上一案: ${styleLabel}`);
-      broadcastStatus(nextStyle, proposalCount, res.mood);
+      const styleLabel = getStyleDisplayName(nextStyle);
+      const moodText = res.mood ? ` · ${res.mood}` : '';
+      showToast(`◀ 案 #${nextCount}: ${styleLabel}${moodText}`);
+      broadcastStatus(nextStyle, nextCount, res.mood);
+    } else {
+      showToast('⚠️ 已是第一案，无法继续回退');
     }
-  }, [proposalCount, showToast, broadcastStatus]);
+  }, [proposalCount, showToast, broadcastStatus, getStyleDisplayName]);
 
   const handleRedo = useCallback(() => {
     const pv = engineInstanceRef.current;
@@ -291,22 +306,30 @@ export default function KineticKtvLyrics({
     const res = pv.redoOmakase();
     if (res) {
       const nextStyle = res.style || 'noir';
+      const nextCount = res.proposalIndex || (proposalCount + 1);
+      setProposalCount(nextCount);
       setActiveStyle(nextStyle);
-      const styleLabel = JIZURA_POPULAR_STYLES.find(s => s.key === nextStyle)?.name || nextStyle;
-      showToast(`▶ 已前进下一案: ${styleLabel}`);
-      broadcastStatus(nextStyle, proposalCount, res.mood);
+      const styleLabel = getStyleDisplayName(nextStyle);
+      const moodText = res.mood ? ` · ${res.mood}` : '';
+      showToast(`▶ 案 #${nextCount}: ${styleLabel}${moodText}`);
+      broadcastStatus(nextStyle, nextCount, res.mood);
+    } else {
+      showToast('⚠️ 已是最新案，无法继续前进');
     }
-  }, [proposalCount, showToast, broadcastStatus]);
+  }, [proposalCount, showToast, broadcastStatus, getStyleDisplayName]);
 
   const handleStyleSelect = useCallback((key) => {
     const pv = engineInstanceRef.current;
     if (!pv) return;
-    if (pv.setStyle) pv.setStyle(key);
-    setActiveStyle(key);
-    const styleLabel = JIZURA_POPULAR_STYLES.find(s => s.key === key)?.name || key;
-    showToast(`🎨 风格切换: ${styleLabel}`);
-    broadcastStatus(key, proposalCount, '');
-  }, [proposalCount, showToast, broadcastStatus]);
+    const res = pv.setStyle ? pv.setStyle(key) : null;
+    const nextStyle = res?.style || key;
+    const nextCount = res?.proposalIndex || proposalCount;
+    if (res?.proposalIndex) setProposalCount(res.proposalIndex);
+    setActiveStyle(nextStyle);
+    const styleLabel = getStyleDisplayName(nextStyle);
+    showToast(`🎨 风格应用: ${styleLabel}`);
+    broadcastStatus(nextStyle, nextCount, res?.mood || '');
+  }, [proposalCount, showToast, broadcastStatus, getStyleDisplayName]);
 
   // 监听来自设置抽屉的 JIZURA 动作指令
   useEffect(() => {
@@ -392,6 +415,13 @@ export default function KineticKtvLyrics({
       }
 
       setIsEngineReady(true);
+      if (pv.jizura) {
+        broadcastStatus(
+          pv.jizura.styleKey || 'noir',
+          pv.jizura.historyIndex >= 0 ? pv.jizura.historyIndex + 1 : 1,
+          pv.jizura.moodKey || ''
+        );
+      }
     }).catch(err => {
       console.warn('[KineticKtvLyrics] Init failed:', err);
     });
@@ -425,8 +455,9 @@ export default function KineticKtvLyrics({
 
     const presetKey = config?.ktvPreset || 'auto';
     if (presetKey && presetKey !== 'auto' && presetKey !== 'multi') {
-      pv.setStyle(presetKey);
-      setActiveStyle(presetKey);
+      const res = pv.setStyle(presetKey);
+      const nextStyle = res?.style || presetKey;
+      setActiveStyle(nextStyle);
       currentTplKeyRef.current = presetKey;
     } else if (resolvedTemplate) {
       const tplKey = resolvedTemplate.nameKey || resolvedTemplate.name || '';

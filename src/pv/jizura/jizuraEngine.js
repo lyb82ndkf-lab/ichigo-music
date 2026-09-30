@@ -1,6 +1,26 @@
 import J from './jizuraLib.js';
 import { buildJizuraProject, createJizuraPlan, STYLE_ALIAS_MAP } from './plannerBridge.js';
 
+/**
+ * 根据容器实际像素宽高动态计算高保真矢量设计画幅 [W, H]
+ * 横屏基准高 1080，竖屏基准宽 1080，比例完全吻合视口，彻底消除裁切与黑边
+ */
+export function getAdaptiveDesignSize(width, height) {
+  const w = Math.max(320, Math.floor(width || 1920));
+  const h = Math.max(240, Math.floor(height || 1080));
+  const ratio = w / h;
+
+  if (ratio >= 1) {
+    const H = 1080;
+    const W = Math.round((1080 * ratio) / 2) * 2;
+    return [Math.max(1080, Math.min(3840, W)), H];
+  } else {
+    const W = 1080;
+    const H = Math.round((1080 / ratio) / 2) * 2;
+    return [W, Math.max(1080, Math.min(3840, H))];
+  }
+}
+
 export class JizuraEngine {
   constructor() {
     this.container = null;
@@ -8,6 +28,7 @@ export class JizuraEngine {
     this.ctx = null;
     this.renderer = null;
     this.resizeObserver = null;
+    this.resizeDebounceTimer = null;
 
     this.project = null;
     this.plan = null;
@@ -95,12 +116,23 @@ export class JizuraEngine {
     this.canvas.style.width = `${w}px`;
     this.canvas.style.height = `${h}px`;
 
-    // 调整项目画幅比
+    const newAspect = getAdaptiveDesignSize(w, h);
+
+    // 动态适配项目画幅比
     if (this.project) {
-      const ratio = w / h;
-      this.project.aspect = ratio > 1.4 ? '16:9' : (ratio < 0.75 ? '9:16' : '1:1');
-      if (this.plan) {
-        this.rebuildPlan();
+      const curAspect = Array.isArray(this.project.aspect) ? this.project.aspect : [1920, 1080];
+      const curRatio = curAspect[0] / curAspect[1];
+      const newRatio = newAspect[0] / newAspect[1];
+      const diff = Math.abs(curRatio - newRatio) / curRatio;
+
+      this.project.aspect = newAspect;
+
+      // 画幅长宽比变化超过 1.5% 时触发排版分镜重构
+      if (!this.plan || diff > 0.015) {
+        if (this.resizeDebounceTimer) clearTimeout(this.resizeDebounceTimer);
+        this.resizeDebounceTimer = setTimeout(() => {
+          this.rebuildPlan();
+        }, 80);
       }
     }
 
@@ -108,7 +140,12 @@ export class JizuraEngine {
   }
 
   setSongInfo(meta = {}) {
+    const isNewSong = meta.id && this.songMeta.id && String(meta.id) !== String(this.songMeta.id);
     this.songMeta = { ...this.songMeta, ...meta };
+    if (isNewSong) {
+      this.currentTime = 0;
+      this.lyrics = [];
+    }
     this.rebuildProject();
   }
 
@@ -126,20 +163,50 @@ export class JizuraEngine {
   }
 
   setStyle(styleKey) {
-    if (!styleKey) return;
-    const target = STYLE_ALIAS_MAP[styleKey] || styleKey;
+    if (!styleKey) return null;
+    let target = STYLE_ALIAS_MAP[styleKey] || styleKey;
+    if (target === 'auto' || target === 'multi') {
+      target = 'noir';
+    }
+    if (!J.STYLES[target]) {
+      target = 'noir';
+    }
     this.styleKey = target;
-    if (this.project) {
+
+    if (!this.project) {
+      this.rebuildProject();
+    } else {
       this.project.style = target;
+      // 重置调色盘覆盖，让目标风格专属配色与材质即时生效
+      if (this.project.colors) {
+        this.project.colors = { enabled: false, accentOn: false };
+      }
+      // 生成新的随机数种子，使新风格的排版布局与镜头即时重新编排
+      this.project.seed = Math.floor(Math.random() * 1e9);
       this.rebuildPlan();
     }
+
+    // 压入历史栈，确保“上一案 / 下一案”可随时返回或前进
+    this.pushHistory(this.project);
+
+    // 无论是否播放中，强制立即重绘当前帧
+    this.drawCurrentFrame();
+
+    return {
+      style: this.project.style,
+      mood: this.project.mood,
+      themeId: this.project.themeId,
+      seed: this.project.seed,
+      proposalIndex: this.historyIndex + 1,
+      historyTotal: this.history.length
+    };
   }
 
   // 兼容旧接口 loadTemplate
   loadTemplate(tpl) {
     if (!tpl) return;
     const name = tpl.nameKey || tpl.name || tpl.id || '';
-    this.setStyle(name);
+    return this.setStyle(name);
   }
 
   setMood(mood) {
@@ -173,7 +240,7 @@ export class JizuraEngine {
       this.history = this.history.slice(0, this.historyIndex + 1);
     }
     this.history.push(JSON.parse(JSON.stringify(proj)));
-    if (this.history.length > 25) this.history.shift();
+    if (this.history.length > 30) this.history.shift();
     this.historyIndex = this.history.length - 1;
   }
 
@@ -187,7 +254,8 @@ export class JizuraEngine {
 
     // 若此前没有历史节点，将当前底案作为起点压栈
     if (this.history.length === 0) {
-      this.pushHistory(this.project);
+      this.history = [JSON.parse(JSON.stringify(this.project))];
+      this.historyIndex = 0;
     }
 
     const r = J.omakase(this.project, Math.random, targetTheme);
@@ -206,12 +274,15 @@ export class JizuraEngine {
     this.styleKey = this.project.style;
     this.moodKey = this.project.mood;
     this.rebuildPlan();
+    this.drawCurrentFrame();
 
     return {
       style: this.project.style,
       mood: this.project.mood,
       themeId: this.project.themeId,
-      seed: this.project.seed
+      seed: this.project.seed,
+      proposalIndex: this.historyIndex + 1,
+      historyTotal: this.history.length
     };
   }
 
@@ -222,11 +293,14 @@ export class JizuraEngine {
     this.styleKey = this.project.style;
     this.moodKey = this.project.mood;
     this.rebuildPlan();
+    this.drawCurrentFrame();
     return {
       style: this.project.style,
       mood: this.project.mood,
       themeId: this.project.themeId,
-      seed: this.project.seed
+      seed: this.project.seed,
+      proposalIndex: this.historyIndex + 1,
+      historyTotal: this.history.length
     };
   }
 
@@ -237,19 +311,21 @@ export class JizuraEngine {
     this.styleKey = this.project.style;
     this.moodKey = this.project.mood;
     this.rebuildPlan();
+    this.drawCurrentFrame();
     return {
       style: this.project.style,
       mood: this.project.mood,
       themeId: this.project.themeId,
-      seed: this.project.seed
+      seed: this.project.seed,
+      proposalIndex: this.historyIndex + 1,
+      historyTotal: this.history.length
     };
   }
 
   rebuildProject() {
-    const ratio = this.canvas && this.canvas.height > 0
-      ? this.canvas.width / this.canvas.height
-      : 16 / 9;
-    const aspect = ratio > 1.4 ? '16:9' : (ratio < 0.75 ? '9:16' : '1:1');
+    const w = this.canvas && this.canvas.width > 0 ? this.canvas.width : 1920;
+    const h = this.canvas && this.canvas.height > 0 ? this.canvas.height : 1080;
+    const aspect = getAdaptiveDesignSize(w, h);
 
     this.project = buildJizuraProject({
       lyrics: this.lyrics,
@@ -260,6 +336,10 @@ export class JizuraEngine {
       aspect,
       fxConfig: this.fxConfig
     });
+
+    // 初始化历史堆栈，确保底案始终存在（历史索引 0）
+    this.history = [JSON.parse(JSON.stringify(this.project))];
+    this.historyIndex = 0;
 
     this.rebuildPlan();
   }
@@ -352,8 +432,10 @@ export class JizuraEngine {
     const W = this.plan.W || 1920;
     const H = this.plan.H || 1080;
 
-    // 缩放适配：填满视口 (cover)
-    const scale = Math.max(cw / W, ch / H);
+    // 自适应精确缩放：以 contain 为基准保障绝无任何边缘被裁切，配合居中偏移
+    const scale = Math.min(cw / W, ch / H);
+    const offsetX = Math.round((cw - W * scale) / 2);
+    const offsetY = Math.round((ch - H * scale) / 2);
 
     // 音频 Analyser 实时低频驱动
     if (this.audioAnalyser && this.freqData && this.isPlaying) {
@@ -367,21 +449,22 @@ export class JizuraEngine {
       this.smoothedBass = 0;
     }
 
-    // 绘制封面光影底图（如果开启）
-    if (this.coverImage && this.useCover) {
-      this.ctx.save();
-      this.ctx.globalAlpha = 0.22 * (this._effectOpacity ?? 1);
-      this.ctx.filter = 'blur(40px) brightness(0.65)';
-      this.ctx.drawImage(this.coverImage, 0, 0, cw, ch);
-      this.ctx.restore();
-    }
-
-    // 调用 JIZURA 原生 Renderer 绘制分镜
+    // 调用 JIZURA 原生 Renderer 绘制分镜（transparent: false 确保风格专属背景色、径向光晕与纸质肌理完整呈现，传入居中偏移）
     const t = this.currentTime;
     try {
-      this.renderer.frame(this.ctx, this.plan, t, { scale, transparent: !!this.coverImage && this.useCover });
+      this.renderer.frame(this.ctx, this.plan, t, { scale, offsetX, offsetY, transparent: false });
     } catch (e) {
       console.warn('[JizuraEngine] render frame error:', e);
+    }
+
+    // 绘制封面光影底图（如果开启）：采用 soft-light 柔光模式与高斯模糊叠加在底层，既有专辑光影质感又绝不破坏风格本体调色
+    if (this.coverImage && this.useCover) {
+      this.ctx.save();
+      this.ctx.globalCompositeOperation = 'soft-light';
+      this.ctx.globalAlpha = 0.25 * (this._effectOpacity ?? 1);
+      this.ctx.filter = 'blur(40px) brightness(0.85)';
+      this.ctx.drawImage(this.coverImage, 0, 0, cw, ch);
+      this.ctx.restore();
     }
   }
 
@@ -415,6 +498,10 @@ export class JizuraEngine {
 
   destroy() {
     this.stopLoop();
+    if (this.resizeDebounceTimer) {
+      clearTimeout(this.resizeDebounceTimer);
+      this.resizeDebounceTimer = null;
+    }
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
       this.resizeObserver = null;
