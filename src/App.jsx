@@ -22,7 +22,7 @@ import ListenTogether from './views/ListenTogether';
 import { useLyricEngine } from './hooks/useLyricEngine';
 import { useListenTogether } from './hooks/useListenTogether';
 import ListenInvitePrompt from './components/ListenInvitePrompt';
-import { IMMERSIVE_MODE_OPTIONS, normalizeImmersiveMode, KTV_TEMPLATE_GALLERY } from './utils/immersiveModes';
+import { IMMERSIVE_MODE_OPTIONS, normalizeImmersiveMode, KTV_TEMPLATE_GALLERY, JIZURA_GALLERY_STYLES } from './utils/immersiveModes';
 
 // Views are route-split so startup only pays for the current screen.
 const Discover = lazy(() => import('./views/Discover'));
@@ -42,7 +42,7 @@ import LyricExportModal from './components/LyricExportModal';
 import SleepTimerModal from './components/SleepTimerModal';
 import EqualizerModal from './components/EqualizerModal';
 import AudioMatchModal from './components/AudioMatchModal';
-import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square, Dices, RotateCcw, RotateCw, Sparkles } from 'lucide-react';
 
 
 
@@ -157,6 +157,20 @@ function AppContent() {
   const [isLyricAdjusterOpen, setIsLyricAdjusterOpen] = useState(false);
   const [isSleepTimerOpen, setIsSleepTimerOpen] = useState(false);
   const [isLyricExportOpen, setIsLyricExportOpen] = useState(false);
+  const [jizuraStatus, setJizuraStatus] = useState({ proposalCount: 1, activeStyle: 'noir', mood: '' });
+
+  useEffect(() => {
+    const handleStatusUpdate = (e) => {
+      if (e.detail) {
+        setJizuraStatus(prev => ({
+          ...prev,
+          ...e.detail
+        }));
+      }
+    };
+    window.addEventListener('jizura-status-update', handleStatusUpdate);
+    return () => window.removeEventListener('jizura-status-update', handleStatusUpdate);
+  }, []);
 
   const updateAdvancedLyricConfig = (patch) => {
     saveAdvancedLyricConfig({
@@ -847,6 +861,112 @@ function AppContent() {
                       {/* ================= PV 歌词 (talk) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'talk' && (
                         <>
+                          {/* JIZURA おまかせ (Omakase) 分镜重混与控制中心 (图2下方控制核心已整合至此) */}
+                          <div style={{
+                            background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.18) 0%, rgba(236, 72, 153, 0.14) 100%)',
+                            border: '1px solid rgba(255, 255, 255, 0.18)',
+                            borderRadius: '12px',
+                            padding: '12px',
+                            margin: '12px 0 14px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '10px'
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <Sparkles size={14} color="#ffd166" />
+                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff', letterSpacing: '0.02em' }}>JIZURA PV 智能重混</span>
+                              </div>
+                              <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}>
+                                案 #{jizuraStatus.proposalCount || 1} {jizuraStatus.mood ? `· ${jizuraStatus.mood}` : ''}
+                              </span>
+                            </div>
+
+                            {/* 一键おまかせ 大按钮 */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                window.dispatchEvent(new CustomEvent('jizura-action', { detail: { action: 'omakase' } }));
+                              }}
+                              style={{
+                                width: '100%',
+                                padding: '9px 16px',
+                                borderRadius: '8px',
+                                border: 'none',
+                                background: 'linear-gradient(135deg, #4f46e5 0%, #ec4899 100%)',
+                                color: '#fff',
+                                fontSize: '13px',
+                                fontWeight: 800,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                boxShadow: '0 4px 16px rgba(79, 70, 229, 0.45)',
+                                transition: 'transform 0.1s ease, filter 0.2s ease'
+                              }}
+                              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
+                              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                            >
+                              <Dices size={16} />
+                              <span>🎲 おまかせ 一键重混分镜 (快捷键 R)</span>
+                            </button>
+
+                            {/* 方案历史步进 */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  window.dispatchEvent(new CustomEvent('jizura-action', { detail: { action: 'undo' } }));
+                                }}
+                                title="回退到上一个分镜案"
+                                style={{
+                                  flex: 1,
+                                  padding: '6px 10px',
+                                  borderRadius: '6px',
+                                  background: 'rgba(255,255,255,0.08)',
+                                  border: '1px solid rgba(255,255,255,0.14)',
+                                  color: '#fff',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <RotateCcw size={12} />
+                                <span>上一案</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  window.dispatchEvent(new CustomEvent('jizura-action', { detail: { action: 'redo' } }));
+                                }}
+                                title="前进到下一个分镜案"
+                                style={{
+                                  flex: 1,
+                                  padding: '6px 10px',
+                                  borderRadius: '6px',
+                                  background: 'rgba(255,255,255,0.08)',
+                                  border: '1px solid rgba(255,255,255,0.14)',
+                                  color: '#fff',
+                                  fontSize: '11px',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                <RotateCw size={12} />
+                                <span>下一案</span>
+                              </button>
+                            </div>
+                          </div>
+
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 8px' }}>
                             <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>PV 模板速选</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -862,20 +982,29 @@ function AppContent() {
                                     };
                                   }
                                   updateAdvancedLyricConfig(nextPatch);
+                                  window.dispatchEvent(new CustomEvent('jizura-action', { detail: { action: 'setStyle', style: val } }));
                                 }}>
-                                <option value="auto">自动：按封面颜色固定选择</option>
-                                <option value="multi">多选：随机轮播模板池</option>
-                                {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([val, label]) => (
-                                  <option key={val} value={val}>{label}</option>
-                                ))}
+                                <option value="auto">自动：智能匹配封面色彩</option>
+                                <option value="multi">多选：随机轮播风格池</option>
+                                <optgroup label="JIZURA 潮流视觉风格">
+                                  {(Array.isArray(JIZURA_GALLERY_STYLES) ? JIZURA_GALLERY_STYLES : []).map(s => (
+                                    <option key={s.key} value={s.key}>{s.name} ({s.en}) · {s.tag}</option>
+                                  ))}
+                                </optgroup>
+                                <optgroup label="经典传统模板库">
+                                  {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([val, label]) => (
+                                    <option key={val} value={val}>{label}</option>
+                                  ))}
+                                </optgroup>
                               </select>
                             </div>
                           </div>
 
-                          {/* 富卡片缩略表格画廊 (Thumbnail Table Gallery) */}
+                          {/* JIZURA 现代视觉卡片列表 (JIZURA Modern Styles Gallery) */}
                           <div aria-label="PV 模板速选" style={{ margin: '4px 0 14px', maxHeight: '280px', overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                            {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([value, label, background, tag, desc, palette]) => {
-                              const selected = (advancedLyricConfig.ktvPreset || 'auto') === value;
+                            {(Array.isArray(JIZURA_GALLERY_STYLES) ? JIZURA_GALLERY_STYLES : []).map((styleItem) => {
+                              const value = styleItem.key;
+                              const selected = (advancedLyricConfig.ktvPreset || 'auto') === value || jizuraStatus.activeStyle === value;
                               return (
                                 <div
                                   key={value}
@@ -888,12 +1017,13 @@ function AppContent() {
                                       };
                                     }
                                     updateAdvancedLyricConfig(nextPatch);
+                                    window.dispatchEvent(new CustomEvent('jizura-action', { detail: { action: 'setStyle', style: value } }));
                                   }}
                                   style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '10px',
-                                    padding: '6px 10px',
+                                    padding: '7px 10px',
                                     borderRadius: '8px',
                                     background: selected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
                                     border: selected ? '1.5px solid #fff' : '1px solid rgba(255,255,255,0.08)',
@@ -902,12 +1032,12 @@ function AppContent() {
                                     transition: 'all 0.15s ease'
                                   }}
                                 >
-                                  {/* 缩略图色块 */}
+                                  {/* 缩略图渐变色块 */}
                                   <div style={{
                                     width: '64px',
                                     height: '34px',
                                     borderRadius: '6px',
-                                    background,
+                                    background: styleItem.gradient,
                                     boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35), 0 2px 5px rgba(0,0,0,0.3)',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -915,26 +1045,30 @@ function AppContent() {
                                     flexShrink: 0,
                                     fontSize: '10px',
                                     fontWeight: 800,
-                                    color: '#fff',
-                                    textShadow: '0 1px 2px rgba(0,0,0,0.8)'
+                                    color: styleItem.textColor || '#fff',
+                                    textShadow: styleItem.textColor === '#ffffff' ? '0 1px 2px rgba(0,0,0,0.8)' : 'none'
                                   }}>
-                                    PV
+                                    {styleItem.en || 'PV'}
                                   </div>
 
                                   {/* 模板信息与风格标签 */}
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                                      <span style={{ fontSize: '12px', fontWeight: 800, color: selected ? '#fff' : 'rgba(255,255,255,0.9)' }}>{label}</span>
-                                      <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.12)', color: 'var(--primary)' }}>{tag || '独立风格'}</span>
+                                      <span style={{ fontSize: '12px', fontWeight: 800, color: selected ? '#fff' : 'rgba(255,255,255,0.9)' }}>
+                                        {styleItem.name}
+                                      </span>
+                                      <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.12)', color: 'var(--primary)' }}>
+                                        {styleItem.tag}
+                                      </span>
                                     </div>
                                     <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                      {desc || '专属排版与动效'}
+                                      {styleItem.desc}
                                     </div>
                                   </div>
 
                                   {/* 调色盘预览点与状态 */}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                                    {Array.isArray(palette) && palette.slice(0, 3).map((c, i) => (
+                                    {Array.isArray(styleItem.palette) && styleItem.palette.slice(0, 3).map((c, i) => (
                                       <span key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: c, border: '1px solid rgba(255,255,255,0.3)' }} />
                                     ))}
                                     <span style={{
@@ -960,7 +1094,9 @@ function AppContent() {
                               <b style={{ color: ktvPresetPool.length >= 2 ? 'var(--primary)' : '#ffbd69' }}>{ktvPresetPool.length} 个</b>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '4px 8px', maxHeight: '160px', overflowY: 'auto' }}>
-                              {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([value, label]) => {
+                              {(Array.isArray(JIZURA_GALLERY_STYLES) ? JIZURA_GALLERY_STYLES : []).map((s) => {
+                                const value = s.key;
+                                const label = s.name;
                                 const pool = Array.isArray(ktvPresetPool) ? ktvPresetPool : [];
                                 const checked = pool.includes(value);
                                 return <label key={`multi-${value}`} style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, color: checked ? 'var(--primary)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer' }}>
@@ -977,7 +1113,7 @@ function AppContent() {
 
                           {currentSong?.id && <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '-2px 0 10px', padding: '7px 8px', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', background: 'rgba(255,255,255,.035)' }}>
                             <span style={{ minWidth: 0, flex: 1, color: currentKtvSongTemplate ? 'var(--primary)' : 'var(--text-muted)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {currentKtvSongTemplate ? `本曲已锁定：${KTV_TEMPLATE_GALLERY.find(([value]) => value === currentKtvSongTemplate)?.[1] || currentKtvSongTemplate}` : '本曲跟随全局 / 封面自动模板'}
+                              {currentKtvSongTemplate ? `本曲已锁定：${JIZURA_GALLERY_STYLES.find(s => s.key === currentKtvSongTemplate)?.name || KTV_TEMPLATE_GALLERY.find(([value]) => value === currentKtvSongTemplate)?.[1] || currentKtvSongTemplate}` : '本曲跟随全局 / 智能生成风格'}
                             </span>
                             {currentKtvSongTemplate ? <button type="button" onClick={() => {
                               const next = { ...(advancedLyricConfig.ktvSongTemplates || {}) };
@@ -1004,6 +1140,20 @@ function AppContent() {
                           <label className="setting-row-inline compact-toggle">
                             <span>显示歌曲开场标题卡</span>
                             <input type="checkbox" checked={advancedLyricConfig.ktvShowTitleCard !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvShowTitleCard: e.target.checked })} />
+                          </label>
+                          <label className="setting-row-inline compact-toggle">
+                            <span>混合专辑封面光影底图</span>
+                            <input type="checkbox" checked={advancedLyricConfig.ktvUseCoverTexture !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvUseCoverTexture: e.target.checked })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>纸质与噪点肌理：{Math.round((advancedLyricConfig.jizuraTexture ?? 0.6) * 100)}%</span>
+                            <input type="range" min="0" max="1.5" step="0.05" value={advancedLyricConfig.jizuraTexture ?? 0.6}
+                              onChange={(e) => updateAdvancedLyricConfig({ jizuraTexture: Number(e.target.value) })} />
+                          </label>
+                          <label className="setting-row-inline">
+                            <span>故障与色差强度：{Math.round((advancedLyricConfig.jizuraGlitch ?? 0.55) * 100)}%</span>
+                            <input type="range" min="0" max="1.5" step="0.05" value={advancedLyricConfig.jizuraGlitch ?? 0.55}
+                              onChange={(e) => updateAdvancedLyricConfig({ jizuraGlitch: Number(e.target.value) })} />
                           </label>
                         </>
                       )}

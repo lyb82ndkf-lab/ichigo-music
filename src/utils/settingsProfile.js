@@ -277,6 +277,13 @@ export const DEFAULT_PROFILE = {
     ktvCustomColor: '#ff6b79',
     ktvShowTranslation: true,
     ktvShowPreviousLine: false,
+    jizuraStyle: 'noir',
+    jizuraMood: null,
+    jizuraTheme: null,
+    jizuraMotion: 1.0,
+    jizuraGlitch: 0.55,
+    jizuraTexture: 0.6,
+    jizuraKoma: 12,
 
 
     // Legacy Talk Mode Visualizer values

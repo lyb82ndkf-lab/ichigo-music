@@ -1,9 +1,12 @@
-import React, { useEffect, useRef, useMemo, useState } from 'react';
+import React, { useEffect, useRef, useMemo, useState, useCallback } from 'react';
 import { PVEngine } from '../../pv/core/engine';
 import { templates, getTemplate } from '../../pv/templates';
 import { subscribeLyricClock } from '../../utils/lyricClock';
 import { parseDisplayTokens } from './MonetLyricsEngine';
-// 模板名称映射（兼容旧预设 ID、中文名称与新模板 ID）
+import { isPlaceholderLyricText } from '../../pv/jizura/plannerBridge';
+import { Sparkles } from 'lucide-react';
+
+// 模板名称映射（兼容旧预设 ID、中文名称与 JIZURA 新风格 ID）
 const PRESET_ALIAS_MAP = {
   '蓝色构成': 'blueInk',
   '几何': 'ruler',
@@ -76,9 +79,39 @@ const PRESET_ALIAS_MAP = {
   'cyberpunk': 'cyberpunk2077',
   'cyberpunk-2077': 'cyberpunk2077',
   'cyberpunk2077': 'cyberpunk2077',
+  'paper': 'zasshi',
+  'noir': 'cinemaTeal',
+  'ocean': 'umi',
+  'sunset': 'tasogare',
+  'crimson': 'battle',
+  'caution': 'ruler',
+  'hud': 'holoScope',
+  'blueprint': 'blueInk',
+  'specimen': 'kiri',
+  'magenta': 'popArt',
+  'mint': 'lemonSoda',
+  'rouge': 'p5',
+  'transit': 'cityPop',
 };
 
-// 智能自动模板选择器
+// JIZURA 原生热门风格列表供悬浮胶囊速选
+const JIZURA_POPULAR_STYLES = [
+  { key: 'noir', name: '暗黑电影 (Noir)' },
+  { key: 'sakura', name: '和风落樱 (Sakura)' },
+  { key: 'ocean', name: '幽蓝深海 (Ocean)' },
+  { key: 'sunset', name: '夕阳暮光 (Sunset)' },
+  { key: 'crimson', name: '深红数据 (Crimson)' },
+  { key: 'caution', name: '亮黄警戒 (Caution)' },
+  { key: 'paper', name: '纸墨残像 (Paper)' },
+  { key: 'hud', name: '极夜目镜 (Dark HUD)' },
+  { key: 'blueprint', name: '建筑蓝图 (Blueprint)' },
+  { key: 'specimen', name: '冷调标本 (Specimen)' },
+  { key: 'magenta', name: '波普粉紫 (Magenta)' },
+  { key: 'mint', name: '薄荷苏打 (Mint)' },
+  { key: 'rouge', name: '胭脂赤黑 (Rouge)' },
+  { key: 'transit', name: '城市地铁 (Transit)' },
+];
+
 function selectAutoTemplate() {
   return getTemplate('cinemaTeal') || templates[0];
 }
@@ -96,61 +129,80 @@ export default function KineticKtvLyrics({
   songArtist,
   isPlaying = false,
   coverUrl = '',
+  audioAnalyser = null,
   config = {}
 }) {
   const containerRef = useRef(null);
   const engineInstanceRef = useRef(null);
   const currentTplKeyRef = useRef('');
-  const resolvedTemplateRef = useRef(null); // 供 init 闭包读取最新模板，避免闭包陷阱
+  const resolvedTemplateRef = useRef(null);
   const [isEngineReady, setIsEngineReady] = useState(false);
 
+  // 悬浮工具栏与案提示状态
+  const [isHovered, setIsHovered] = useState(false);
+  const hoverTimerRef = useRef(null);
+  const [proposalToast, setProposalToast] = useState(null);
+  const toastTimerRef = useRef(null);
+  const [proposalCount, setProposalCount] = useState(1);
+  const [activeStyle, setActiveStyle] = useState('noir');
 
-  // 统一使用 parseDisplayTokens 生成与桌面歌词、常规滚动 100% 相同数据源的逐字时间轴
+  // 统一使用 parseDisplayTokens 生成逐字时间轴（过滤无实际歌词的提示行）
   const lyricTimeline = useMemo(() => {
     if (!Array.isArray(lyrics) || lyrics.length === 0) return [];
     return lyrics
-      .filter(l => l && typeof l.time === 'number' && (l.text || '').trim())
+      .filter(l => {
+        if (!l) return false;
+        const rawTime = l.time ?? l.start ?? l.startTime;
+        const validTime = Number.isFinite(Number(rawTime)) && Number(rawTime) >= 0;
+        const text = (l.text || '').trim();
+        return validTime && text && !isPlaceholderLyricText(text);
+      })
       .map(l => {
+        const lineTime = Number(l.time ?? l.start ?? l.startTime) || 0;
         const tokens = parseDisplayTokens(l);
         const words = [];
         for (const token of tokens) {
           if (!token || !token.text) continue;
           if (Array.isArray(token.graphemeTimings) && token.graphemeTimings.length > 0) {
             for (const gt of token.graphemeTimings) {
+              const startSec = Number(gt.startTime) || lineTime;
+              const endSec = Number(gt.endTime) || (startSec + 0.1);
               words.push({
                 text: gt.char || token.text,
-                time: gt.startTime,
-                startSec: gt.startTime,
-                duration: Math.max(0.01, gt.endTime - gt.startTime),
-                durationSec: Math.max(0.01, gt.endTime - gt.startTime),
-                endSec: gt.endTime
+                time: startSec,
+                startSec: startSec,
+                duration: Math.max(0.01, endSec - startSec),
+                durationSec: Math.max(0.01, endSec - startSec),
+                endSec: endSec
               });
             }
           } else if (token.timed && token.startTime >= 0) {
+            const startSec = Number(token.startTime) || lineTime;
+            const endSec = Number(token.endTime) || (startSec + 0.1);
             words.push({
               text: token.text,
-              time: token.startTime,
-              startSec: token.startTime,
-              duration: Math.max(0.01, token.endTime - token.startTime),
-              durationSec: Math.max(0.01, token.endTime - token.startTime),
-              endSec: token.endTime
+              time: startSec,
+              startSec: startSec,
+              duration: Math.max(0.01, endSec - startSec),
+              durationSec: Math.max(0.01, endSec - startSec),
+              endSec: endSec
             });
           } else {
             words.push({
               text: token.text,
-              time: l.time,
-              startSec: l.time,
+              time: lineTime,
+              startSec: lineTime,
               duration: 0.1,
               durationSec: 0.1,
-              endSec: l.time + 0.1
+              endSec: lineTime + 0.1
             });
           }
         }
 
         return {
-          time: l.time,
+          time: lineTime,
           text: (l.text || '').trim(),
-          duration: l.duration,
+          duration: typeof l.duration === 'number' ? l.duration : 4.0,
           translation: l.translation,
           words: words.length > 0 ? words : undefined
         };
@@ -159,7 +211,6 @@ export default function KineticKtvLyrics({
 
   // 解析目标模板
   const resolvedTemplate = useMemo(() => {
-    // 1. 优先使用用户在面板直接选择的全局预设（非 auto），其次检查单曲锁定的模板
     const songId = songKey || (songTitle ? `${songTitle}_${songArtist}` : '');
     const lockedPreset = songId && config?.ktvSongTemplates?.[String(songId)];
     let presetKey = config?.ktvPreset || lockedPreset || 'auto';
@@ -172,7 +223,6 @@ export default function KineticKtvLyrics({
       presetKey = pool[idx];
     }
     
-    // 处理别名转换
     const mappedKey = PRESET_ALIAS_MAP[presetKey] || presetKey;
     let found = getTemplate(mappedKey);
     if (!found) {
@@ -184,11 +234,124 @@ export default function KineticKtvLyrics({
     return found;
   }, [config?.ktvPreset, config?.ktvPresetPool, config?.ktvSongTemplates, songKey, songTitle, songArtist, activeLineIndex]);
 
-  // 始终同步 ref，供 init 闭包（useEffect 依赖 []）读取最新值
   resolvedTemplateRef.current = resolvedTemplate;
 
+  // 提示信息气泡辅助
+  const showToast = useCallback((msg) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setProposalToast(msg);
+    toastTimerRef.current = setTimeout(() => {
+      setProposalToast(null);
+    }, 2800);
+  }, []);
 
-  // 初始化 Pixi 引擎实例
+  const broadcastStatus = useCallback((style, count, mood) => {
+    window.dispatchEvent(new CustomEvent('jizura-status-update', {
+      detail: {
+        activeStyle: style,
+        proposalCount: count,
+        mood: mood || ''
+      }
+    }));
+  }, []);
+
+  // 触发 JIZURA Omakase 换案
+  const handleOmakase = useCallback(() => {
+    const pv = engineInstanceRef.current;
+    if (!pv || !pv.omakase) return;
+    const res = pv.omakase();
+    if (res) {
+      const nextCount = proposalCount + 1;
+      setProposalCount(nextCount);
+      const nextStyle = res.style || 'noir';
+      setActiveStyle(nextStyle);
+      const styleLabel = JIZURA_POPULAR_STYLES.find(s => s.key === nextStyle)?.name || nextStyle;
+      const moodText = res.mood ? ` (${res.mood})` : '';
+      showToast(`🎲 案 #${nextCount}: ${styleLabel}${moodText}`);
+      broadcastStatus(nextStyle, nextCount, res.mood);
+    }
+  }, [proposalCount, showToast, broadcastStatus]);
+
+  const handleUndo = useCallback(() => {
+    const pv = engineInstanceRef.current;
+    if (!pv || !pv.undoOmakase) return;
+    const res = pv.undoOmakase();
+    if (res) {
+      const nextStyle = res.style || 'noir';
+      setActiveStyle(nextStyle);
+      const styleLabel = JIZURA_POPULAR_STYLES.find(s => s.key === nextStyle)?.name || nextStyle;
+      showToast(`◀ 已返回上一案: ${styleLabel}`);
+      broadcastStatus(nextStyle, proposalCount, res.mood);
+    }
+  }, [proposalCount, showToast, broadcastStatus]);
+
+  const handleRedo = useCallback(() => {
+    const pv = engineInstanceRef.current;
+    if (!pv || !pv.redoOmakase) return;
+    const res = pv.redoOmakase();
+    if (res) {
+      const nextStyle = res.style || 'noir';
+      setActiveStyle(nextStyle);
+      const styleLabel = JIZURA_POPULAR_STYLES.find(s => s.key === nextStyle)?.name || nextStyle;
+      showToast(`▶ 已前进下一案: ${styleLabel}`);
+      broadcastStatus(nextStyle, proposalCount, res.mood);
+    }
+  }, [proposalCount, showToast, broadcastStatus]);
+
+  const handleStyleSelect = useCallback((key) => {
+    const pv = engineInstanceRef.current;
+    if (!pv) return;
+    if (pv.setStyle) pv.setStyle(key);
+    setActiveStyle(key);
+    const styleLabel = JIZURA_POPULAR_STYLES.find(s => s.key === key)?.name || key;
+    showToast(`🎨 风格切换: ${styleLabel}`);
+    broadcastStatus(key, proposalCount, '');
+  }, [proposalCount, showToast, broadcastStatus]);
+
+  // 监听来自设置抽屉的 JIZURA 动作指令
+  useEffect(() => {
+    const handleJizuraAction = (e) => {
+      const { action, style } = e.detail || {};
+      if (action === 'omakase') {
+        handleOmakase();
+      } else if (action === 'undo') {
+        handleUndo();
+      } else if (action === 'redo') {
+        handleRedo();
+      } else if (action === 'setStyle' && style) {
+        handleStyleSelect(style);
+      }
+    };
+    window.addEventListener('jizura-action', handleJizuraAction);
+    return () => window.removeEventListener('jizura-action', handleJizuraAction);
+  }, [handleOmakase, handleUndo, handleRedo, handleStyleSelect]);
+
+  // 键盘快捷键 R 监听
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'r' || e.key === 'R') {
+        const tag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+        if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) {
+          return;
+        }
+        e.preventDefault();
+        handleOmakase();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleOmakase]);
+
+  // 鼠标移动显示悬浮栏
+  const handleMouseMove = () => {
+    setIsHovered(true);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      setIsHovered(false);
+    }, 2600);
+  };
+
+  // 初始化引擎实例
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -203,29 +366,29 @@ export default function KineticKtvLyrics({
         return;
       }
 
-      // 注意：从 ref 中读取最新的 resolvedTemplate，避免闭包陷阱
       const tpl = resolvedTemplateRef.current;
       if (tpl) {
         pv.loadTemplate(tpl);
         currentTplKeyRef.current = tpl.nameKey || tpl.name || '';
       }
 
-      // 加载歌词时间轴
       if (lyricTimeline.length > 0) {
         const offset = (config?.globalOffset || 0) / 1000;
         pv.setLyricTimeline(lyricTimeline, offset);
       }
 
-      // 设置动画速度与动态强度（使用 setter 属性，不是方法）
       if (typeof config?.ktvSpeed === 'number') pv.animationSpeed = config.ktvSpeed;
       if (typeof config?.ktvMotion === 'number') pv.motionIntensity = config.ktvMotion;
       if (typeof config?.ktvBgOpacity === 'number') pv.effectOpacity = config.ktvBgOpacity;
       pv.showTranslation = config?.showTranslation !== false;
       pv.showFurigana = config?.showFurigana !== false;
 
-      // 如果有封面图，载入媒体底图
       if (coverUrl && config?.ktvUseCoverTexture !== false) {
         pv.addMediaUrl(coverUrl).catch(() => {});
+      }
+
+      if (audioAnalyser && pv.setAudioAnalyser) {
+        pv.setAudioAnalyser(audioAnalyser);
       }
 
       setIsEngineReady(true);
@@ -240,10 +403,12 @@ export default function KineticKtvLyrics({
         engineInstanceRef.current.destroy();
         engineInstanceRef.current = null;
       }
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
-  }, []); // 仅在挂载时创建一次 Pixi Application
+  }, []);
 
-  // 响应歌词时间轴更新
+  // 歌词时间轴同步
   useEffect(() => {
     if (!isEngineReady) return;
     const pv = engineInstanceRef.current;
@@ -252,36 +417,41 @@ export default function KineticKtvLyrics({
     pv.setLyricTimeline(lyricTimeline, offset);
   }, [isEngineReady, lyricTimeline, config?.globalOffset]);
 
-  // 响应模板切换 — 显式依赖 config.ktvPreset 字符串本身，确保切换时必定触发
-  useEffect(() => {
-    if (!isEngineReady) return;
-    const pv = engineInstanceRef.current;
-    if (!pv || !resolvedTemplate) return;
-
-    const tplKey = resolvedTemplate.nameKey || resolvedTemplate.name || '';
-    if (currentTplKeyRef.current !== tplKey) {
-      console.log('[KineticKtv] Switching template:', currentTplKeyRef.current, '→', tplKey);
-      currentTplKeyRef.current = tplKey;
-      pv.loadTemplate(resolvedTemplate);
-
-      // 重新应用用户自定义滑块（使用 setter 属性）
-      if (typeof config?.ktvSpeed === 'number') pv.animationSpeed = config.ktvSpeed;
-      if (typeof config?.ktvMotion === 'number') pv.motionIntensity = config.ktvMotion;
-      if (typeof config?.ktvBgOpacity === 'number') pv.effectOpacity = config.ktvBgOpacity;
-    }
-  }, [isEngineReady, resolvedTemplate, config?.ktvPreset, config?.ktvSpeed, config?.ktvMotion, config?.ktvBgOpacity]);
-
-
-  // 响应翻译与假名开关变化
+  // 响应模板与风格热重载
   useEffect(() => {
     if (!isEngineReady) return;
     const pv = engineInstanceRef.current;
     if (!pv) return;
-    pv.showTranslation = config?.showTranslation !== false;
-    pv.showFurigana = config?.showFurigana !== false;
-  }, [isEngineReady, config?.showTranslation, config?.showFurigana]);
 
-  // 响应封面图变化
+    const presetKey = config?.ktvPreset || 'auto';
+    if (presetKey && presetKey !== 'auto' && presetKey !== 'multi') {
+      pv.setStyle(presetKey);
+      setActiveStyle(presetKey);
+      currentTplKeyRef.current = presetKey;
+    } else if (resolvedTemplate) {
+      const tplKey = resolvedTemplate.nameKey || resolvedTemplate.name || '';
+      if (currentTplKeyRef.current !== tplKey) {
+        currentTplKeyRef.current = tplKey;
+        pv.loadTemplate(resolvedTemplate);
+        setActiveStyle(resolvedTemplate.id || tplKey);
+      }
+    }
+
+    if (typeof config?.ktvSpeed === 'number') pv.animationSpeed = config.ktvSpeed;
+    if (typeof config?.ktvMotion === 'number') pv.motionIntensity = config.ktvMotion;
+    if (typeof config?.ktvBgOpacity === 'number') pv.effectOpacity = config.ktvBgOpacity;
+  }, [isEngineReady, resolvedTemplate, config?.ktvPreset, config?.ktvSpeed, config?.ktvMotion, config?.ktvBgOpacity]);
+
+  // 音频频谱联动
+  useEffect(() => {
+    if (!isEngineReady) return;
+    const pv = engineInstanceRef.current;
+    if (pv && pv.setAudioAnalyser) {
+      pv.setAudioAnalyser(audioAnalyser);
+    }
+  }, [isEngineReady, audioAnalyser]);
+
+  // 封面更新
   useEffect(() => {
     if (!isEngineReady) return;
     const pv = engineInstanceRef.current;
@@ -293,7 +463,7 @@ export default function KineticKtvLyrics({
     }
   }, [isEngineReady, coverUrl, config?.ktvUseCoverTexture]);
 
-  // 响应控制参数滑块变化（使用 setter 属性，不是方法）
+  // 控制参数响应
   useEffect(() => {
     if (!isEngineReady) return;
     const pv = engineInstanceRef.current;
@@ -301,10 +471,11 @@ export default function KineticKtvLyrics({
     if (typeof config?.ktvSpeed === 'number') pv.animationSpeed = config.ktvSpeed;
     if (typeof config?.ktvMotion === 'number') pv.motionIntensity = config.ktvMotion;
     if (typeof config?.ktvBgOpacity === 'number') pv.effectOpacity = config.ktvBgOpacity;
-  }, [isEngineReady, config?.ktvSpeed, config?.ktvMotion, config?.ktvBgOpacity]);
+    pv.showTranslation = config?.showTranslation !== false;
+    pv.showFurigana = config?.showFurigana !== false;
+  }, [isEngineReady, config?.ktvSpeed, config?.ktvMotion, config?.ktvBgOpacity, config?.showTranslation, config?.showFurigana]);
 
-
-  // 实时同步歌词时钟与高精度播放时间
+  // 实时歌词时钟
   useEffect(() => {
     const unsubscribe = subscribeLyricClock((clockTime) => {
       const pv = engineInstanceRef.current;
@@ -322,20 +493,19 @@ export default function KineticKtvLyrics({
     };
   }, [isPlaying, engineRef]);
 
-  // 响应歌曲信息与开场标题卡 / 翻译 / 假名注音开关配置变化
+  // 歌曲信息与换曲热重载
   useEffect(() => {
     if (!isEngineReady) return;
     const pv = engineInstanceRef.current;
     if (!pv) return;
     pv.setSongInfo({
+      id: songKey || '',
       title: songTitle || '',
       artist: songArtist || '',
       album: ''
     });
     pv.showTitleCard = config?.ktvShowTitleCard !== false;
-    pv.showTranslation = config?.showTranslation !== false;
-    pv.showFurigana = config?.showFurigana !== false;
-  }, [isEngineReady, songTitle, songArtist, config?.ktvShowTitleCard, config?.showTranslation, config?.showFurigana]);
+  }, [isEngineReady, songKey, songTitle, songArtist, config?.ktvShowTitleCard]);
 
   // 播放/暂停状态响应
   useEffect(() => {
@@ -351,17 +521,58 @@ export default function KineticKtvLyrics({
 
   return (
     <div
-      ref={containerRef}
-      className="kpv-stage kpv-pixi-stage"
+      onMouseMove={handleMouseMove}
       style={{
         position: 'relative',
         width: '100%',
         height: '100%',
-        overflow: 'hidden',
-        background: resolvedTemplate?.palette?.background || '#000000',
-        contain: 'strict'
+        overflow: 'hidden'
       }}
-    />
+    >
+      <div
+        ref={containerRef}
+        className="kpv-stage kpv-pixi-stage"
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: '100%',
+          overflow: 'hidden',
+          background: resolvedTemplate?.palette?.background || '#060607',
+          contain: 'strict'
+        }}
+      />
+
+      {/* 案变更浮动微徽章 */}
+      {proposalToast && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '28px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(10, 10, 14, 0.88)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.22)',
+            borderRadius: '24px',
+            padding: '7px 18px',
+            color: '#fff',
+            fontSize: '12px',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 12px 32px rgba(0,0,0,0.5), 0 0 16px rgba(255,255,255,0.1)',
+            zIndex: 100,
+            animation: 'fadeIn 0.2s ease',
+            pointerEvents: 'none',
+            letterSpacing: '0.02em'
+          }}
+        >
+          <Sparkles size={14} color="#ffd166" />
+          <span>{proposalToast}</span>
+        </div>
+      )}
+    </div>
   );
 }
-

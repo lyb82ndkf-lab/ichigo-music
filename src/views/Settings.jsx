@@ -804,9 +804,74 @@ export default function Settings() {
                 <option value="kugou">酷狗音乐逐字</option>
               </select>
             </SettingRow>
-            <SettingRow label={`主歌词字号：${advancedLyricConfig.fontSize || 28}px`}>
-              <input className="setting-slider" type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 28} onChange={(e) => updateImmersive({ fontSize: Number(e.target.value) })} />
-            </SettingRow>
+            {currentMode === 'talk' ? (
+              <>
+                <SettingRow label="PV 预设视觉风格" hint="选择由 JIZURA 算法驱动的 27+ 种高保真动态分镜排版风格">
+                  <select
+                    className="setting-select"
+                    value={advancedLyricConfig.ktvPreset || 'auto'}
+                    onChange={(e) => updateImmersive({ ktvPreset: e.target.value })}
+                    style={{ minWidth: 220 }}
+                  >
+                    <option value="auto">自动推荐：按封面配色智能搭配</option>
+                    <option value="multi">随机轮播：多风格动态轮播池</option>
+                    <optgroup label="JIZURA 热门潮流风格">
+                      <option value="noir">暗黑电影 (Noir)</option>
+                      <option value="sakura">和风落樱 (Sakura)</option>
+                      <option value="ocean">幽蓝深海 (Ocean)</option>
+                      <option value="sunset">夕阳暮光 (Sunset)</option>
+                      <option value="crimson">深红数据 (Crimson)</option>
+                      <option value="caution">亮黄警戒 (Caution)</option>
+                      <option value="paper">纸墨残像 (Paper)</option>
+                      <option value="hud">极夜目镜 (Dark HUD)</option>
+                      <option value="blueprint">建筑蓝图 (Blueprint)</option>
+                      <option value="specimen">冷调标本 (Specimen)</option>
+                      <option value="magenta">波普粉紫 (Magenta)</option>
+                      <option value="mint">薄荷苏打 (Mint)</option>
+                      <option value="rouge">胭脂赤黑 (Rouge)</option>
+                      <option value="transit">城市地铁 (Transit)</option>
+                    </optgroup>
+                    <optgroup label="全量风格库">
+                      {(Array.isArray(KTV_TEMPLATE_GALLERY) ? KTV_TEMPLATE_GALLERY : []).filter(([val]) => val !== 'auto').map(([val, label]) => (
+                        <option key={val} value={val}>{label}</option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </SettingRow>
+
+                <SettingRow label={`动画游走速度：${(advancedLyricConfig.ktvSpeed ?? 2.0).toFixed(1)}x`} hint="调节排版构图与文字切镜推进速度">
+                  <input className="setting-slider" type="range" min="0.2" max="4.0" step="0.1" value={advancedLyricConfig.ktvSpeed ?? 2.0} onChange={(e) => updateImmersive({ ktvSpeed: Number(e.target.value) })} />
+                </SettingRow>
+
+                <SettingRow label={`动效与爆发强度：${(advancedLyricConfig.ktvMotion ?? 1.0).toFixed(1)}x`} hint="调节入场退场位移幅度与镜头震动感知">
+                  <input className="setting-slider" type="range" min="0.1" max="2.0" step="0.1" value={advancedLyricConfig.ktvMotion ?? 1.0} onChange={(e) => updateImmersive({ ktvMotion: Number(e.target.value) })} />
+                </SettingRow>
+
+                <SettingRow label={`纸质与噪点肌理：${Math.round((advancedLyricConfig.jizuraTexture ?? 0.6) * 100)}%`} hint="叠加复古胶片颗粒、纸墨微粒与网点材质">
+                  <input className="setting-slider" type="range" min="0" max="1.5" step="0.05" value={advancedLyricConfig.jizuraTexture ?? 0.6} onChange={(e) => updateImmersive({ jizuraTexture: Number(e.target.value) })} />
+                </SettingRow>
+
+                <SettingRow label={`故障与色差强度：${Math.round((advancedLyricConfig.jizuraGlitch ?? 0.55) * 100)}%`} hint="低频重音触发的 RGB 色散与画面抖动感知">
+                  <input className="setting-slider" type="range" min="0" max="1.5" step="0.05" value={advancedLyricConfig.jizuraGlitch ?? 0.55} onChange={(e) => updateImmersive({ jizuraGlitch: Number(e.target.value) })} />
+                </SettingRow>
+
+                <SettingRow label={`背景不透明度：${Math.round((advancedLyricConfig.ktvBgOpacity ?? 1.0) * 100)}%`}>
+                  <input className="setting-slider" type="range" min="0" max="1" step="0.05" value={advancedLyricConfig.ktvBgOpacity ?? 1.0} onChange={(e) => updateImmersive({ ktvBgOpacity: Number(e.target.value) })} />
+                </SettingRow>
+
+                <SettingRow label="显示歌曲开场标题卡" hint="在歌曲开场前 1-3 秒呈现电影级歌曲全息标题卡片">
+                  <SmoothSwitch checked={advancedLyricConfig.ktvShowTitleCard !== false} onChange={(v) => updateImmersive({ ktvShowTitleCard: v })} />
+                </SettingRow>
+
+                <SettingRow label="混合专辑封面光影底图" hint="将当前歌曲的高清封面作为柔和光影融入动态排版深层">
+                  <SmoothSwitch checked={advancedLyricConfig.ktvUseCoverTexture !== false} onChange={(v) => updateImmersive({ ktvUseCoverTexture: v })} />
+                </SettingRow>
+              </>
+            ) : (
+              <SettingRow label={`主歌词字号：${advancedLyricConfig.fontSize || 28}px`}>
+                <input className="setting-slider" type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 28} onChange={(e) => updateImmersive({ fontSize: Number(e.target.value) })} />
+              </SettingRow>
+            )}
             <SettingRow label="显示翻译" hint="在主歌词下方呈现译文">
               <SmoothSwitch checked={advancedLyricConfig.showTranslation !== false} onChange={(v) => updateImmersive({ showTranslation: v })} />
             </SettingRow>

@@ -332,14 +332,14 @@ function MonetPosterLayout({
               inactiveLyricBlur={advancedLyricConfig?.inactiveLyricBlur}
             />
           ) : (
-            <ImmersiveLyricsStage mode={animMode} lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} coverUrl={coverUrlResized} isPlaying={isPlaying} songKey={fallbackSong.id || `${fallbackSong.title}-${fallbackSong.artist}`} songTitle={fallbackSong.title} songArtist={fallbackSong.artist} config={advancedLyricConfig} />
+            <ImmersiveLyricsStage mode={animMode} lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} coverUrl={coverUrlResized} isPlaying={isPlaying} songKey={fallbackSong.id || `${fallbackSong.title}-${fallbackSong.artist}`} songTitle={fallbackSong.title} songArtist={fallbackSong.artist} audioAnalyser={audioAnalyser} config={advancedLyricConfig} />
           )}
         </div>
       </div>
 
       {isKashiMode && (
         <div className="monet-kashi-layer">
-          <ImmersiveLyricsStage mode={animMode} lyrics={displayLyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} coverUrl={coverUrlResized} isPlaying={isPlaying} songKey={fallbackSong.id || `${fallbackSong.title}-${fallbackSong.artist}`} songTitle={fallbackSong.title} songArtist={fallbackSong.artist} config={advancedLyricConfig} />
+          <ImmersiveLyricsStage mode={animMode} lyrics={lyrics || []} activeLineIndex={activeLineIndex} engineRef={engineRef} dimensions={dimensions} fontStack={fontStack} themeColor={themeColor} coverUrl={coverUrlResized} isPlaying={isPlaying} songKey={fallbackSong.id || `${fallbackSong.title}-${fallbackSong.artist}`} songTitle={fallbackSong.title} songArtist={fallbackSong.artist} audioAnalyser={audioAnalyser} config={advancedLyricConfig} />
         </div>
       )}
 

@@ -17,7 +17,7 @@ const KineticKtvLyrics = React.lazy(() => import('./KineticKtvLyrics'));
 // 每个模式只声明自己的参数映射，布局容器不需要知道各组件的细节
 const IMMERSIVE_RENDERERS = {
   streamer: { component: StreamerLyrics, props: ({ config }) => ({ themeColor: 'var(--primary)', showGlow: config?.showGlow === true, globalOffset: config?.globalOffset || 0, alignMode: config?.bubbleAlign || 'alternate' }) },
-  talk: { component: KineticKtvLyrics, props: ({ config, themeColor, translationPx, songKey, songTitle, songArtist, isPlaying, coverUrl }) => ({ themeColor: themeColor || 'var(--primary)', translationPx, songKey, songTitle, songArtist, isPlaying, coverUrl, config }) },
+  talk: { component: KineticKtvLyrics, props: ({ config, themeColor, translationPx, songKey, songTitle, songArtist, isPlaying, coverUrl, audioAnalyser }) => ({ themeColor: themeColor || 'var(--primary)', translationPx, songKey, songTitle, songArtist, isPlaying, coverUrl, audioAnalyser, config }) },
   cloudstep: { component: CloudStepLyrics, props: ({ config }) => ({ themeColor: 'var(--primary)', showGlow: config?.showGlow === true, globalOffset: config?.globalOffset || 0, cloudStepSpacing: config?.cloudStepSpacing || 1 }) },
   spatial: { component: SpatialCanvasLyrics, props: ({ config, themeColor, isPlaying }) => ({ config, themeColor, isPlaying, globalOffset: config?.globalOffset || 0 }) },
   vinyl: { component: VinylRecordLyrics, props: ({ config, themeColor, coverUrl, isPlaying }) => ({ config, themeColor, coverUrl, isPlaying, globalOffset: config?.globalOffset || 0, lineSpacing: config?.vinylLineSpacing ?? 0.7, tiltAngle: config?.vinylTiltAngle ?? 0 }) },
@@ -33,11 +33,11 @@ export function preloadKineticKtvLyrics() {
   return import('./KineticKtvLyrics');
 }
 
-export default function ImmersiveLyricsStage({ mode, lyrics = [], activeLineIndex = -1, engineRef, dimensions, fontStack, themeColor, coverUrl, isPlaying, songKey, songTitle, songArtist, config }) {
+export default function ImmersiveLyricsStage({ mode, lyrics = [], activeLineIndex = -1, engineRef, dimensions, fontStack, themeColor, coverUrl, isPlaying, songKey, songTitle, songArtist, audioAnalyser, config }) {
   const normalizedMode = normalizeImmersiveMode(mode);
   const renderer = IMMERSIVE_RENDERERS[normalizedMode] || IMMERSIVE_RENDERERS.talk;
   const Component = renderer.component;
-  const modeProps = renderer.props({ config, themeColor, coverUrl, isPlaying, songKey, songTitle, songArtist, fontPx: dimensions.fontPx, translationPx: dimensions.transPx });
+  const modeProps = renderer.props({ config, themeColor, coverUrl, isPlaying, songKey, songTitle, songArtist, audioAnalyser, fontPx: dimensions.fontPx, translationPx: dimensions.transPx });
   return <div style={{ width: '100%', height: '100%' }}>
     <React.Suspense fallback={<div aria-label="正在载入文字 PV" style={{ width: '100%', height: '100%', background: 'radial-gradient(circle at 50% 45%, rgba(109,156,255,.16), transparent 34%), #090d18' }} />}>
       <Component lyrics={lyrics} activeLineIndex={activeLineIndex} engineRef={engineRef} fontPx={dimensions.fontPx} fontStack={fontStack} {...modeProps} />

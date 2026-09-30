@@ -1,6 +1,6 @@
 {
     "name": "ichigomusic",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "description": "A beautiful music player with desktop lyrics and particle visualizers.",
     "author": "Antigravity",
     "private": true,
@@ -86,7 +86,7 @@
         "productName": "ICHIGOMusic",
         "asar": true,
         "directories": {
-            "output": "release"
+            "output": "dist_electron"
         },
         "files": [
             "dist/**/*",

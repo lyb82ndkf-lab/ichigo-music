@@ -44,6 +44,24 @@ export const KTV_TEMPLATE_GALLERY = [
   ['cinemaTeal', 'Custom 自定义', 'linear-gradient(135deg, #1d172e 0%, #5044dc 100%)', '青蓝电影·宽屏颗粒', '宽画幅青蓝电影感底图', ['#0b141c', '#79a8b8', '#d8c9a3']]
 ];
 
+export const JIZURA_GALLERY_STYLES = [
+  { key: 'paper', name: '纸墨残像', en: 'Paper', tag: '纸墨质感', desc: '粗糙纸纹 · 墨韵弥散 · 拼贴杂志', gradient: 'linear-gradient(135deg, #e8dfd5 0%, #a89887 100%)', textColor: '#1a1816', palette: ['#2b2b2b', '#c2a68c', '#efe6dd'] },
+  { key: 'noir', name: '暗黑电影', en: 'Noir', tag: '宽幅光影', desc: '颗粒胶片 · 剧场质感 · 电影黑白', gradient: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)', textColor: '#ffffff', palette: ['#ffffff', '#71717a', '#18181b'] },
+  { key: 'sakura', name: '和风落樱', en: 'Sakura', tag: '浪漫诗意', desc: '樱瓣轻抚 · 水彩晕染 · 柔和春日', gradient: 'linear-gradient(135deg, #f43f5e 0%, #fda4af 100%)', textColor: '#ffffff', palette: ['#fff1f2', '#fb7185', '#9f1239'] },
+  { key: 'ocean', name: '幽蓝深海', en: 'Ocean', tag: '波动流体', desc: '蔚蓝水纹 · 深海气泡 · 沉浸呼吸', gradient: 'linear-gradient(135deg, #0284c7 0%, #0c4a6e 100%)', textColor: '#ffffff', palette: ['#38bdf8', '#0284c7', '#0c4a6e'] },
+  { key: 'sunset', name: '夕阳暮光', en: 'Sunset', tag: '黄金晚霞', desc: '暮色黄昏 · 暖色辉光 · 治愈微醺', gradient: 'linear-gradient(135deg, #f97316 0%, #db2777 100%)', textColor: '#ffffff', palette: ['#fde047', '#fb923c', '#be185d'] },
+  { key: 'crimson', name: '深红数据', en: 'Crimson', tag: '高燃节拍', desc: '绯红机能 · 锐利冲击 · 极速变焦', gradient: 'linear-gradient(135deg, #dc2626 0%, #7f1d1d 100%)', textColor: '#ffffff', palette: ['#ffffff', '#ef4444', '#7f1d1d'] },
+  { key: 'caution', name: '亮黄警戒', en: 'Caution', tag: '工业机能', desc: '警戒条纹 · 警示醒目 · 速度线条', gradient: 'linear-gradient(135deg, #eab308 0%, #ca8a04 100%)', textColor: '#1a150a', palette: ['#000000', '#facc15', '#422006'] },
+  { key: 'hud', name: '极夜目镜', en: 'Dark HUD', tag: '战术全息', desc: '扫描瞄准 · 空间准星 · 数据界面', gradient: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)', textColor: '#38bdf8', palette: ['#38bdf8', '#22d3ee', '#0f172a'] },
+  { key: 'blueprint', name: '建筑蓝图', en: 'Blueprint', tag: '理性几何', desc: '坐标网格 · 标尺规整 · 严谨工笔', gradient: 'linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 100%)', textColor: '#ffffff', palette: ['#93c5fd', '#3b82f6', '#172554'] },
+  { key: 'specimen', name: '冷调标本', en: 'Specimen', tag: '极简纯粹', desc: '纯净冷灰 · 标本框线 · 现代排版', gradient: 'linear-gradient(135deg, #334155 0%, #475569 100%)', textColor: '#ffffff', palette: ['#f8fafc', '#94a3b8', '#1e293b'] },
+  { key: 'magenta', name: '波普粉紫', en: 'Magenta', tag: '复古蒸汽', desc: '炫彩波普 · 甜酷霓虹 · 动感波点', gradient: 'linear-gradient(135deg, #d946ef 0%, #8b5cf6 100%)', textColor: '#ffffff', palette: ['#fdf4ff', '#e879f9', '#701a75'] },
+  { key: 'mint', name: '薄荷苏打', en: 'Mint', tag: '清新夏日', desc: '清爽薄荷 · 荧光水绿 · 灵动像素', gradient: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)', textColor: '#ffffff', palette: ['#ccfbf1', '#2dd4bf', '#0f766e'] },
+  { key: 'rouge', name: '胭脂赤黑', en: 'Rouge', tag: '新国潮律', desc: '东方水墨 · 漆黑朱红 · 浓烈戏剧', gradient: 'linear-gradient(135deg, #991b1b 0%, #1c1917 100%)', textColor: '#ffffff', palette: ['#fecaca', '#dc2626', '#1c1917'] },
+  { key: 'transit', name: '城市地铁', en: 'Transit', tag: '都市通勤', desc: '路线拓扑 · 站点穿梭 · 速度与光', gradient: 'linear-gradient(135deg, #059669 0%, #0284c7 100%)', textColor: '#ffffff', palette: ['#a7f3d0', '#10b981', '#065f46'] },
+];
+
+
 
 
 
@@ -63,7 +81,7 @@ export const IMMERSIVE_MODE_OPTIONS = [
 
 export const IMMERSIVE_MODE_PARAMETER_KEYS = {
   regular: ['ringStyle', 'ringBarCount', 'ringMaxAmplitude', 'ringInnerOffset', 'ringLineWidth', 'ringColorMode', 'ringRotationSpeed', 'ringRotationBeatSync', 'ringGlowIntensity', 'ringGlowPulse', 'ringSmoothing', 'ringTrailDecay', 'ringOpacity'],
-  talk: ['ktvPreset', 'ktvPresetPool', 'ktvSongTemplates', 'ktvSpeed', 'ktvMotion', 'ktvBgOpacity', 'ktvUseCoverTexture', 'ktvBeatReactive', 'ktvPreviewEnabled', 'ktvShowTitleCard', 'ktvShowLyricIndex', 'ktvCustomColor', 'ktvShowTranslation', 'ktvShowPreviousLine'],
+  talk: ['ktvPreset', 'ktvPresetPool', 'ktvSongTemplates', 'ktvSpeed', 'ktvMotion', 'ktvBgOpacity', 'ktvUseCoverTexture', 'ktvBeatReactive', 'ktvPreviewEnabled', 'ktvShowTitleCard', 'ktvShowLyricIndex', 'ktvCustomColor', 'ktvShowTranslation', 'ktvShowPreviousLine', 'jizuraStyle', 'jizuraMood', 'jizuraTheme', 'jizuraMotion', 'jizuraGlitch', 'jizuraTexture', 'jizuraKoma'],
   streamer: ['streamerBarHeight', 'streamerBarMaxHeight', 'streamerBarOpacity', 'streamerBarGlowSpread', 'streamerBarFlowSpeed', 'streamerBarColorMode', 'streamerBarCustomColor', 'streamerBarSmoothing', 'bubbleAlign'],
   cloudstep: ['cloudWaveBlur', 'cloudWaveHeight', 'cloudWaveOpacity', 'cloudWaveSmoothing', 'cloudWaveColorMode', 'cloudWaveCustomColor', 'cloudWaveVerticalSpread', 'cloudWaveSyncToLines', 'cloudStepSpacing'],
   spatial: ['spatialParticleCount', 'spatialParticleSize', 'spatialParticleOpacity', 'spatialSpreadX', 'spatialSpreadY', 'spatialSpreadZ', 'spatialConnectLines', 'spatialConnectOpacity', 'spatialColorMode', 'spatialCustomColor', 'spatialDepthBlur'],

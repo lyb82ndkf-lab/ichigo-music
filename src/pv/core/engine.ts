@@ -11,10 +11,13 @@ import { BeatProvider } from './beatProvider';
 import { MotionDetector } from './motionDetector';
 import { NowPlayingProvider } from './nowPlayingProvider';
 import type { NowPlayingTrack } from './nowPlayingProvider';
+import { JizuraEngine } from '../jizura/jizuraEngine';
 
 const EFFECT_LAYERS: LayerType[] = ['background', 'decoration', 'text', 'overlay'];
 
 export class PVEngine {
+  public jizura: JizuraEngine = new JizuraEngine();
+  public useJizura: boolean = true;
   private app: PIXI.Application;
   private layers = new Map<LayerType, PIXI.Container>();
   private effectsRoot!: PIXI.Container;
@@ -102,6 +105,10 @@ export class PVEngine {
   }
 
   async init(parent: HTMLElement) {
+    if (this.useJizura && this.jizura) {
+      await this.jizura.init(parent);
+      return;
+    }
     this._nativeDPR = Math.min(window.devicePixelRatio || 1, 3);
     this._currentResolution = this._nativeDPR;
     this._resizeParent = parent;
@@ -221,6 +228,10 @@ export class PVEngine {
   get paused() { return this._paused; }
 
   setPlaybackTime(time: number, isPlaying = true) {
+    if (this.useJizura && this.jizura) {
+      this.jizura.setPlaybackTime(time, isPlaying);
+      return;
+    }
     this._externalTime = Math.max(0, time);
     this._time = this._externalTime;
     if (isPlaying) {
@@ -267,7 +278,11 @@ export class PVEngine {
   private titleCardBadge!: PIXI.Text;
   private titleCardGfx!: PIXI.Graphics;
 
-  loadTemplate(template: TemplateConfig) {
+  loadTemplate(template: TemplateConfig | any) {
+    if (this.useJizura && this.jizura) {
+      this.jizura.loadTemplate(template);
+      return;
+    }
     try {
       this.clearEffects();
 
@@ -352,7 +367,10 @@ export class PVEngine {
     }
   }
 
-  setSongInfo(info: { title?: string; artist?: string; album?: string }) {
+  setSongInfo(info: { id?: string | number; title?: string; artist?: string; album?: string }) {
+    if (this.useJizura && this.jizura) {
+      this.jizura.setSongInfo(info);
+    }
     this._songInfo = {
       title: info.title || '',
       artist: info.artist || '',
@@ -362,24 +380,27 @@ export class PVEngine {
 
   set showTitleCard(val: boolean) {
     this._showTitleCard = val;
+    if (this.useJizura && this.jizura) this.jizura.showTitleCard = val;
   }
   get showTitleCard() {
-    return this._showTitleCard;
+    return this.useJizura && this.jizura ? this.jizura.showTitleCard : this._showTitleCard;
   }
 
   set showTranslation(val: boolean) {
     this._showTranslation = val;
+    if (this.useJizura && this.jizura) this.jizura.showTranslation = val;
   }
   get showTranslation() {
-    return this._showTranslation;
+    return this.useJizura && this.jizura ? this.jizura.showTranslation : this._showTranslation;
   }
 
   private _showFurigana = true;
   set showFurigana(val: boolean) {
     this._showFurigana = val;
+    if (this.useJizura && this.jizura) this.jizura.showFurigana = val;
   }
   get showFurigana() {
-    return this._showFurigana;
+    return this.useJizura && this.jizura ? this.jizura.showFurigana : this._showFurigana;
   }
 
 
@@ -398,11 +419,21 @@ export class PVEngine {
     }
   }
 
-  set animationSpeed(val: number) { this._animationSpeed = val; }
-  get animationSpeed() { return this._animationSpeed; }
+  set animationSpeed(val: number) {
+    this._animationSpeed = val;
+    if (this.useJizura && this.jizura) this.jizura.animationSpeed = val;
+  }
+  get animationSpeed() {
+    return this.useJizura && this.jizura ? this.jizura.animationSpeed : this._animationSpeed;
+  }
 
-  set motionIntensity(val: number) { this._motionIntensity = val; }
-  get motionIntensity() { return this._motionIntensity; }
+  set motionIntensity(val: number) {
+    this._motionIntensity = val;
+    if (this.useJizura && this.jizura) this.jizura.motionIntensity = val;
+  }
+  get motionIntensity() {
+    return this.useJizura && this.jizura ? this.jizura.motionIntensity : this._motionIntensity;
+  }
 
   set segmentDuration(val: number) { this._segmentDuration = val; }
   get segmentDuration() { return this._segmentDuration; }
@@ -415,6 +446,10 @@ export class PVEngine {
   }
 
   setLyricTimeline(lines: LyricLine[], offsetSeconds = 0): void {
+    if (this.useJizura && this.jizura) {
+      this.jizura.setLyricTimeline(lines, offsetSeconds);
+      return;
+    }
     if (!lines || lines.length === 0) {
       this.clearLyricTimeline();
       return;
@@ -661,9 +696,12 @@ export class PVEngine {
 
   set effectOpacity(val: number) {
     this._effectOpacity = val;
+    if (this.useJizura && this.jizura) this.jizura.effectOpacity = val;
     if (this.bgFill) this.bgFill.alpha = val;
   }
-  get effectOpacity() { return this._effectOpacity; }
+  get effectOpacity() {
+    return this.useJizura && this.jizura ? this.jizura.effectOpacity : this._effectOpacity;
+  }
 
   set alphaMode(val: boolean) {
     this._alphaMode = val;
@@ -977,6 +1015,10 @@ export class PVEngine {
   }
 
   async addMediaUrl(url: string, mode: 'fit' | 'free' = 'fit'): Promise<void> {
+    if (this.useJizura && this.jizura) {
+      await this.jizura.addMediaUrl(url);
+      return;
+    }
     if (this._loading || !url) return;
     this._loading = true;
 
@@ -1051,6 +1093,10 @@ export class PVEngine {
   }
 
   clearMedia(): void {
+    if (this.useJizura && this.jizura) {
+      this.jizura.clearMedia();
+      return;
+    }
     const mediaLayer = this.layers.get('media');
     if (mediaLayer) {
       this.destroyOutline();
@@ -1766,6 +1812,12 @@ export class PVEngine {
   }
 
   destroy() {
+    if (this.jizura) {
+      this.jizura.destroy();
+    }
+    if (this.useJizura) {
+      return;
+    }
     this.stopNowPlaying();
     this.clearEffects();
     // Release media + render-side helpers explicitly. app.destroy(true,
@@ -1819,5 +1871,38 @@ export class PVEngine {
     for (const f of arr) {
       try { f.destroy(); } catch { /* already destroyed */ }
     }
+  }
+
+  // Jizura Engine Helpers
+  omakase(themeId?: string, moodId?: string) {
+    return this.jizura?.omakase(themeId, moodId);
+  }
+
+  undoOmakase() {
+    return this.jizura?.undoOmakase();
+  }
+
+  redoOmakase() {
+    return this.jizura?.redoOmakase();
+  }
+
+  setStyle(styleKey: string) {
+    this.jizura?.setStyle(styleKey);
+  }
+
+  setMood(moodKey: string) {
+    this.jizura?.setMood(moodKey);
+  }
+
+  setTheme(themeKey: string) {
+    this.jizura?.setTheme(themeKey);
+  }
+
+  setFxConfig(patch: any) {
+    this.jizura?.setFxConfig(patch);
+  }
+
+  setAudioAnalyser(analyser: any) {
+    this.jizura?.setAudioAnalyser(analyser);
   }
 }
