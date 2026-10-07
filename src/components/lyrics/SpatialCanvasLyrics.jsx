@@ -89,6 +89,7 @@ const SpatialTimedText = React.memo(({ line, isActive, isPassed, engineRef, glob
 });
 
 export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1, engineRef, fontPx = 36, fontStack, themeColor, isPlaying = true, globalOffset = 0, config = {} }) {
+  const effectiveFontPx = Math.round(Math.min(Math.max(fontPx * 0.72, 18), 24));
   const containerRef = useRef(null);
   const parentRef = useRef(null);
   const [viewportSize, setViewportSize] = useState({ w: 800, h: 600 });
@@ -362,7 +363,7 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
                 position: 'absolute',
                 whiteSpace: 'nowrap',
                 fontFamily: fontStack,
-                fontSize: `${fontPx}px`,
+                fontSize: `${effectiveFontPx}px`,
                 fontWeight: 800,
                 color: isActive ? themeColor : 'var(--text-main)',
                 opacity: isActive ? 1 : (isPassed ? 0.2 : 0.45),
@@ -379,13 +380,13 @@ export default function SpatialCanvasLyrics({ lyrics = [], activeLineIndex = -1,
                 isPassed={isPassed}
                 engineRef={engineRef}
                 globalOffset={globalOffset}
-                fontPx={fontPx}
+                fontPx={effectiveFontPx}
                 themeColor={themeColor}
                 showFurigana={config?.showFurigana !== false}
               />
               {config?.showTranslation !== false && line.translation && (
                 <div style={{ 
-                  fontSize: `${fontPx * 0.5}px`, 
+                  fontSize: `${Math.round(effectiveFontPx * 0.52)}px`, 
                   marginTop: '10px', 
                   opacity: 0.8, 
                   fontWeight: 500,

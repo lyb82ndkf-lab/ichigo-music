@@ -23,15 +23,21 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
 
   const isActive = index === activeLineIndex;
   const isPassed = index < activeLineIndex;
+  const bubbleFontPx = Math.round(Math.min(Math.max(fontPx * 0.72, 17), 23));
 
   useEffect(() => {
     if (!isActive) {
-      // If passed, fully reveal everything
-      if (isPassed && bubbleRef.current) {
+      if (bubbleRef.current) {
         tokens.forEach((t, i) => {
-          if (wordsRefs.current[i]) {
-            wordsRefs.current[i].style.display = 'inline-block';
-            wordsRefs.current[i].style.opacity = 1;
+          const el = wordsRefs.current[i];
+          if (el) {
+            el.style.display = isPassed ? 'inline-block' : 'none';
+            el.style.opacity = isPassed ? '1' : '0';
+            el.style.textShadow = 'none';
+            el.style.transform = 'translateY(0) scale(1)';
+            el.style.color = isPassed ? 'rgba(255, 255, 255, 0.75)' : 'rgba(255, 255, 255, 0.58)';
+            delete el.dataset.streamState;
+            delete el.dataset.streamProgress;
           }
         });
       }
@@ -57,6 +63,7 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
             el.style.opacity = 1;
             el.style.transform = 'translateY(0) scale(1)';
             el.style.color = themeColor || '#fff';
+            el.style.textShadow = 'none';
           }
           return;
         }
@@ -66,16 +73,18 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
             el.dataset.streamState = 'waiting';
             el.style.display = 'none';
             el.style.opacity = '0';
-            el.style.transform = 'translateY(10px) scale(0.96)';
+            el.style.transform = 'translateY(8px) scale(0.96)';
             el.style.color = 'rgba(255,255,255,0.58)';
+            el.style.textShadow = 'none';
           }
         } else if (currentTime >= token.endTime) {
           if (el.dataset.streamState !== 'done') {
             el.dataset.streamState = 'done';
             el.style.display = 'inline-block';
-            el.style.opacity = '1';
+            el.style.opacity = 1;
             el.style.transform = 'translateY(0) scale(1)';
             el.style.color = themeColor || '#fff';
+            el.style.textShadow = 'none';
           }
         } else {
           const progress = token.timed
@@ -88,23 +97,23 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
           el.style.display = 'inline-block';
           const pulse = Math.sin(progress * Math.PI);
           el.style.opacity = '1';
-          el.style.transform = `translateY(${-fontPx * 0.06 * pulse}px) scale(${1 + pulse * 0.08})`;
+          el.style.transform = `translateY(${-bubbleFontPx * 0.06 * pulse}px) scale(${1 + pulse * 0.08})`;
           el.style.color = themeColor || '#fff';
-          el.style.textShadow = `0 0 ${fontPx * 0.4}px ${themeColor}, 0 0 ${fontPx * 0.8}px ${themeColor}`;
+          el.style.textShadow = `0 0 ${bubbleFontPx * 0.35}px ${themeColor}, 0 0 ${bubbleFontPx * 0.7}px ${themeColor}`;
         }
       });
     };
 
     update();
     return subscribeLyricClock(update);
-  }, [isActive, isPassed, tokens, engineRef, globalOffset, fontPx, themeColor]);
+  }, [isActive, isPassed, tokens, engineRef, globalOffset, bubbleFontPx, themeColor]);
 
   // If the line hasn't started and we're not active or passed, don't show it at all
   if (index > activeLineIndex) return null;
 
-  const tailSize = fontPx * 0.4;
-  const paddingV = fontPx * 0.5;
-  const paddingH = fontPx * 0.8;
+  const tailSize = Math.round(bubbleFontPx * 0.35);
+  const paddingV = Math.round(bubbleFontPx * 0.45);
+  const paddingH = Math.round(bubbleFontPx * 0.75);
 
   const tailStyle = isLeft ? {
     borderLeft: `${tailSize}px solid transparent`,
@@ -127,7 +136,7 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
         display: 'flex',
         flexDirection: 'column',
         alignItems: isLeft ? 'flex-start' : 'flex-end',
-        margin: `${fontPx * 0.6}px 0`,
+        margin: `${Math.round(bubbleFontPx * 0.35)}px 0`,
         width: '100%'
       }}
     >
@@ -140,10 +149,11 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
             ? 'linear-gradient(135deg, var(--primary-subtle) 0%, rgba(255,255,255,0.08) 100%)' 
             : 'rgba(255, 255, 255, 0.05)',
           border: isActive ? '1px solid var(--primary)' : '1px solid rgba(255, 255, 255, 0.1)',
-          borderRadius: `${fontPx * 0.8}px`,
+          borderRadius: `${Math.round(bubbleFontPx * 0.65)}px`,
           padding: `${paddingV}px ${paddingH}px`,
           boxShadow: isActive ? '0 8px 32px var(--primary-subtle)' : '0 4px 12px rgba(0,0,0,0.1)',
-          transition: 'padding 0.2s ease, max-width 0.2s ease'
+          transition: 'padding 0.2s ease, max-width 0.2s ease',
+          opacity: isActive ? 1 : Math.max(0.42, 1 - (activeLineIndex - index) * 0.12)
         }}
       >
         {/* Tail */}
@@ -156,7 +166,7 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
 
         <div style={{
           fontFamily: fontStack,
-          fontSize: `${fontPx}px`,
+          fontSize: `${bubbleFontPx}px`,
           fontWeight: 600,
           color: '#fff',
           lineHeight: 1.4,
@@ -165,7 +175,10 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
           hyphens: 'none',
           display: 'flex',
           flexWrap: 'wrap',
-          alignItems: 'baseline'
+          alignItems: 'baseline',
+          justifyContent: isLeft ? 'flex-start' : 'flex-end',
+          textAlign: isLeft ? 'left' : 'right',
+          width: '100%'
         }}>
           {tokens.map((token, idx) => (
             <span
@@ -176,10 +189,10 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
                 whiteSpace: 'pre',
                 flex: '0 0 auto',
                 opacity: isPassed ? 1 : 0,
-                transform: isPassed ? 'translateY(0px) scale(1)' : 'translateY(10px) scale(0.96)',
-                color: isPassed ? '#fff' : 'rgba(255,255,255,0.58)',
+                transform: isPassed ? 'translateY(0px) scale(1)' : 'translateY(8px) scale(0.96)',
+                color: isPassed ? 'rgba(255, 255, 255, 0.85)' : 'rgba(255,255,255,0.58)',
                 transition: 'opacity 0.12s linear, transform 0.12s linear, color 0.12s linear',
-                textShadow: `0 0 ${fontPx * 0.2}px rgba(255,255,255,0.5)`,
+                textShadow: isActive ? `0 0 ${bubbleFontPx * 0.2}px rgba(255,255,255,0.5)` : 'none',
                 willChange: isActive && token.timed ? 'opacity, transform' : 'auto'
               }}
               dangerouslySetInnerHTML={{ __html: toRubyHtml(token.text, showFurigana !== false) }}
@@ -189,11 +202,13 @@ const ChatBubbleLine = React.memo(({ line, engineRef, fontPx, fontStack, themeCo
         
         {showTranslation && line.translation && (
           <div style={{
-            marginTop: `${fontPx * 0.2}px`,
-            fontSize: `${fontPx * 0.65}px`,
+            marginTop: `${Math.round(bubbleFontPx * 0.2)}px`,
+            fontSize: `${Math.round(bubbleFontPx * 0.65)}px`,
             color: 'rgba(255,255,255,0.7)',
             fontFamily: fontStack,
-            lineHeight: 1.3
+            lineHeight: 1.3,
+            textAlign: isLeft ? 'left' : 'right',
+            width: '100%'
           }}>
             {line.translation}
           </div>
@@ -234,11 +249,17 @@ export default function StreamerLyrics({
 
   const containerRef = useRef(null);
 
-  useEffect(() => {
+  const scrollToBottom = () => {
     if (containerRef.current) {
       containerRef.current.scrollTop = containerRef.current.scrollHeight;
     }
-  }, [displayLines.length]);
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+    const frameId = requestAnimationFrame(scrollToBottom);
+    return () => cancelAnimationFrame(frameId);
+  }, [displayLines.length, activeLineIndex]);
 
   return (
     <div
@@ -247,39 +268,48 @@ export default function StreamerLyrics({
         width: '100%',
         height: '100%',
         overflowY: 'auto',
-        padding: '24px 16px',
+        padding: '24px 32px 140px 32px',
+        boxSizing: 'border-box',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'flex-start',
         scrollBehavior: 'smooth'
       }}
     >
-      <AnimatePresence initial={false}>
-        {displayLines.map(item => (
-          <motion.div
-            key={item.line.id || item.index}
-            initial={{ opacity: 0, y: 30, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            transition={{ duration: 0.35, ease: 'easeOut' }}
-            style={{ width: '100%' }}
-          >
-            <ChatBubbleLine
-              line={item.line}
-              index={item.index}
-              activeLineIndex={activeLineIndex}
-              engineRef={engineRef}
-              fontPx={fontPx}
-              fontStack={fontStack}
-              themeColor={themeColor}
-              globalOffset={globalOffset}
-              alignMode={alignMode}
-              showTranslation={effectiveShowTranslation}
-              showFurigana={effectiveShowFurigana}
-            />
-          </motion.div>
-        ))}
-      </AnimatePresence>
+      <div style={{
+        marginTop: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-end',
+        width: '100%',
+        minHeight: '100%'
+      }}>
+        <AnimatePresence initial={false}>
+          {displayLines.map(item => (
+            <motion.div
+              key={item.line.id || item.index}
+              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              style={{ width: '100%' }}
+            >
+              <ChatBubbleLine
+                line={item.line}
+                index={item.index}
+                activeLineIndex={activeLineIndex}
+                engineRef={engineRef}
+                fontPx={fontPx}
+                fontStack={fontStack}
+                themeColor={themeColor}
+                globalOffset={globalOffset}
+                alignMode={alignMode}
+                showTranslation={effectiveShowTranslation}
+                showFurigana={effectiveShowFurigana}
+              />
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

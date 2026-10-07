@@ -125,7 +125,7 @@ function SongInlineComments({ song, onClose }) {
 }
 
 export default function PlaylistDetail() {
-  const { viewData, playSong, startHeartMode, playMode, setPlayMode, likedSongIds, toggleLike, navigateTo } = useApp();
+  const { viewData, playSong, startHeartMode, playMode, setPlayMode, likedSongIds, toggleLike, navigateTo, likedPlaylistId, currentSong } = useApp();
   const [playlist, setPlaylist] = useState(null);
   const [songs, setSongs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -211,6 +211,13 @@ export default function PlaylistDetail() {
     };
   }, [viewData]);
 
+  // Liking the playing song from the player bar must land in the liked
+  // playlist immediately when that playlist is the one on screen.
+  useEffect(() => {
+    if (!currentSong?.id || !likedSongIds.has(currentSong.id)) return;
+    if (playlist?.id !== likedPlaylistId) return;
+    setSongs(prev => (prev.some(song => song.id === currentSong.id) ? prev : [currentSong, ...prev]));
+  }, [currentSong, likedSongIds, playlist?.id, likedPlaylistId]);
 
 
   const playAll = () => {
@@ -312,9 +319,9 @@ export default function PlaylistDetail() {
         <table className="songs-table" style={{ marginTop: 0, width: '100%' }}>
           <thead>
             <tr>
-              <th style={{ width: '38%' }}>歌名</th>
-              <th style={{ width: '28%' }}>歌手</th>
-              <th style={{ width: '20%' }}>专辑</th>
+              <th style={{ width: '34%' }}>歌名</th>
+              <th style={{ width: '26%' }}>歌手</th>
+              <th style={{ width: '26%' }}>专辑</th>
               <th style={{ width: '14%' }}>操作</th>
             </tr>
           </thead>

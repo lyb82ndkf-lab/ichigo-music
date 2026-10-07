@@ -25,7 +25,8 @@ export default function MyLiked() {
     setPlayMode,
     likedSongIds, 
     toggleLike, 
-    navigateTo 
+    navigateTo,
+    currentSong
   } = useApp();
   
   const [songs, setSongs] = useState([]);
@@ -98,6 +99,12 @@ export default function MyLiked() {
       cancelled = true;
     };
   }, [user?.userId, likedPlaylistId]);
+
+  // A song liked from the player bar has to show up here without a reload.
+  useEffect(() => {
+    if (!currentSong?.id || !likedSongIds.has(currentSong.id)) return;
+    setSongs(prev => (prev.some(song => song.id === currentSong.id) ? prev : [currentSong, ...prev]));
+  }, [currentSong, likedSongIds]);
 
   const playAll = () => {
     if (loadingMore) {
@@ -217,11 +224,11 @@ export default function MyLiked() {
           <table className="songs-table" style={{ marginTop: 0 }}>
             <thead>
               <tr>
-                <th style={{ width: '10%' }}>#</th>
-                <th style={{ width: '40%' }}>歌名</th>
-                <th style={{ width: '25%' }}>歌手</th>
-                <th style={{ width: '20%' }}>专辑</th>
-                <th style={{ width: '5%' }}>时长</th>
+                <th style={{ width: '6%' }}>#</th>
+                <th style={{ width: '38%' }}>歌名</th>
+                <th style={{ width: '24%' }}>歌手</th>
+                <th style={{ width: '22%' }}>专辑</th>
+                <th style={{ width: '10%' }}>时长</th>
               </tr>
             </thead>
             <tbody>

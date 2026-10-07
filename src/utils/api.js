@@ -67,6 +67,14 @@ async function performRequest(endpoint, options = {}) {
   }
 }
 
+// Playlist metadata is cached for 5 minutes, which hides songs the user just
+// liked. Drop matching entries so the next view mount refetches.
+export function invalidateApiCache(fragment) {
+  for (const key of [...apiCache.keys()]) {
+    if (key.includes(fragment)) apiCache.delete(key);
+  }
+}
+
 // Several views can request the same metadata during startup. Share one
 // in-flight GET instead of opening duplicate API connections. Requests with
 // caller-owned AbortSignals remain independent.

@@ -88,11 +88,12 @@ function MonetPosterLayout({
     const updateDimensions = () => {
       if (!railContainerRef.current) return;
       const { clientWidth, clientHeight } = railContainerRef.current;
-      const baseFont = Math.min(Math.max(clientWidth * 0.052, 22), 48) * fontScale;
+      const effectiveLyricWidth = showCover ? clientWidth : Math.min(clientWidth * 0.52, 600);
+      const baseFont = Math.min(Math.max(effectiveLyricWidth * 0.052, 20), 30) * fontScale;
       setDimensions({
         fontPx: baseFont,
         transPx: baseFont * 0.48,
-        maxWidthPx: clientWidth * 0.95,
+        maxWidthPx: showCover ? clientWidth * 0.95 : Math.min(clientWidth * 0.92, 800),
         railHeight: clientHeight
       });
     };
@@ -166,8 +167,8 @@ function MonetPosterLayout({
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
-      padding: isKashiMode ? '0' : '4vh 5vw',
-      gap: isKashiMode ? '0' : '5vw',
+      padding: (isKashiMode || !isRegularMode) ? '0' : '4vh 5vw',
+      gap: (isKashiMode || !isRegularMode) ? '0' : '5vw',
       overflow: 'hidden',
       userSelect: 'none'
     }}>
@@ -179,13 +180,15 @@ function MonetPosterLayout({
           }
           
           .monet-left-pane {
-            flex: 1 1 55%;
+            flex: ${isRegularMode ? '1 1 55%' : '1 1 100%'};
+            width: ${isRegularMode ? 'auto' : '100%'};
             height: 100%;
             display: flex;
             flex-direction: column;
             justifyContent: center;
             min-width: 0;
             z-index: 2;
+            position: relative;
           }
           
           .monet-right-pane {
@@ -294,7 +297,23 @@ function MonetPosterLayout({
         
         {/* Header Metadata */}
         {showSongInfo && !isKashiMode && (
-          <div style={{ display: 'flex', gap: '24px', marginBottom: '4vh', position: 'relative', zIndex: 2 }}>
+          <div 
+            style={!isRegularMode ? {
+              position: 'absolute',
+              top: '28px',
+              left: '36px',
+              zIndex: 10,
+              display: 'flex',
+              gap: '20px',
+              pointerEvents: 'none'
+            } : {
+              display: 'flex',
+              gap: '24px',
+              marginBottom: '4vh',
+              position: 'relative',
+              zIndex: 2
+            }}
+          >
             <div className="monet-anim-line" style={{ width: '4px', background: 'var(--primary)', borderRadius: '4px' }} />
             <div>
               <div className="monet-anim-artist monet-artist-text">{fallbackSong.artist}</div>
@@ -308,7 +327,7 @@ function MonetPosterLayout({
         <div 
           className="monet-anim-rail" 
           ref={railContainerRef}
-          style={{ flex: 1, position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center' }}
+          style={{ flex: 1, width: '100%', height: '100%', position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center' }}
         >
           {isKashiMode ? null : isRegularMode ? (
             <MonetLyricsRail

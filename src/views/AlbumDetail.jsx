@@ -107,10 +107,10 @@ export default function AlbumDetail() {
         <table className="songs-table" style={{ marginTop: 0 }}>
           <thead>
             <tr>
-              <th style={{ width: '10%' }}>#</th>
-              <th style={{ width: '50%' }}>歌名</th>
-              <th style={{ width: '30%' }}>歌手</th>
-              <th style={{ width: '10%' }}>时长</th>
+              <th style={{ width: '8%' }}>#</th>
+              <th style={{ width: '46%' }}>歌名</th>
+              <th style={{ width: '32%' }}>歌手</th>
+              <th style={{ width: '14%' }}>时长</th>
             </tr>
           </thead>
           <tbody>

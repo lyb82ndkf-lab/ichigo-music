@@ -113,8 +113,9 @@ export default function VinylRecordLyrics({
   }, [isPlaying]);
 
   // Center of rotation logic
-  // The disc is on the left, so we set transformOrigin far to the left.
-  const rotationRadius = 60; // vw
+  // The disc is on the left, so we set transformOrigin to wrap naturally around the vinyl perimeter.
+  const rotationRadius = 34; // vw
+  const effectiveFontPx = Math.round(Math.min(Math.max(fontPx * 0.76, 18), 26));
 
   // Canvas work is throttled to 30fps, reuses typed buffers and sleeps while
   // paused/hidden. This keeps the vinyl scene responsive without continuous
@@ -305,7 +306,7 @@ export default function VinylRecordLyrics({
           
           .vinyl-wrapper {
             position: relative;
-            width: clamp(160px, min(24vw, 40vh), 360px);
+            width: clamp(200px, min(28vw, 48vh), 380px);
             aspect-ratio: 1;
             display: flex;
             align-items: center;
@@ -448,7 +449,7 @@ export default function VinylRecordLyrics({
                   width: 'min(92%, 720px)',
                   textAlign: 'center',
                   fontFamily: '"Georgia", "Times New Roman", serif, "Noto Sans SC"',
-                  fontSize: `${fontPx * (isActive ? 1.08 : 0.82)}px`,
+                  fontSize: `${effectiveFontPx * (isActive ? 1.08 : 0.82)}px`,
                   fontWeight: isActive ? 700 : 400,
                   color: isActive ? themeColor : 'var(--text-main)',
                   opacity: isActive ? 1 : (isPassed ? 0.3 : 0.5),
@@ -471,14 +472,14 @@ export default function VinylRecordLyrics({
                     isPassed={isPassed}
                     engineRef={engineRef}
                     globalOffset={globalOffset}
-                    fontPx={fontPx}
+                    fontPx={effectiveFontPx}
                     themeColor={themeColor}
                     showFurigana={config?.showFurigana !== false}
                   />
                 </div>
                 {config?.showTranslation !== false && line.translation && (
                   <div style={{ 
-                    fontSize: `${fontPx * 0.45}px`, 
+                    fontSize: `${effectiveFontPx * 0.48}px`, 
                     opacity: 0.7, 
                     fontFamily: fontStack, 
                     letterSpacing: '0',

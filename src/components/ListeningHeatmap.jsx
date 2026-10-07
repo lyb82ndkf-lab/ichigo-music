@@ -990,10 +990,10 @@ export default function ListeningHeatmap() {
               <thead>
                 <tr>
                   <th style={{ width: '8%' }}>时间</th>
-                  <th style={{ width: '42%' }}>歌名</th>
-                  <th style={{ width: '25%' }}>歌手</th>
-                  <th style={{ width: '18%' }}>专辑</th>
-                  <th style={{ width: '7%' }}>时长</th>
+                  <th style={{ width: '40%' }}>歌名</th>
+                  <th style={{ width: '24%' }}>歌手</th>
+                  <th style={{ width: '20%' }}>专辑</th>
+                  <th style={{ width: '8%' }}>时长</th>
                 </tr>
               </thead>
               <tbody>

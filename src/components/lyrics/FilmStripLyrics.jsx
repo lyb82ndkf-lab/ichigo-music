@@ -16,6 +16,8 @@ const FilmLine = React.memo(function FilmLine({ line, index, activeLineIndex, fo
 });
 
 export default function FilmStripLyrics({ lyrics = [], activeLineIndex = -1, fontPx = 36, translationPx = 17, fontStack, showTranslation = true, showGlow = true, glowIntensity = 1, frameGap = 18, filmOpacity = 0.22, activeScale = 1.08, accentColor = 'var(--primary)', visualizerStyle = 'circle', visualizerOpacity = 0.82, visualizerSmoothing = 0.16, visualizerOffsetY = 0, visualizerScale = 1, visualizerIntensity = 1, isPlaying = true }) {
+  const effectiveFontPx = Math.round(Math.min(Math.max(fontPx * 0.72, 18), 24));
+  const effectiveTransPx = Math.round(effectiveFontPx * 0.52);
   const frames = useMemo(() => {
     if (!lyrics.length) return [];
     const active = Math.max(0, Math.min(lyrics.length - 1, activeLineIndex));
@@ -25,7 +27,7 @@ export default function FilmStripLyrics({ lyrics = [], activeLineIndex = -1, fon
   return <div className="filmstrip-lyrics" style={{ '--film-accent': accentColor, '--film-gap': `${frameGap}px`, '--film-dim': filmOpacity, '--film-active-scale': activeScale }}>
     <ImmersiveAudioVisual variant="filmstrip" isPlaying={isPlaying} accentColor={accentColor} intensity={visualizerIntensity} visualizerStyle={visualizerStyle} opacity={visualizerOpacity} smoothing={visualizerSmoothing} offsetY={visualizerOffsetY} scale={visualizerScale} />
     <div className="film-perforations film-perforations-top" aria-hidden="true" />
-    <div className="film-track">{frames.map(({ line, index }) => <FilmLine key={`${line.time}-${index}`} line={line} index={index} activeLineIndex={activeLineIndex} fontPx={fontPx} translationPx={translationPx} fontStack={fontStack} showTranslation={showTranslation} showGlow={showGlow} glowIntensity={glowIntensity} />)}</div>
+    <div className="film-track">{frames.map(({ line, index }) => <FilmLine key={`${line.time}-${index}`} line={line} index={index} activeLineIndex={activeLineIndex} fontPx={effectiveFontPx} translationPx={effectiveTransPx} fontStack={fontStack} showTranslation={showTranslation} showGlow={showGlow} glowIntensity={glowIntensity} />)}</div>
     <div className="film-perforations film-perforations-bottom" aria-hidden="true" />
     <style>{`
       .filmstrip-lyrics{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;background:linear-gradient(90deg,rgba(0,0,0,.2),transparent 18%,transparent 82%,rgba(0,0,0,.2));isolation:isolate}

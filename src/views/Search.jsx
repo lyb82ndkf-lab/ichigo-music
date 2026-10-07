@@ -259,11 +259,11 @@ export default function Search() {
             <table className="songs-table">
               <thead>
                 <tr>
-                  <th>歌名</th>
-                  <th>歌手</th>
-                  <th>专辑</th>
-                  <th>{'\u559c\u6b22'}</th>
-                  <th>时长</th>
+                  <th style={{ width: '34%' }}>歌名</th>
+                  <th style={{ width: '24%' }}>歌手</th>
+                  <th style={{ width: '22%' }}>专辑</th>
+                  <th style={{ width: '8%' }}>{'\u559c\u6b22'}</th>
+                  <th style={{ width: '12%' }}>时长</th>
                 </tr>
               </thead>
               <tbody>

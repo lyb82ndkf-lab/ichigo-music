@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useRef } from 'react';
-import { api } from '../utils/api';
+import { api, invalidateApiCache } from '../utils/api';
 import { DEFAULT_PROFILE, deepMerge, loadProfile, saveProfile } from '../utils/settingsProfile';
 import { extractWarmColdColors } from '../utils/colorExtractor';
 import { isLegacyFileMediaSource, isLocalMediaSource } from '../utils/audioSource';
@@ -615,6 +615,10 @@ export function AppProvider({ children }) {
 
   // Fetch user's liked song IDs
   const fetchLikedSongs = useCallback(async (userId) => {
+    const loadLikedIds = async () => {
+      const res = await api.getLikedList(userId);
+      return Array.isArray(res?.ids) ? res.ids : [];
+    };
     try {
       const playlistsRes = await api.getUserPlaylists(userId);
       if (playlistsRes.playlist && playlistsRes.playlist.length > 0) {
@@ -622,10 +626,23 @@ export function AppProvider({ children }) {
         const likedPlaylist = playlistsRes.playlist[0];
         setLikedPlaylistId(likedPlaylist.id);
 
-        const likedIdsRes = await api.getLikedList(userId);
-        if (likedIdsRes.ids) {
-          setLikedSongIds(new Set(likedIdsRes.ids));
+        let ids = [];
+        for (let attempt = 0; attempt < 2 && ids.length === 0; attempt += 1) {
+          try {
+            ids = await loadLikedIds();
+          } catch (err) {
+            if (attempt === 1) throw err;
+          }
         }
+        if (ids.length === 0) {
+          // /likelist can come back empty while the playlist itself loads fine;
+          // the liked playlist's own track ids are an equivalent source.
+          const detail = await api.getPlaylistDetail(likedPlaylist.id);
+          ids = (detail.playlist?.trackIds || detail.playlist?.tracks || [])
+            .map(track => track?.id ?? track)
+            .filter(Boolean);
+        }
+        if (ids.length > 0) setLikedSongIds(new Set(ids));
       }
     } catch (err) {
       console.error('Failed to fetch liked songs list:', err);
@@ -683,19 +700,27 @@ export function AppProvider({ children }) {
 
   // Check login
   const checkUserLogin = useCallback(async () => {
-    try {
-      const res = await api.getLoginStatus();
-      if (res.data && res.data.profile) {
-        setUser(res.data.profile);
-        fetchLikedSongs(res.data.profile.userId);
-        fetchRemoteRecentlyPlayed();
-      } else {
-        setUser(null);
-        setLikedSongIds(new Set());
+    // The embedded API may still be warming up when the window mounts, so a
+    // single failed probe must not log the user out for the whole session.
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        const res = await api.getLoginStatus();
+        if (res.data && res.data.profile) {
+          setUser(res.data.profile);
+          fetchLikedSongs(res.data.profile.userId);
+          fetchRemoteRecentlyPlayed();
+          return;
+        }
+        if (attempt >= 2) {
+          setUser(null);
+          setLikedSongIds(new Set());
+          return;
+        }
+      } catch (err) {
+        console.log('Login check failed:', err);
+        if (attempt >= 2) return; // keep the signed-in state restored from the profile
       }
-    } catch (err) {
-      console.log('Login check failed:', err);
-      setUser(null);
+      await new Promise(resolve => setTimeout(resolve, 1200 * (attempt + 1)));
     }
   }, [setUser, fetchLikedSongs, fetchRemoteRecentlyPlayed]);
 
@@ -707,16 +732,22 @@ export function AppProvider({ children }) {
       navigateTo('settings');
       return;
     }
-    const isCurrentlyLiked = likedSongIds.has(songId);
+    const isCurrentlyLiked = likedSongIds.has(songId)
+      || likedSongIds.has(String(songId))
+      || likedSongIds.has(Number(songId));
     try {
-      await api.likeSong(songId, !isCurrentlyLiked);
-      const newLikedIds = new Set(likedSongIds);
-      if (isCurrentlyLiked) {
-        newLikedIds.delete(songId);
-      } else {
-        newLikedIds.add(songId);
+      const res = await api.likeSong(songId, !isCurrentlyLiked);
+      // NetEase reports auth/permission failures in the body with HTTP 200.
+      if (res && typeof res.code === 'number' && res.code !== 200) {
+        throw new Error(`like rejected with code ${res.code}`);
       }
+      const newLikedIds = new Set(likedSongIds);
+      const forms = [songId, String(songId), Number(songId)];
+      forms.forEach(id => (isCurrentlyLiked ? newLikedIds.delete(id) : newLikedIds.add(id)));
       setLikedSongIds(newLikedIds);
+      // Playlist views cache their track lists for 5 minutes; drop them so a
+      // freshly liked song shows up as soon as the list is reopened.
+      invalidateApiCache('/playlist/');
     } catch (err) {
       console.error('Failed to toggle like:', err);
       alert('操作失败，请重试');
