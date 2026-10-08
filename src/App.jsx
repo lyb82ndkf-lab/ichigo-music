@@ -42,9 +42,35 @@ import LyricExportModal from './components/LyricExportModal';
 import SleepTimerModal from './components/SleepTimerModal';
 import EqualizerModal from './components/EqualizerModal';
 import AudioMatchModal from './components/AudioMatchModal';
+import { Button, IconButton, Switch, Slider, SegmentedControl, SegmentedControlItem } from './components/ui';
 import { ChevronLeft, ChevronRight, X, Settings as SettingsIcon, Minus, Square, Dices, RotateCcw, RotateCw, Sparkles } from 'lucide-react';
 
+function SettingSliderRow({ label, value, min, max, step = 1, onChange, unit = '', formatValue, style }) {
+  const displayVal = formatValue ? formatValue(value) : `${value}${unit}`;
+  return (
+    <div className="setting-row-inline" style={style}>
+      <span>{label}：{displayVal}</span>
+      <div style={{ width: '130px', flexShrink: 0 }}>
+        <Slider
+          min={min}
+          max={max}
+          step={step}
+          value={[Number(value)]}
+          onValueChange={([val]) => onChange(val)}
+        />
+      </div>
+    </div>
+  );
+}
 
+function SettingSwitchRow({ label, checked, onChange, style }) {
+  return (
+    <div className="setting-row-inline" style={style}>
+      <span>{label}</span>
+      <Switch checked={checked} onCheckedChange={onChange} />
+    </div>
+  );
+}
 
 function AppContent() {
   const {
@@ -692,48 +718,35 @@ function AppContent() {
 
         {isLyricsOpen && isImmersiveSettingsOpen && (
           <div className="immersive-settings-panel immersive-settings-panel-wide" style={{ maxHeight: 'calc(100vh - 160px)', backdropFilter: 'blur(30px)', WebkitBackdropFilter: 'blur(30px)', display: 'flex', flexDirection: 'column', overflow: 'hidden', zIndex: 9999 }}>
-                <div className="immersive-settings-header">
-                  <h3>沉浸式歌词设置</h3>
-                  <button
-                    className="immersive-settings-close"
+                <div className="immersive-settings-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--divider-color)' }}>
+                  <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>沉浸式歌词设置</h3>
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setIsImmersiveSettingsOpen(false)}
-                    aria-label="关闭设置"
+                    label="关闭设置"
                   >
                     <X size={16} />
-                  </button>
+                  </IconButton>
                 </div>
                 
                 {/* Tab Row */}
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--divider-color)', background: 'rgba(0,0,0,0.1)' }}>
-                  {[
-                    { key: 'lyrics', label: '歌词样式' },
-                    { key: 'background', label: '背景/封面' },
-                    { key: 'visualizer', label: '音频可视化' }
-                  ].map(tab => (
-                    <button
-                      key={tab.key}
-                      onClick={() => setImmersiveSettingsTab(tab.key)}
-                      style={{
-                        flex: 1,
-                        padding: '12px',
-                        background: 'transparent',
-                        border: 'none',
-                        borderBottom: immersiveSettingsTab === tab.key ? '2px solid var(--primary)' : '2px solid transparent',
-                        color: immersiveSettingsTab === tab.key ? 'var(--primary)' : 'var(--text-muted)',
-                        fontWeight: 600,
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s'
-                      }}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
+                <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--divider-color)', background: 'var(--surface-sunken)' }}>
+                  <SegmentedControl
+                    value={immersiveSettingsTab}
+                    onValueChange={(val) => { if (val) setImmersiveSettingsTab(val); }}
+                    size="sm"
+                    style={{ width: '100%', display: 'flex' }}
+                  >
+                    <SegmentedControlItem value="lyrics" style={{ flex: 1 }}>歌词样式</SegmentedControlItem>
+                    <SegmentedControlItem value="background" style={{ flex: 1 }}>背景/封面</SegmentedControlItem>
+                    <SegmentedControlItem value="visualizer" style={{ flex: 1 }}>音频可视化</SegmentedControlItem>
+                  </SegmentedControl>
                 </div>
 
-                <div className="immersive-settings-body" style={{ flex: 1, overflowY: 'auto' }}>
+                <div className="immersive-settings-body" style={{ flex: 1, overflowY: 'auto', padding: '16px 18px' }}>
                   {immersiveSettingsTab === 'lyrics' && (
-                    <div className="immersive-settings-section">
+                    <div className="immersive-settings-section" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <label className="setting-row-inline">
                         <span>动画模式</span>
                         <select className="setting-select" value={normalizeImmersiveMode(advancedLyricConfig.lyricsMode)} onChange={(e) => updateAdvancedLyricConfig({ lyricsMode: e.target.value })}>
@@ -762,216 +775,146 @@ function AppContent() {
                         </select>
                       </label>
 
-                      <div style={{ margin: '8px 0 12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <button
+                      <div style={{ margin: '4px 0 8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <Button
                           type="button"
+                          variant="subtle"
+                          size="sm"
+                          block
                           onClick={() => setIsLyricExportOpen(true)}
-                          style={{
-                            padding: '9px 12px',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(255, 64, 129, 0.5)',
-                            background: 'linear-gradient(135deg, rgba(255, 64, 129, 0.25), rgba(156, 39, 176, 0.25))',
-                            color: '#fff',
-                            fontSize: '12px',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: '6px',
-                            boxShadow: '0 2px 8px rgba(255, 64, 129, 0.2)',
-                            transition: 'all 0.2s'
-                          }}
                         >
                           📤 导出歌词 (LRC / 双语 / 逐字 / TXT)
-                        </button>
+                        </Button>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
+                            style={{ flex: 1 }}
                             onClick={() => setIsLyricAdjusterOpen(true)}
-                            style={{
-                              flex: 1,
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid rgba(255, 255, 255, 0.18)',
-                              background: 'rgba(255, 255, 255, 0.08)',
-                              color: '#fff',
-                              fontSize: '12px',
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '6px'
-                            }}
                           >
                             ⚡ 歌词微调 / 换源
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
                             onClick={() => setIsSleepTimerOpen(true)}
-                            style={{
-                              padding: '8px 12px',
-                              borderRadius: '8px',
-                              border: '1px solid rgba(255,255,255,0.18)',
-                              background: 'rgba(255,255,255,0.06)',
-                              color: '#fff',
-                              fontSize: '12px',
-                              fontWeight: 500,
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: '4px'
-                            }}
                           >
                             🌙 睡眠定时
-                          </button>
+                          </Button>
                         </div>
                       </div>
 
-                      <label className="setting-row-inline">
+                      <div className="setting-row-inline">
                         <span>歌词时间偏移：{Number(advancedLyricConfig.globalOffset || 0).toFixed(2)} 秒</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <button 
-                            className="modern-glass-btn" 
-                            style={{ padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}
+                          <Button 
+                            variant="outline" 
+                            size="xs"
                             onClick={() => updateAdvancedLyricConfig({ globalOffset: (Number(advancedLyricConfig.globalOffset) || 0) - 0.5 })}
-                          >-0.5s</button>
-                          <input type="range" min="-3" max="3" step="0.05" value={advancedLyricConfig.globalOffset || 0}
-                            onChange={(e) => updateAdvancedLyricConfig({ globalOffset: Number(e.target.value) })} style={{ width: '100px' }} />
-                          <button 
-                            className="modern-glass-btn" 
-                            style={{ padding: '2px 8px', fontSize: '12px', cursor: 'pointer' }}
+                          >-0.5s</Button>
+                          <div style={{ width: '110px' }}>
+                            <Slider
+                              min={-3}
+                              max={3}
+                              step={0.05}
+                              value={[Number(advancedLyricConfig.globalOffset || 0)]}
+                              onValueChange={([val]) => updateAdvancedLyricConfig({ globalOffset: Number(val) })}
+                            />
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="xs"
                             onClick={() => updateAdvancedLyricConfig({ globalOffset: (Number(advancedLyricConfig.globalOffset) || 0) + 0.5 })}
-                          >+0.5s</button>
+                          >+0.5s</Button>
                         </div>
-                      </label>
-                      <label className="setting-row-inline compact-toggle">
-                        <span>显示翻译</span>
-                        <input type="checkbox" checked={advancedLyricConfig.showTranslation !== false}
-                          onChange={(e) => updateAdvancedLyricConfig({ showTranslation: e.target.checked })} />
-                      </label>
-                      <label className="setting-row-inline compact-toggle">
-                        <span>显示假名注音（ルビ）</span>
-                        <input type="checkbox" checked={advancedLyricConfig.showFurigana !== false}
-                          onChange={(e) => updateAdvancedLyricConfig({ showFurigana: e.target.checked })} />
-                      </label>
+                      </div>
+
+                      <SettingSwitchRow
+                        label="显示歌词翻译"
+                        checked={advancedLyricConfig.showTranslation !== false}
+                        onChange={(checked) => updateAdvancedLyricConfig({ showTranslation: checked, ktvShowTranslation: checked })}
+                      />
+
+                      <SettingSwitchRow
+                        label="显示假名注音（ルビ）"
+                        checked={advancedLyricConfig.showFurigana !== false}
+                        onChange={(checked) => updateAdvancedLyricConfig({ showFurigana: checked })}
+                      />
 
                       {/* ================= PV 歌词 (talk) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'talk' && (
                         <>
-                          {/* JIZURA おまかせ (Omakase) 分镜重混与控制中心 (图2下方控制核心已整合至此) */}
+                          {/* JIZURA おまかせ (Omakase) 分镜重混与控制中心 */}
                           <div style={{
-                            background: 'linear-gradient(135deg, rgba(79, 70, 229, 0.18) 0%, rgba(236, 72, 153, 0.14) 100%)',
-                            border: '1px solid rgba(255, 255, 255, 0.18)',
-                            borderRadius: '12px',
-                            padding: '12px',
-                            margin: '12px 0 14px',
+                            background: 'var(--surface-sunken)',
+                            border: '1px solid var(--card-border)',
+                            borderRadius: 'var(--radius-lg, 12px)',
+                            padding: '14px',
                             display: 'flex',
                             flexDirection: 'column',
                             gap: '10px'
                           }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                <Sparkles size={14} color="#ffd166" />
-                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#fff', letterSpacing: '0.02em' }}>JIZURA PV 智能重混</span>
+                                <Sparkles size={14} style={{ color: 'var(--primary)' }} />
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>JIZURA PV 智能重混</span>
                               </div>
-                              <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.9)' }}>
+                              <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: 'var(--radius-full, 9999px)', background: 'var(--primary-subtle)', color: 'var(--primary)', fontWeight: 600 }}>
                                 案 #{jizuraStatus.proposalCount || 1} {jizuraStatus.mood ? `· ${jizuraStatus.mood}` : ''}
                               </span>
                             </div>
 
                             {/* 一键おまかせ 大按钮 */}
-                            <button
+                            <Button
                               type="button"
+                              variant="primary"
+                              size="md"
+                              block
                               onClick={() => {
                                 window.dispatchEvent(new CustomEvent('jizura-action', { detail: { action: 'omakase' } }));
                               }}
-                              style={{
-                                width: '100%',
-                                padding: '9px 16px',
-                                borderRadius: '8px',
-                                border: 'none',
-                                background: 'linear-gradient(135deg, #4f46e5 0%, #ec4899 100%)',
-                                color: '#fff',
-                                fontSize: '13px',
-                                fontWeight: 800,
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                boxShadow: '0 4px 16px rgba(79, 70, 229, 0.45)',
-                                transition: 'transform 0.1s ease, filter 0.2s ease'
-                              }}
-                              onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.98)'}
-                              onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
                             >
                               <Dices size={16} />
                               <span>🎲 おまかせ 一键重混分镜 (快捷键 R)</span>
-                            </button>
+                            </Button>
 
                             {/* 方案历史步进 */}
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                              <button
+                              <Button
                                 type="button"
+                                variant="outline"
+                                size="sm"
+                                style={{ flex: 1 }}
                                 onClick={() => {
                                   window.dispatchEvent(new CustomEvent('jizura-action', { detail: { action: 'undo' } }));
                                 }}
                                 title="回退到上一个分镜案"
-                                style={{
-                                  flex: 1,
-                                  padding: '6px 10px',
-                                  borderRadius: '6px',
-                                  background: 'rgba(255,255,255,0.08)',
-                                  border: '1px solid rgba(255,255,255,0.14)',
-                                  color: '#fff',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '4px'
-                                }}
                               >
-                                <RotateCcw size={12} />
+                                <RotateCcw size={13} />
                                 <span>上一案</span>
-                              </button>
-                              <button
+                              </Button>
+                              <Button
                                 type="button"
+                                variant="outline"
+                                size="sm"
+                                style={{ flex: 1 }}
                                 onClick={() => {
                                   window.dispatchEvent(new CustomEvent('jizura-action', { detail: { action: 'redo' } }));
                                 }}
                                 title="前进到下一个分镜案"
-                                style={{
-                                  flex: 1,
-                                  padding: '6px 10px',
-                                  borderRadius: '6px',
-                                  background: 'rgba(255,255,255,0.08)',
-                                  border: '1px solid rgba(255,255,255,0.14)',
-                                  color: '#fff',
-                                  fontSize: '11px',
-                                  fontWeight: 600,
-                                  cursor: 'pointer',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  gap: '4px'
-                                }}
                               >
-                                <RotateCw size={12} />
+                                <RotateCw size={13} />
                                 <span>下一案</span>
-                              </button>
+                              </Button>
                             </div>
                           </div>
 
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '14px 0 8px' }}>
-                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>PV 模板速选</span>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '4px' }}>
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-main)' }}>PV 模板速选</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <select className="setting-select" value={advancedLyricConfig.ktvPreset || 'auto'}
-                                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', background: 'rgba(0,0,0,0.4)', color: '#fff', border: '1px solid rgba(255,255,255,0.2)' }}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   const nextPatch = { ktvPreset: val };
@@ -993,8 +936,8 @@ function AppContent() {
                             </div>
                           </div>
 
-                          {/* JIZURA 现代视觉卡片列表 (JIZURA Modern Styles Gallery) */}
-                          <div aria-label="PV 模板速选" style={{ margin: '4px 0 14px', maxHeight: '280px', overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {/* JIZURA 现代视觉卡片列表 */}
+                          <div aria-label="PV 模板速选" style={{ maxHeight: '260px', overflowY: 'auto', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                             {(Array.isArray(JIZURA_GALLERY_STYLES) ? JIZURA_GALLERY_STYLES : []).map((styleItem) => {
                               const value = styleItem.key;
                               const selected = (advancedLyricConfig.ktvPreset || 'auto') === value || jizuraStatus.activeStyle === value;
@@ -1016,30 +959,27 @@ function AppContent() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '10px',
-                                    padding: '7px 10px',
-                                    borderRadius: '8px',
-                                    background: selected ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.04)',
-                                    border: selected ? '1.5px solid #fff' : '1px solid rgba(255,255,255,0.08)',
-                                    boxShadow: selected ? '0 0 14px rgba(255,255,255,0.25)' : 'none',
+                                    padding: '8px 12px',
+                                    borderRadius: 'var(--radius-md, 8px)',
+                                    background: selected ? 'var(--primary-subtle)' : 'var(--glass-bg)',
+                                    border: selected ? '1.5px solid var(--primary)' : '1px solid var(--card-border)',
                                     cursor: 'pointer',
                                     transition: 'all 0.15s ease'
                                   }}
                                 >
-                                  {/* 缩略图渐变色块 */}
+                                  {/* 缩略图色块 */}
                                   <div style={{
-                                    width: '64px',
-                                    height: '34px',
-                                    borderRadius: '6px',
+                                    width: '60px',
+                                    height: '32px',
+                                    borderRadius: 'var(--radius-sm, 6px)',
                                     background: styleItem.gradient,
-                                    boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.35), 0 2px 5px rgba(0,0,0,0.3)',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     flexShrink: 0,
                                     fontSize: '10px',
-                                    fontWeight: 800,
-                                    color: styleItem.textColor || '#fff',
-                                    textShadow: styleItem.textColor === '#ffffff' ? '0 1px 2px rgba(0,0,0,0.8)' : 'none'
+                                    fontWeight: 700,
+                                    color: styleItem.textColor || '#fff'
                                   }}>
                                     {styleItem.en || 'PV'}
                                   </div>
@@ -1047,14 +987,14 @@ function AppContent() {
                                   {/* 模板信息与风格标签 */}
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                                      <span style={{ fontSize: '12px', fontWeight: 800, color: selected ? '#fff' : 'rgba(255,255,255,0.9)' }}>
+                                      <span style={{ fontSize: '12px', fontWeight: 700, color: selected ? 'var(--primary)' : 'var(--text-main)' }}>
                                         {styleItem.name}
                                       </span>
-                                      <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'rgba(255,255,255,0.12)', color: 'var(--primary)' }}>
+                                      <span style={{ fontSize: '9px', padding: '1px 5px', borderRadius: '4px', background: 'var(--glass-bg-hover)', color: 'var(--text-muted)' }}>
                                         {styleItem.tag}
                                       </span>
                                     </div>
-                                    <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                       {styleItem.desc}
                                     </div>
                                   </div>
@@ -1062,16 +1002,16 @@ function AppContent() {
                                   {/* 调色盘预览点与状态 */}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                                     {Array.isArray(styleItem.palette) && styleItem.palette.slice(0, 3).map((c, i) => (
-                                      <span key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: c, border: '1px solid rgba(255,255,255,0.3)' }} />
+                                      <span key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: c, border: '1px solid var(--card-border)' }} />
                                     ))}
                                     <span style={{
                                       marginLeft: '6px',
                                       fontSize: '10px',
                                       padding: '3px 8px',
-                                      borderRadius: '6px',
-                                      background: selected ? 'var(--primary)' : 'rgba(255,255,255,0.08)',
-                                      color: selected ? '#fff' : 'rgba(255,255,255,0.7)',
-                                      fontWeight: selected ? 800 : 500
+                                      borderRadius: 'var(--radius-sm, 6px)',
+                                      background: selected ? 'var(--primary)' : 'var(--glass-bg)',
+                                      color: selected ? '#fff' : 'var(--text-muted)',
+                                      fontWeight: 600
                                     }}>
                                       {selected ? '使用中' : '应用'}
                                     </span>
@@ -1081,108 +1021,181 @@ function AppContent() {
                             })}
                           </div>
 
-                          {advancedLyricConfig.ktvPreset === 'multi' && <div style={{ margin: '-2px 0 10px', padding: '9px', border: '1px solid rgba(255,255,255,.14)', borderRadius: '8px', background: 'rgba(255,255,255,.045)' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '7px', color: 'var(--text-muted)', fontSize: '10px' }}>
-                              <span>选择参与随机切换的模板（至少 2 个）</span>
-                              <b style={{ color: ktvPresetPool.length >= 2 ? 'var(--primary)' : '#ffbd69' }}>{ktvPresetPool.length} 个</b>
+                          {advancedLyricConfig.ktvPreset === 'multi' && (
+                            <div style={{ padding: '10px 12px', border: '1px solid var(--card-border)', borderRadius: 'var(--radius-md, 8px)', background: 'var(--surface-sunken)' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '8px', color: 'var(--text-muted)', fontSize: '11px' }}>
+                                <span>选择参与随机切换的模板（至少 2 个）</span>
+                                <b style={{ color: ktvPresetPool.length >= 2 ? 'var(--primary)' : '#ffbd69' }}>{ktvPresetPool.length} 个</b>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px 10px', maxHeight: '160px', overflowY: 'auto' }}>
+                                {(Array.isArray(JIZURA_GALLERY_STYLES) ? JIZURA_GALLERY_STYLES : []).map((s) => {
+                                  const value = s.key;
+                                  const label = s.name;
+                                  const pool = Array.isArray(ktvPresetPool) ? ktvPresetPool : [];
+                                  const checked = pool.includes(value);
+                                  return (
+                                    <label key={`multi-${value}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0, color: checked ? 'var(--primary)' : 'var(--text-muted)', fontSize: '11px', cursor: 'pointer' }}>
+                                      <input type="checkbox" checked={checked} onChange={() => {
+                                        const next = checked ? pool.filter(item => item !== value) : [...pool, value];
+                                        updateAdvancedLyricConfig({ ktvPresetPool: next });
+                                      }} />
+                                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                              {ktvPresetPool.length < 2 && <div style={{ marginTop: '6px', color: '#ffbd69', fontSize: '11px' }}>选择两个或更多模板后才会随机切换。</div>}
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '4px 8px', maxHeight: '160px', overflowY: 'auto' }}>
-                              {(Array.isArray(JIZURA_GALLERY_STYLES) ? JIZURA_GALLERY_STYLES : []).map((s) => {
-                                const value = s.key;
-                                const label = s.name;
-                                const pool = Array.isArray(ktvPresetPool) ? ktvPresetPool : [];
-                                const checked = pool.includes(value);
-                                return <label key={`multi-${value}`} style={{ display: 'flex', alignItems: 'center', gap: '5px', minWidth: 0, color: checked ? 'var(--primary)' : 'var(--text-muted)', fontSize: '10px', cursor: 'pointer' }}>
-                                  <input type="checkbox" checked={checked} onChange={() => {
-                                    const next = checked ? pool.filter(item => item !== value) : [...pool, value];
-                                    updateAdvancedLyricConfig({ ktvPresetPool: next });
-                                  }} />
-                                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-                                </label>;
-                              })}
+                          )}
+
+                          {currentSong?.id && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', border: '1px solid var(--card-border)', borderRadius: 'var(--radius-md, 8px)', background: 'var(--surface-sunken)' }}>
+                              <span style={{ minWidth: 0, flex: 1, color: currentKtvSongTemplate ? 'var(--primary)' : 'var(--text-muted)', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {currentKtvSongTemplate ? `本曲已锁定：${JIZURA_GALLERY_STYLES.find(s => s.key === currentKtvSongTemplate)?.name || KTV_TEMPLATE_GALLERY.find(([value]) => value === currentKtvSongTemplate)?.[1] || currentKtvSongTemplate}` : '本曲跟随全局 / 智能生成风格'}
+                              </span>
+                              {currentKtvSongTemplate ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="xs"
+                                  onClick={() => {
+                                    const next = { ...(advancedLyricConfig.ktvSongTemplates || {}) };
+                                    delete next[String(currentSong.id)];
+                                    updateAdvancedLyricConfig({ ktvSongTemplates: next });
+                                  }}
+                                >
+                                  恢复自动
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="xs"
+                                  disabled={(advancedLyricConfig.ktvPreset || 'auto') === 'auto'}
+                                  onClick={() => updateAdvancedLyricConfig({ ktvSongTemplates: { ...(advancedLyricConfig.ktvSongTemplates || {}), [String(currentSong.id)]: advancedLyricConfig.ktvPreset } })}
+                                >
+                                  锁定本曲
+                                </Button>
+                              )}
                             </div>
-                            {ktvPresetPool.length < 2 && <div style={{ marginTop: '6px', color: '#ffbd69', fontSize: '10px' }}>选择两个或更多模板后才会随机切换。</div>}
-                          </div>}
+                          )}
 
-                          {currentSong?.id && <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '-2px 0 10px', padding: '7px 8px', border: '1px solid rgba(255,255,255,.12)', borderRadius: '8px', background: 'rgba(255,255,255,.035)' }}>
-                            <span style={{ minWidth: 0, flex: 1, color: currentKtvSongTemplate ? 'var(--primary)' : 'var(--text-muted)', fontSize: '10px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {currentKtvSongTemplate ? `本曲已锁定：${JIZURA_GALLERY_STYLES.find(s => s.key === currentKtvSongTemplate)?.name || KTV_TEMPLATE_GALLERY.find(([value]) => value === currentKtvSongTemplate)?.[1] || currentKtvSongTemplate}` : '本曲跟随全局 / 智能生成风格'}
-                            </span>
-                            {currentKtvSongTemplate ? <button type="button" onClick={() => {
-                              const next = { ...(advancedLyricConfig.ktvSongTemplates || {}) };
-                              delete next[String(currentSong.id)];
-                              updateAdvancedLyricConfig({ ktvSongTemplates: next });
-                            }} style={{ flex: '0 0 auto', padding: '4px 7px', borderRadius: '5px', border: '1px solid rgba(255,255,255,.18)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '10px' }}>恢复自动</button> : <button type="button" disabled={(advancedLyricConfig.ktvPreset || 'auto') === 'auto'} onClick={() => updateAdvancedLyricConfig({ ktvSongTemplates: { ...(advancedLyricConfig.ktvSongTemplates || {}), [String(currentSong.id)]: advancedLyricConfig.ktvPreset } })} style={{ flex: '0 0 auto', padding: '4px 7px', borderRadius: '5px', border: '1px solid rgba(255,255,255,.18)', background: 'transparent', color: (advancedLyricConfig.ktvPreset || 'auto') === 'auto' ? 'var(--text-muted)' : 'var(--primary)', cursor: (advancedLyricConfig.ktvPreset || 'auto') === 'auto' ? 'default' : 'pointer', fontSize: '10px', opacity: (advancedLyricConfig.ktvPreset || 'auto') === 'auto' ? .45 : 1 }}>锁定本曲</button>}
-                          </div>}
+                          <SettingSwitchRow
+                            label="显示歌词译文 (底部半透明胶囊)"
+                            checked={advancedLyricConfig.ktvShowTranslation !== false && advancedLyricConfig.showTranslation !== false}
+                            onChange={(checked) => updateAdvancedLyricConfig({ ktvShowTranslation: checked, showTranslation: checked })}
+                          />
 
-                          <label className="setting-row-inline">
-                            <span>动画速度：{(advancedLyricConfig.ktvSpeed ?? 2.0).toFixed(1)}x</span>
-                            <input type="range" min="0.2" max="4.0" step="0.1" value={advancedLyricConfig.ktvSpeed ?? 2.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ ktvSpeed: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>动效强度：{(advancedLyricConfig.ktvMotion ?? 1.0).toFixed(1)}x</span>
-                            <input type="range" min="0.1" max="2.0" step="0.1" value={advancedLyricConfig.ktvMotion ?? 1.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ ktvMotion: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>背景不透明度：{Math.round((advancedLyricConfig.ktvBgOpacity ?? 1.0) * 100)}%</span>
-                            <input type="range" min="0" max="1" step="0.05" value={advancedLyricConfig.ktvBgOpacity ?? 1.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ ktvBgOpacity: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline compact-toggle">
-                            <span>显示歌曲开场标题卡</span>
-                            <input type="checkbox" checked={advancedLyricConfig.ktvShowTitleCard !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvShowTitleCard: e.target.checked })} />
-                          </label>
-                          <label className="setting-row-inline compact-toggle">
-                            <span>混合专辑封面光影底图</span>
-                            <input type="checkbox" checked={advancedLyricConfig.ktvUseCoverTexture !== false} onChange={(e) => updateAdvancedLyricConfig({ ktvUseCoverTexture: e.target.checked })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>纸质与噪点肌理：{Math.round((advancedLyricConfig.jizuraTexture ?? 0.6) * 100)}%</span>
-                            <input type="range" min="0" max="1.5" step="0.05" value={advancedLyricConfig.jizuraTexture ?? 0.6}
-                              onChange={(e) => updateAdvancedLyricConfig({ jizuraTexture: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>故障与色差强度：{Math.round((advancedLyricConfig.jizuraGlitch ?? 0.55) * 100)}%</span>
-                            <input type="range" min="0" max="1.5" step="0.05" value={advancedLyricConfig.jizuraGlitch ?? 0.55}
-                              onChange={(e) => updateAdvancedLyricConfig({ jizuraGlitch: Number(e.target.value) })} />
-                          </label>
+                          <SettingSliderRow
+                            label="动画速度"
+                            value={advancedLyricConfig.ktvSpeed ?? 2.0}
+                            min={0.2}
+                            max={4.0}
+                            step={0.1}
+                            unit="x"
+                            formatValue={(v) => `${Number(v).toFixed(1)}x`}
+                            onChange={(val) => updateAdvancedLyricConfig({ ktvSpeed: val })}
+                          />
+
+                          <SettingSliderRow
+                            label="动效强度"
+                            value={advancedLyricConfig.ktvMotion ?? 1.0}
+                            min={0.1}
+                            max={2.0}
+                            step={0.1}
+                            unit="x"
+                            formatValue={(v) => `${Number(v).toFixed(1)}x`}
+                            onChange={(val) => updateAdvancedLyricConfig({ ktvMotion: val })}
+                          />
+
+                          <SettingSliderRow
+                            label="背景不透明度"
+                            value={advancedLyricConfig.ktvBgOpacity ?? 1.0}
+                            min={0}
+                            max={1}
+                            step={0.05}
+                            formatValue={(v) => `${Math.round(Number(v) * 100)}%`}
+                            onChange={(val) => updateAdvancedLyricConfig({ ktvBgOpacity: val })}
+                          />
+
+                          <SettingSwitchRow
+                            label="显示歌曲开场标题卡"
+                            checked={advancedLyricConfig.ktvShowTitleCard !== false}
+                            onChange={(checked) => updateAdvancedLyricConfig({ ktvShowTitleCard: checked })}
+                          />
+
+                          <SettingSwitchRow
+                            label="混合专辑封面光影底图"
+                            checked={advancedLyricConfig.ktvUseCoverTexture !== false}
+                            onChange={(checked) => updateAdvancedLyricConfig({ ktvUseCoverTexture: checked })}
+                          />
+
+                          <SettingSliderRow
+                            label="纸质与噪点肌理"
+                            value={advancedLyricConfig.jizuraTexture ?? 0.6}
+                            min={0}
+                            max={1.5}
+                            step={0.05}
+                            formatValue={(v) => `${Math.round(Number(v) * 100)}%`}
+                            onChange={(val) => updateAdvancedLyricConfig({ jizuraTexture: val })}
+                          />
+
+                          <SettingSliderRow
+                            label="故障与色差强度"
+                            value={advancedLyricConfig.jizuraGlitch ?? 0.55}
+                            min={0}
+                            max={1.5}
+                            step={0.05}
+                            formatValue={(v) => `${Math.round(Number(v) * 100)}%`}
+                            onChange={(val) => updateAdvancedLyricConfig({ jizuraGlitch: val })}
+                          />
                         </>
                       )}
 
                       {/* ================= 常规滚动模式 (regular) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'regular' && (
                         <>
-                          <label className="setting-row-inline">
-                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
-                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
-                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>显示行数：{advancedLyricConfig.visibleLines || 5} 行</span>
-                            <input type="range" min="1" max="9" step="2" value={advancedLyricConfig.visibleLines || 5}
-                              onChange={(e) => updateAdvancedLyricConfig({ visibleLines: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
+                          <SettingSliderRow
+                            label="歌词字号"
+                            value={advancedLyricConfig.fontSize || 25}
+                            min={18}
+                            max={52}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ fontSize: val })}
+                          />
+                          <SettingSliderRow
+                            label="显示行数"
+                            value={advancedLyricConfig.visibleLines || 5}
+                            min={1}
+                            max={9}
+                            step={2}
+                            unit=" 行"
+                            onChange={(val) => updateAdvancedLyricConfig({ visibleLines: val })}
+                          />
+                          <div className="setting-row-inline">
                             <span>歌词纵向位置：{advancedLyricConfig.lyricsPositionY ?? 50}% {((advancedLyricConfig.lyricsPositionY ?? 50) === 50) ? '(垂直居中)' : ''}</span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
-                              <input type="range" min="20" max="80" value={advancedLyricConfig.lyricsPositionY ?? 50}
-                                onChange={(e) => updateAdvancedLyricConfig({ lyricsPositionY: Number(e.target.value) })}
-                                style={{ flex: 1, maxWidth: '160px' }} />
+                              <div style={{ flex: 1, maxWidth: '140px' }}>
+                                <Slider
+                                  min={20}
+                                  max={80}
+                                  value={[Number(advancedLyricConfig.lyricsPositionY ?? 50)]}
+                                  onValueChange={([val]) => updateAdvancedLyricConfig({ lyricsPositionY: Number(val) })}
+                                />
+                              </div>
                               {(advancedLyricConfig.lyricsPositionY ?? 50) !== 50 && (
-                                <button
+                                <Button
                                   type="button"
-                                  className="nav-pill-btn"
-                                  style={{ padding: '2px 8px', fontSize: '11px', height: '22px', borderRadius: '4px' }}
+                                  variant="outline"
+                                  size="xs"
                                   onClick={() => updateAdvancedLyricConfig({ lyricsPositionY: 50 })}
                                   title="重置为垂直居中(50%)"
                                 >
                                   恢复居中
-                                </button>
+                                </Button>
                               )}
                             </div>
-                          </label>
+                          </div>
                           <label className="setting-row-inline">
                             <span>顶部标题字体</span>
                             <select className="setting-select" value={advancedLyricConfig.titleFontFamily || 'Outfit'}
@@ -1205,32 +1218,44 @@ function AppContent() {
                               <option value="KaiTi">楷体</option>
                             </select>
                           </label>
-                          <label className="setting-row-inline compact-toggle">
-                            <span>歌词辉光效果</span>
-                            <input type="checkbox" checked={advancedLyricConfig.showGlow === true}
-                              onChange={(e) => updateAdvancedLyricConfig({ showGlow: e.target.checked })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>歌词辉光强度：{(advancedLyricConfig.lyricGlowIntensity ?? 1).toFixed(1)}x</span>
-                            <input type="range" min="0" max="2" step="0.1" value={advancedLyricConfig.lyricGlowIntensity ?? 1}
-                              onChange={(e) => updateAdvancedLyricConfig({ lyricGlowIntensity: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>非活动歌词模糊度：{(advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4).toFixed(1)}</span>
-                            <input type="range" min="0" max="3.0" step="0.2" value={advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4}
-                              onChange={(e) => updateAdvancedLyricConfig({ inactiveLyricBlur: Number(e.target.value) })} />
-                          </label>
+                          <SettingSwitchRow
+                            label="歌词辉光效果"
+                            checked={advancedLyricConfig.showGlow === true}
+                            onChange={(checked) => updateAdvancedLyricConfig({ showGlow: checked })}
+                          />
+                          <SettingSliderRow
+                            label="歌词辉光强度"
+                            value={advancedLyricConfig.lyricGlowIntensity ?? 1}
+                            min={0}
+                            max={2}
+                            step={0.1}
+                            unit="x"
+                            formatValue={(v) => `${Number(v).toFixed(1)}x`}
+                            onChange={(val) => updateAdvancedLyricConfig({ lyricGlowIntensity: val })}
+                          />
+                          <SettingSliderRow
+                            label="非活动歌词模糊度"
+                            value={advancedLyricConfig.inactiveLyricBlur !== undefined ? advancedLyricConfig.inactiveLyricBlur : 0.4}
+                            min={0}
+                            max={3.0}
+                            step={0.2}
+                            formatValue={(v) => Number(v).toFixed(1)}
+                            onChange={(val) => updateAdvancedLyricConfig({ inactiveLyricBlur: val })}
+                          />
                         </>
                       )}
 
                       {/* ================= 气泡模式 (streamer) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'streamer' && (
                         <>
-                          <label className="setting-row-inline">
-                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
-                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
-                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
-                          </label>
+                          <SettingSliderRow
+                            label="歌词字号"
+                            value={advancedLyricConfig.fontSize || 25}
+                            min={18}
+                            max={52}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ fontSize: val })}
+                          />
                           <label className="setting-row-inline">
                             <span>气泡对齐方式</span>
                             <select className="setting-select" value={advancedLyricConfig.bubbleAlign || 'alternate'}
@@ -1246,88 +1271,124 @@ function AppContent() {
                       {/* ================= 云阶模式 (cloudstep) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'cloudstep' && (
                         <>
-                          <label className="setting-row-inline">
-                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
-                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
-                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>云阶行间距：{(advancedLyricConfig.cloudStepSpacing || 1).toFixed(1)}</span>
-                            <input type="range" min="0.5" max="3" step="0.1" value={advancedLyricConfig.cloudStepSpacing || 1}
-                              onChange={(e) => updateAdvancedLyricConfig({ cloudStepSpacing: Number(e.target.value) })} />
-                          </label>
+                          <SettingSliderRow
+                            label="歌词字号"
+                            value={advancedLyricConfig.fontSize || 25}
+                            min={18}
+                            max={52}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ fontSize: val })}
+                          />
+                          <SettingSliderRow
+                            label="云阶行间距"
+                            value={advancedLyricConfig.cloudStepSpacing || 1}
+                            min={0.5}
+                            max={3}
+                            step={0.1}
+                            formatValue={(v) => Number(v).toFixed(1)}
+                            onChange={(val) => updateAdvancedLyricConfig({ cloudStepSpacing: val })}
+                          />
                         </>
                       )}
 
                       {/* ================= 黑胶光碟 (vinyl) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'vinyl' && (
                         <>
-                          <label className="setting-row-inline">
-                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
-                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
-                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>黑胶倾斜角度：{advancedLyricConfig.vinylTiltAngle ?? 0}°</span>
-                            <input type="range" min="0" max="60" step="5" value={advancedLyricConfig.vinylTiltAngle ?? 0}
-                              onChange={(e) => updateAdvancedLyricConfig({ vinylTiltAngle: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>黑胶行间距：{(advancedLyricConfig.vinylLineSpacing ?? 0.7).toFixed(1)}</span>
-                            <input type="range" min="0.5" max="2.5" step="0.1" value={advancedLyricConfig.vinylLineSpacing ?? 0.7}
-                              onChange={(e) => updateAdvancedLyricConfig({ vinylLineSpacing: Number(e.target.value) })} />
-                          </label>
+                          <SettingSliderRow
+                            label="歌词字号"
+                            value={advancedLyricConfig.fontSize || 25}
+                            min={18}
+                            max={52}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ fontSize: val })}
+                          />
+                          <SettingSliderRow
+                            label="黑胶倾斜角度"
+                            value={advancedLyricConfig.vinylTiltAngle ?? 0}
+                            min={0}
+                            max={60}
+                            step={5}
+                            unit="°"
+                            onChange={(val) => updateAdvancedLyricConfig({ vinylTiltAngle: val })}
+                          />
+                          <SettingSliderRow
+                            label="黑胶行间距"
+                            value={advancedLyricConfig.vinylLineSpacing ?? 0.7}
+                            min={0.5}
+                            max={2.5}
+                            step={0.1}
+                            formatValue={(v) => Number(v).toFixed(1)}
+                            onChange={(val) => updateAdvancedLyricConfig({ vinylLineSpacing: val })}
+                          />
                         </>
                       )}
 
                       {/* ================= 胶片模式 (filmstrip) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'filmstrip' && (
                         <>
-                          <label className="setting-row-inline">
-                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
-                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
-                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>胶片帧间距：{advancedLyricConfig.filmFrameGap ?? 18}px</span>
-                            <input type="range" min="8" max="48" step="2" value={advancedLyricConfig.filmFrameGap ?? 18}
-                              onChange={(e) => updateAdvancedLyricConfig({ filmFrameGap: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>非当前帧透明度：{Math.round((advancedLyricConfig.filmOpacity ?? 0.22) * 100)}%</span>
-                            <input type="range" min="0.05" max="0.5" step="0.05" value={advancedLyricConfig.filmOpacity ?? 0.22}
-                              onChange={(e) => updateAdvancedLyricConfig({ filmOpacity: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>当前帧放大：{Math.round((advancedLyricConfig.filmActiveScale ?? 1.08) * 100)}%</span>
-                            <input type="range" min="1" max="1.2" step="0.01" value={advancedLyricConfig.filmActiveScale ?? 1.08}
-                              onChange={(e) => updateAdvancedLyricConfig({ filmActiveScale: Number(e.target.value) })} />
-                          </label>
+                          <SettingSliderRow
+                            label="歌词字号"
+                            value={advancedLyricConfig.fontSize || 25}
+                            min={18}
+                            max={52}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ fontSize: val })}
+                          />
+                          <SettingSliderRow
+                            label="胶片帧间距"
+                            value={advancedLyricConfig.filmFrameGap ?? 18}
+                            min={8}
+                            max={48}
+                            step={2}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ filmFrameGap: val })}
+                          />
+                          <SettingSliderRow
+                            label="非当前帧透明度"
+                            value={advancedLyricConfig.filmOpacity ?? 0.22}
+                            min={0.05}
+                            max={0.5}
+                            step={0.05}
+                            formatValue={(v) => `${Math.round(Number(v) * 100)}%`}
+                            onChange={(val) => updateAdvancedLyricConfig({ filmOpacity: val })}
+                          />
+                          <SettingSliderRow
+                            label="当前帧放大"
+                            value={advancedLyricConfig.filmActiveScale ?? 1.08}
+                            min={1}
+                            max={1.2}
+                            step={0.01}
+                            formatValue={(v) => `${Math.round(Number(v) * 100)}%`}
+                            onChange={(val) => updateAdvancedLyricConfig({ filmActiveScale: val })}
+                          />
                         </>
                       )}
 
                       {/* ================= 空间画布 (spatial) 专属设置 ================= */}
                       {advancedLyricConfig.lyricsMode === 'spatial' && (
                         <>
-                          <label className="setting-row-inline">
-                            <span>歌词字号：{advancedLyricConfig.fontSize || 25}px</span>
-                            <input type="range" min="18" max="52" value={advancedLyricConfig.fontSize || 25}
-                              onChange={(e) => updateAdvancedLyricConfig({ fontSize: Number(e.target.value) })} />
-                          </label>
+                          <SettingSliderRow
+                            label="歌词字号"
+                            value={advancedLyricConfig.fontSize || 25}
+                            min={18}
+                            max={52}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ fontSize: val })}
+                          />
                         </>
                       )}
 
                       {/* ================= 背景微粒装饰 ================= */}
-                      <label className="setting-row-inline compact-toggle">
-                        <span>背景悬浮微粒 (Floating decor)</span>
-                        <input type="checkbox" checked={advancedLyricConfig.showDecor === true}
-                          onChange={(e) => updateAdvancedLyricConfig({ showDecor: e.target.checked })} />
-                      </label>
+                      <SettingSwitchRow
+                        label="背景悬浮微粒 (Floating decor)"
+                        checked={advancedLyricConfig.showDecor === true}
+                        onChange={(checked) => updateAdvancedLyricConfig({ showDecor: checked })}
+                      />
                     </div>
                   )}
 
                   {immersiveSettingsTab === 'background' && (
-                    <div className="immersive-settings-section">
+                    <div className="immersive-settings-section" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <label className="setting-row-inline">
                         <span>背景模式</span>
                         <select className="setting-select" value={advancedLyricConfig.backgroundMode || 'cover'}
@@ -1338,21 +1399,25 @@ function AppContent() {
                           <option value="none">纯净背景</option>
                         </select>
                       </label>
-                      <label className="setting-row-inline compact-toggle">
-                        <span>显示专辑封面</span>
-                        <input type="checkbox" checked={advancedLyricConfig.showCover !== false}
-                          onChange={(e) => updateAdvancedLyricConfig({ showCover: e.target.checked })} />
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>背景模糊度：{advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 32}px</span>
-                        <input type="range" min="0" max="60" step="2" value={advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 32}
-                          onChange={(e) => updateAdvancedLyricConfig({ backgroundBlur: Number(e.target.value) })} />
-                      </label>
+                      <SettingSwitchRow
+                        label="显示专辑封面"
+                        checked={advancedLyricConfig.showCover !== false}
+                        onChange={(checked) => updateAdvancedLyricConfig({ showCover: checked })}
+                      />
+                      <SettingSliderRow
+                        label="背景模糊度"
+                        value={advancedLyricConfig.backgroundBlur !== undefined ? advancedLyricConfig.backgroundBlur : 32}
+                        min={0}
+                        max={60}
+                        step={2}
+                        unit="px"
+                        onChange={(val) => updateAdvancedLyricConfig({ backgroundBlur: val })}
+                      />
                     </div>
                   )}
 
                   {immersiveSettingsTab === 'visualizer' && (
-                    <div className="immersive-settings-section" style={{ overflowY: 'auto', maxHeight: '350px', paddingRight: '4px' }}>
+                    <div className="immersive-settings-section" style={{ overflowY: 'auto', maxHeight: '380px', paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       <label className="setting-row-inline">
                         <span>波形样式</span>
                         <select className="setting-select" value={currentModeVisualizerStyle}
@@ -1364,41 +1429,63 @@ function AppContent() {
                           <option value="off">关闭</option>
                         </select>
                       </label>
-                      <label className="setting-row-inline compact-toggle">
-                        <span>启用音频可视化</span>
-                        <input type="checkbox" checked={advancedLyricConfig.visualizerEnabled !== false}
-                          onChange={(e) => updateAdvancedLyricConfig({ visualizerEnabled: e.target.checked })} />
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>可视化强度：{(advancedLyricConfig.visualizerIntensity ?? 1).toFixed(1)}x</span>
-                        <input type="range" min="0.2" max="2.5" step="0.1" value={advancedLyricConfig.visualizerIntensity ?? 1}
-                          onChange={(e) => updateAdvancedLyricConfig({ visualizerIntensity: Number(e.target.value) })} />
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>可视化不透明度：{Math.round((advancedLyricConfig.visualizerOpacity ?? 0.82) * 100)}%</span>
-                        <input type="range" min="0.1" max="1" step="0.05" value={advancedLyricConfig.visualizerOpacity ?? 0.82}
-                          onChange={(e) => updateAdvancedLyricConfig({ visualizerOpacity: Number(e.target.value) })} />
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>频谱平滑：{(advancedLyricConfig.visualizerSmoothing ?? 0.16).toFixed(2)}</span>
-                        <input type="range" min="0.04" max="0.8" step="0.02" value={advancedLyricConfig.visualizerSmoothing ?? 0.16}
-                          onChange={(e) => updateAdvancedLyricConfig({ visualizerSmoothing: Number(e.target.value) })} />
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>垂直位置偏移{(advancedLyricConfig.visualizerOffsetY || 0)}px</span>
-                        <input type="range" min="-300" max="300" step="5" value={advancedLyricConfig.visualizerOffsetY || 0}
-                          onChange={(e) => updateAdvancedLyricConfig({ visualizerOffsetY: Number(e.target.value) })} />
-                      </label>
-                      <label className="setting-row-inline">
-                        <span>缩放/放大系数{(advancedLyricConfig.visualizerScale || 1.0).toFixed(2)}x</span>
-                        <input type="range" min="0.2" max="3.0" step="0.05" value={advancedLyricConfig.visualizerScale || 1.0}
-                          onChange={(e) => updateAdvancedLyricConfig({ visualizerScale: Number(e.target.value) })} />
-                      </label>
+                      <SettingSwitchRow
+                        label="启用音频可视化"
+                        checked={advancedLyricConfig.visualizerEnabled !== false}
+                        onChange={(checked) => updateAdvancedLyricConfig({ visualizerEnabled: checked })}
+                      />
+                      <SettingSliderRow
+                        label="可视化强度"
+                        value={advancedLyricConfig.visualizerIntensity ?? 1}
+                        min={0.2}
+                        max={2.5}
+                        step={0.1}
+                        unit="x"
+                        formatValue={(v) => `${Number(v).toFixed(1)}x`}
+                        onChange={(val) => updateAdvancedLyricConfig({ visualizerIntensity: val })}
+                      />
+                      <SettingSliderRow
+                        label="可视化不透明度"
+                        value={advancedLyricConfig.visualizerOpacity ?? 0.82}
+                        min={0.1}
+                        max={1}
+                        step={0.05}
+                        formatValue={(v) => `${Math.round(Number(v) * 100)}%`}
+                        onChange={(val) => updateAdvancedLyricConfig({ visualizerOpacity: val })}
+                      />
+                      <SettingSliderRow
+                        label="频谱平滑"
+                        value={advancedLyricConfig.visualizerSmoothing ?? 0.16}
+                        min={0.04}
+                        max={0.8}
+                        step={0.02}
+                        formatValue={(v) => Number(v).toFixed(2)}
+                        onChange={(val) => updateAdvancedLyricConfig({ visualizerSmoothing: val })}
+                      />
+                      <SettingSliderRow
+                        label="垂直位置偏移"
+                        value={advancedLyricConfig.visualizerOffsetY || 0}
+                        min={-300}
+                        max={300}
+                        step={5}
+                        unit="px"
+                        onChange={(val) => updateAdvancedLyricConfig({ visualizerOffsetY: val })}
+                      />
+                      <SettingSliderRow
+                        label="缩放/放大系数"
+                        value={advancedLyricConfig.visualizerScale || 1.0}
+                        min={0.2}
+                        max={3.0}
+                        step={0.05}
+                        unit="x"
+                        formatValue={(v) => `${Number(v).toFixed(2)}x`}
+                        onChange={(val) => updateAdvancedLyricConfig({ visualizerScale: val })}
+                      />
 
                       {/* ================= 常规滚动模式 (regular) 可视化参数================= */}
                       {advancedLyricConfig.lyricsMode === 'regular' && (
                         <>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>环形频谱参数 (常规模式)</div>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginTop: '8px', marginBottom: '4px', borderBottom: '1px solid var(--divider-color)', paddingBottom: '4px' }}>环形频谱参数 (常规模式)</div>
                           <label className="setting-row-inline">
                             <span>环形样式</span>
                             <select className="setting-select" value={advancedLyricConfig.ringStyle || 'radial'}
@@ -1408,26 +1495,42 @@ function AppContent() {
                               <option value="wave">连续波环</option>
                             </select>
                           </label>
-                          <label className="setting-row-inline">
-                            <span>采样精度（线条/粒子数）：{advancedLyricConfig.ringBarCount ?? 180}</span>
-                            <input type="range" min="60" max="360" step="10" value={advancedLyricConfig.ringBarCount ?? 180}
-                              onChange={(e) => updateAdvancedLyricConfig({ ringBarCount: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>最大延伸振幅：{advancedLyricConfig.ringMaxAmplitude ?? 80}px</span>
-                            <input type="range" min="20" max="200" step="5" value={advancedLyricConfig.ringMaxAmplitude ?? 80}
-                              onChange={(e) => updateAdvancedLyricConfig({ ringMaxAmplitude: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>边缘间距偏差：{advancedLyricConfig.ringInnerOffset ?? 5}px</span>
-                            <input type="range" min="-50" max="100" step="1" value={advancedLyricConfig.ringInnerOffset ?? 5}
-                              onChange={(e) => updateAdvancedLyricConfig({ ringInnerOffset: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>画笔/粒子线宽：{(advancedLyricConfig.ringLineWidth ?? 2.5).toFixed(1)}px</span>
-                            <input type="range" min="1.0" max="8.0" step="0.5" value={advancedLyricConfig.ringLineWidth ?? 2.5}
-                              onChange={(e) => updateAdvancedLyricConfig({ ringLineWidth: Number(e.target.value) })} />
-                          </label>
+                          <SettingSliderRow
+                            label="采样精度（线条/粒子数）"
+                            value={advancedLyricConfig.ringBarCount ?? 180}
+                            min={60}
+                            max={360}
+                            step={10}
+                            onChange={(val) => updateAdvancedLyricConfig({ ringBarCount: val })}
+                          />
+                          <SettingSliderRow
+                            label="最大延伸振幅"
+                            value={advancedLyricConfig.ringMaxAmplitude ?? 80}
+                            min={20}
+                            max={200}
+                            step={5}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ ringMaxAmplitude: val })}
+                          />
+                          <SettingSliderRow
+                            label="边缘间距偏差"
+                            value={advancedLyricConfig.ringInnerOffset ?? 5}
+                            min={-50}
+                            max={100}
+                            step={1}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ ringInnerOffset: val })}
+                          />
+                          <SettingSliderRow
+                            label="画笔/粒子线宽"
+                            value={advancedLyricConfig.ringLineWidth ?? 2.5}
+                            min={1.0}
+                            max={8.0}
+                            step={0.5}
+                            unit="px"
+                            formatValue={(v) => `${Number(v).toFixed(1)}px`}
+                            onChange={(val) => updateAdvancedLyricConfig({ ringLineWidth: val })}
+                          />
                           <label className="setting-row-inline">
                             <span>配色方案</span>
                             <select className="setting-select" value={advancedLyricConfig.ringColorMode || 'adaptive'}
@@ -1438,191 +1541,298 @@ function AppContent() {
                             </select>
                           </label>
                           {advancedLyricConfig.ringColorMode === 'custom' && (
-                            <label className="setting-row-inline">
+                            <div className="setting-row-inline">
                               <span>渐变双色</span>
                               <div style={{ display: 'flex', gap: '8px' }}>
                                 <input type="color" value={advancedLyricConfig.ringCustomColor1 || '#17f700'} onChange={(e) => updateAdvancedLyricConfig({ ringCustomColor1: e.target.value })} style={{ width: '32px', height: '24px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
                                 <input type="color" value={advancedLyricConfig.ringCustomColor2 || '#00d4ff'} onChange={(e) => updateAdvancedLyricConfig({ ringCustomColor2: e.target.value })} style={{ width: '32px', height: '24px', padding: '0', border: 'none', borderRadius: '4px', cursor: 'pointer' }} />
                               </div>
-                            </label>
+                            </div>
                           )}
-                          <label className="setting-row-inline">
-                            <span>自转速度：{advancedLyricConfig.ringRotationSpeed ?? 15}°/分钟</span>
-                            <input type="range" min="0" max="120" step="5" value={advancedLyricConfig.ringRotationSpeed ?? 15}
-                              onChange={(e) => updateAdvancedLyricConfig({ ringRotationSpeed: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline compact-toggle">
-                            <span>随声浪脉冲加速自</span>
-                            <input type="checkbox" checked={advancedLyricConfig.ringRotationBeatSync === true}
-                              onChange={(e) => updateAdvancedLyricConfig({ ringRotationBeatSync: e.target.checked })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>发光辉光强度：{(advancedLyricConfig.ringGlowIntensity ?? 0.6).toFixed(1)}</span>
-                            <input type="range" min="0.0" max="1.5" step="0.1" value={advancedLyricConfig.ringGlowIntensity ?? 0.6}
-                              onChange={(e) => updateAdvancedLyricConfig({ ringGlowIntensity: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline compact-toggle">
-                            <span>发光伴随节奏闪烁</span>
-                            <input type="checkbox" checked={advancedLyricConfig.ringGlowPulse !== false}
-                              onChange={(e) => updateAdvancedLyricConfig({ ringGlowPulse: e.target.checked })} />
-                          </label>
+                          <SettingSliderRow
+                            label="自转速度"
+                            value={advancedLyricConfig.ringRotationSpeed ?? 15}
+                            min={0}
+                            max={120}
+                            step={5}
+                            unit="°/分钟"
+                            onChange={(val) => updateAdvancedLyricConfig({ ringRotationSpeed: val })}
+                          />
+                          <SettingSwitchRow
+                            label="随声浪脉冲加速自转"
+                            checked={advancedLyricConfig.ringRotationBeatSync === true}
+                            onChange={(checked) => updateAdvancedLyricConfig({ ringRotationBeatSync: checked })}
+                          />
+                          <SettingSliderRow
+                            label="发光辉光强度"
+                            value={advancedLyricConfig.ringGlowIntensity ?? 0.6}
+                            min={0.0}
+                            max={1.5}
+                            step={0.1}
+                            formatValue={(v) => Number(v).toFixed(1)}
+                            onChange={(val) => updateAdvancedLyricConfig({ ringGlowIntensity: val })}
+                          />
+                          <SettingSwitchRow
+                            label="发光伴随节奏闪烁"
+                            checked={advancedLyricConfig.ringGlowPulse !== false}
+                            onChange={(checked) => updateAdvancedLyricConfig({ ringGlowPulse: checked })}
+                          />
                         </>
                       )}
 
                       {/* ================= 气泡模式 (streamer) 可视化参数================= */}
                       {advancedLyricConfig.lyricsMode === 'streamer' && (
                         <>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>底部流光氛围参数 (气泡模式)</div>
-                          <label className="setting-row-inline">
-                            <span>灯带基础高度：{advancedLyricConfig.streamerBarHeight ?? 16}px</span>
-                            <input type="range" min="5" max="80" step="1" value={advancedLyricConfig.streamerBarHeight ?? 16}
-                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarHeight: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>脉冲波动高度：{advancedLyricConfig.streamerBarMaxHeight ?? 80}px</span>
-                            <input type="range" min="20" max="250" step="2" value={advancedLyricConfig.streamerBarMaxHeight ?? 80}
-                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarMaxHeight: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>不透明度：{(advancedLyricConfig.streamerBarOpacity ?? 0.75).toFixed(2)}</span>
-                            <input type="range" min="0.2" max="1.0" step="0.05" value={advancedLyricConfig.streamerBarOpacity ?? 0.75}
-                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarOpacity: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>辉光扩散半径：{advancedLyricConfig.streamerBarGlowSpread ?? 20}px</span>
-                            <input type="range" min="0" max="50" step="2" value={advancedLyricConfig.streamerBarGlowSpread ?? 20}
-                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarGlowSpread: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>流光游动速度：{(advancedLyricConfig.streamerBarFlowSpeed ?? 1.0).toFixed(1)}x</span>
-                            <input type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.streamerBarFlowSpeed ?? 1.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ streamerBarFlowSpeed: Number(e.target.value) })} />
-                          </label>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginTop: '8px', marginBottom: '4px', borderBottom: '1px solid var(--divider-color)', paddingBottom: '4px' }}>底部流光氛围参数 (气泡模式)</div>
+                          <SettingSliderRow
+                            label="灯带基础高度"
+                            value={advancedLyricConfig.streamerBarHeight ?? 16}
+                            min={5}
+                            max={80}
+                            step={1}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ streamerBarHeight: val })}
+                          />
+                          <SettingSliderRow
+                            label="脉冲波动高度"
+                            value={advancedLyricConfig.streamerBarMaxHeight ?? 80}
+                            min={20}
+                            max={250}
+                            step={2}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ streamerBarMaxHeight: val })}
+                          />
+                          <SettingSliderRow
+                            label="不透明度"
+                            value={advancedLyricConfig.streamerBarOpacity ?? 0.75}
+                            min={0.2}
+                            max={1.0}
+                            step={0.05}
+                            formatValue={(v) => Number(v).toFixed(2)}
+                            onChange={(val) => updateAdvancedLyricConfig({ streamerBarOpacity: val })}
+                          />
+                          <SettingSliderRow
+                            label="辉光扩散半径"
+                            value={advancedLyricConfig.streamerBarGlowSpread ?? 20}
+                            min={0}
+                            max={50}
+                            step={2}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ streamerBarGlowSpread: val })}
+                          />
+                          <SettingSliderRow
+                            label="流光游动速度"
+                            value={advancedLyricConfig.streamerBarFlowSpeed ?? 1.0}
+                            min={0.1}
+                            max={3.0}
+                            step={0.1}
+                            unit="x"
+                            formatValue={(v) => `${Number(v).toFixed(1)}x`}
+                            onChange={(val) => updateAdvancedLyricConfig({ streamerBarFlowSpeed: val })}
+                          />
                         </>
                       )}
-
-
-
 
                       {/* ================= 云阶模式 (cloudstep) 可视化参数================= */}
                       {advancedLyricConfig.lyricsMode === 'cloudstep' && (
                         <>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>层叠雾波参数 (云阶模式)</div>
-                          <label className="setting-row-inline">
-                            <span>雾化模糊半径{advancedLyricConfig.cloudWaveBlur ?? 23}px</span>
-                            <input type="range" min="5" max="60" step="1" value={advancedLyricConfig.cloudWaveBlur ?? 23}
-                              onChange={(e) => updateAdvancedLyricConfig({ cloudWaveBlur: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>最大起伏高度：{advancedLyricConfig.cloudWaveHeight ?? 30}px</span>
-                            <input type="range" min="10" max="80" step="2" value={advancedLyricConfig.cloudWaveHeight ?? 30}
-                              onChange={(e) => updateAdvancedLyricConfig({ cloudWaveHeight: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>雾波不透明度：{(advancedLyricConfig.cloudWaveOpacity ?? 0.39).toFixed(2)}</span>
-                            <input type="range" min="0.02" max="0.5" step="0.01" value={advancedLyricConfig.cloudWaveOpacity ?? 0.39}
-                              onChange={(e) => updateAdvancedLyricConfig({ cloudWaveOpacity: Number(e.target.value) })} />
-                          </label>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginTop: '8px', marginBottom: '4px', borderBottom: '1px solid var(--divider-color)', paddingBottom: '4px' }}>层叠雾波参数 (云阶模式)</div>
+                          <SettingSliderRow
+                            label="雾化模糊半径"
+                            value={advancedLyricConfig.cloudWaveBlur ?? 23}
+                            min={5}
+                            max={60}
+                            step={1}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ cloudWaveBlur: val })}
+                          />
+                          <SettingSliderRow
+                            label="最大起伏高度"
+                            value={advancedLyricConfig.cloudWaveHeight ?? 30}
+                            min={10}
+                            max={80}
+                            step={2}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ cloudWaveHeight: val })}
+                          />
+                          <SettingSliderRow
+                            label="雾波不透明度"
+                            value={advancedLyricConfig.cloudWaveOpacity ?? 0.39}
+                            min={0.02}
+                            max={0.5}
+                            step={0.01}
+                            formatValue={(v) => Number(v).toFixed(2)}
+                            onChange={(val) => updateAdvancedLyricConfig({ cloudWaveOpacity: val })}
+                          />
                         </>
                       )}
 
                       {/* ================= 空间画布 (spatial) 可视化参数================= */}
                       {advancedLyricConfig.lyricsMode === 'spatial' && (
                         <>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>3D 空间星图参数 (空间模式)</div>
-                          <label className="setting-row-inline">
-                            <span>粒子数量{advancedLyricConfig.spatialParticleCount ?? 200}</span>
-                            <input type="range" min="50" max="500" step="10" value={advancedLyricConfig.spatialParticleCount ?? 200}
-                              onChange={(e) => updateAdvancedLyricConfig({ spatialParticleCount: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>虚化模糊系数{(advancedLyricConfig.spatialDepthBlur ?? 0.5).toFixed(1)}</span>
-                            <input type="range" min="0" max="2.0" step="0.1" value={advancedLyricConfig.spatialDepthBlur ?? 0.5}
-                              onChange={(e) => updateAdvancedLyricConfig({ spatialDepthBlur: Number(e.target.value) })} />
-                          </label>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginTop: '8px', marginBottom: '4px', borderBottom: '1px solid var(--divider-color)', paddingBottom: '4px' }}>3D 空间星图参数 (空间模式)</div>
+                          <SettingSliderRow
+                            label="粒子数量"
+                            value={advancedLyricConfig.spatialParticleCount ?? 200}
+                            min={50}
+                            max={500}
+                            step={10}
+                            onChange={(val) => updateAdvancedLyricConfig({ spatialParticleCount: val })}
+                          />
+                          <SettingSliderRow
+                            label="虚化模糊系数"
+                            value={advancedLyricConfig.spatialDepthBlur ?? 0.5}
+                            min={0}
+                            max={2.0}
+                            step={0.1}
+                            formatValue={(v) => Number(v).toFixed(1)}
+                            onChange={(val) => updateAdvancedLyricConfig({ spatialDepthBlur: val })}
+                          />
                         </>
                       )}
 
                       {/* ================= 黑胶光碟 (vinyl) 可视化参数================= */}
                       {advancedLyricConfig.lyricsMode === 'vinyl' && (
                         <>
-                          <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '12px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>唱片刻槽与唱针参数(黑胶模式)</div>
-                          <label className="setting-row-inline">
-                            <span>盘面频谱刻槽{advancedLyricConfig.vinylGrooveCount ?? 12}圈</span>
-                            <input type="range" min="4" max="30" step="1" value={advancedLyricConfig.vinylGrooveCount ?? 12}
-                              onChange={(e) => updateAdvancedLyricConfig({ vinylGrooveCount: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>刻槽基础宽度{(advancedLyricConfig.vinylGrooveWidth ?? 1.0).toFixed(1)}</span>
-                            <input type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.vinylGrooveWidth ?? 1.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ vinylGrooveWidth: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>共鸣最大振幅：{(advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0).toFixed(1)}</span>
-                            <input type="range" min="1.5" max="10.0" step="0.5" value={advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ vinylGrooveMaxWidth: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>唱针光晕强度{(advancedLyricConfig.vinylStylusGlowStrength ?? 0.7).toFixed(1)}</span>
-                            <input type="range" min="0" max="1.5" step="0.1" value={advancedLyricConfig.vinylStylusGlowStrength ?? 0.7}
-                              onChange={(e) => updateAdvancedLyricConfig({ vinylStylusGlowStrength: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>唱针光晕大小{advancedLyricConfig.vinylStylusGlowSize ?? 20}px</span>
-                            <input type="range" min="8" max="50" step="1" value={advancedLyricConfig.vinylStylusGlowSize ?? 20}
-                              onChange={(e) => updateAdvancedLyricConfig({ vinylStylusGlowSize: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline compact-toggle">
-                            <span>边缘高反光偏</span>
-                            <input type="checkbox" checked={advancedLyricConfig.vinylEdgeReflection !== false}
-                              onChange={(e) => updateAdvancedLyricConfig({ vinylEdgeReflection: e.target.checked })} />
-                          </label>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginTop: '8px', marginBottom: '4px', borderBottom: '1px solid var(--divider-color)', paddingBottom: '4px' }}>唱片刻槽与唱针参数 (黑胶模式)</div>
+                          <SettingSliderRow
+                            label="盘面频谱刻槽"
+                            value={advancedLyricConfig.vinylGrooveCount ?? 12}
+                            min={4}
+                            max={30}
+                            step={1}
+                            unit="圈"
+                            onChange={(val) => updateAdvancedLyricConfig({ vinylGrooveCount: val })}
+                          />
+                          <SettingSliderRow
+                            label="刻槽基础宽度"
+                            value={advancedLyricConfig.vinylGrooveWidth ?? 1.0}
+                            min={0.3}
+                            max={3.0}
+                            step={0.1}
+                            formatValue={(v) => Number(v).toFixed(1)}
+                            onChange={(val) => updateAdvancedLyricConfig({ vinylGrooveWidth: val })}
+                          />
+                          <SettingSliderRow
+                            label="共鸣最大振幅"
+                            value={advancedLyricConfig.vinylGrooveMaxWidth ?? 4.0}
+                            min={1.5}
+                            max={10.0}
+                            step={0.5}
+                            formatValue={(v) => Number(v).toFixed(1)}
+                            onChange={(val) => updateAdvancedLyricConfig({ vinylGrooveMaxWidth: val })}
+                          />
+                          <SettingSliderRow
+                            label="唱针光晕强度"
+                            value={advancedLyricConfig.vinylStylusGlowStrength ?? 0.7}
+                            min={0}
+                            max={1.5}
+                            step={0.1}
+                            formatValue={(v) => Number(v).toFixed(1)}
+                            onChange={(val) => updateAdvancedLyricConfig({ vinylStylusGlowStrength: val })}
+                          />
+                          <SettingSliderRow
+                            label="唱针光晕大小"
+                            value={advancedLyricConfig.vinylStylusGlowSize ?? 20}
+                            min={8}
+                            max={50}
+                            step={1}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ vinylStylusGlowSize: val })}
+                          />
+                          <SettingSwitchRow
+                            label="边缘高反光偏"
+                            checked={advancedLyricConfig.vinylEdgeReflection !== false}
+                            onChange={(checked) => updateAdvancedLyricConfig({ vinylEdgeReflection: checked })}
+                          />
                         </>
                       )}
 
-                      {/* ================= 新增沉浸模式可视化参数 ================= */}
+                      {/* ================= 胶片模式 (filmstrip) 可视化参数 ================= */}
                       {advancedLyricConfig.lyricsMode === 'filmstrip' && (
                         <>
-                          <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '16px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>胶片帧参数</div>
-                          <label className="setting-row-inline"><span>帧间距：{advancedLyricConfig.filmFrameGap ?? 18}px</span><input type="range" min="8" max="48" step="2" value={advancedLyricConfig.filmFrameGap ?? 18} onChange={(e) => updateAdvancedLyricConfig({ filmFrameGap: Number(e.target.value) })} /></label>
-                          <label className="setting-row-inline"><span>非当前帧透明度：{Math.round((advancedLyricConfig.filmOpacity ?? 0.22) * 100)}%</span><input type="range" min="0.05" max="0.5" step="0.05" value={advancedLyricConfig.filmOpacity ?? 0.22} onChange={(e) => updateAdvancedLyricConfig({ filmOpacity: Number(e.target.value) })} /></label>
-                          <label className="setting-row-inline"><span>当前帧放大：{Math.round((advancedLyricConfig.filmActiveScale ?? 1.08) * 100)}%</span><input type="range" min="1" max="1.2" step="0.01" value={advancedLyricConfig.filmActiveScale ?? 1.08} onChange={(e) => updateAdvancedLyricConfig({ filmActiveScale: Number(e.target.value) })} /></label>
+                          <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginTop: '8px', marginBottom: '4px', borderBottom: '1px solid var(--divider-color)', paddingBottom: '4px' }}>胶片帧参数</div>
+                          <SettingSliderRow
+                            label="帧间距"
+                            value={advancedLyricConfig.filmFrameGap ?? 18}
+                            min={8}
+                            max={48}
+                            step={2}
+                            unit="px"
+                            onChange={(val) => updateAdvancedLyricConfig({ filmFrameGap: val })}
+                          />
+                          <SettingSliderRow
+                            label="非当前帧透明度"
+                            value={advancedLyricConfig.filmOpacity ?? 0.22}
+                            min={0.05}
+                            max={0.5}
+                            step={0.05}
+                            formatValue={(v) => `${Math.round(Number(v) * 100)}%`}
+                            onChange={(val) => updateAdvancedLyricConfig({ filmOpacity: val })}
+                          />
+                          <SettingSliderRow
+                            label="当前帧放大"
+                            value={advancedLyricConfig.filmActiveScale ?? 1.08}
+                            min={1}
+                            max={1.2}
+                            step={0.01}
+                            formatValue={(v) => `${Math.round(Number(v) * 100)}%`}
+                            onChange={(val) => updateAdvancedLyricConfig({ filmActiveScale: val })}
+                          />
                         </>
                       )}
+
                       {/* ================= FLOATING DECOR SECTION ================= */}
-                      <div style={{ fontSize: '13px', fontWeight: 'bold', color: 'var(--primary)', marginTop: '16px', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>背景悬浮粒子 (Floating Decor)</div>
-                      <label className="setting-row-inline compact-toggle">
-                        <span>启用背景悬浮粒子</span>
-                        <input type="checkbox" checked={advancedLyricConfig.showDecor === true}
-                          onChange={(e) => updateAdvancedLyricConfig({ showDecor: e.target.checked })} />
-                      </label>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)', marginTop: '8px', marginBottom: '4px', borderBottom: '1px solid var(--divider-color)', paddingBottom: '4px' }}>背景悬浮粒子 (Floating Decor)</div>
+                      <SettingSwitchRow
+                        label="启用背景悬浮粒子"
+                        checked={advancedLyricConfig.showDecor === true}
+                        onChange={(checked) => updateAdvancedLyricConfig({ showDecor: checked })}
+                      />
                       {advancedLyricConfig.showDecor === true && (
                         <>
-                          <label className="setting-row-inline">
-                            <span>浮动粒子数量{advancedLyricConfig.decorParticleAmount ?? 40}</span>
-                            <input type="range" min="10" max="150" step="5" value={advancedLyricConfig.decorParticleAmount ?? 40}
-                              onChange={(e) => updateAdvancedLyricConfig({ decorParticleAmount: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>粒子漂游速度{(advancedLyricConfig.decorSpeed ?? 1.0).toFixed(1)}x</span>
-                            <input type="range" min="0.1" max="3.0" step="0.1" value={advancedLyricConfig.decorSpeed ?? 1.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ decorSpeed: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>粒子发光尺寸{(advancedLyricConfig.decorSize ?? 1.0).toFixed(1)}x</span>
-                            <input type="range" min="0.3" max="3.0" step="0.1" value={advancedLyricConfig.decorSize ?? 1.0}
-                              onChange={(e) => updateAdvancedLyricConfig({ decorSize: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline">
-                            <span>基础不透明度：{(advancedLyricConfig.decorOpacity ?? 0.6).toFixed(2)}</span>
-                            <input type="range" min="0.1" max="1.0" step="0.05" value={advancedLyricConfig.decorOpacity ?? 0.6}
-                              onChange={(e) => updateAdvancedLyricConfig({ decorOpacity: Number(e.target.value) })} />
-                          </label>
-                          <label className="setting-row-inline compact-toggle">
-                            <span>随音乐节奏闪烁喷</span>
-                            <input type="checkbox" checked={advancedLyricConfig.decorTwinkle === true}
-                              onChange={(e) => updateAdvancedLyricConfig({ decorTwinkle: e.target.checked })} />
-                          </label>
+                          <SettingSliderRow
+                            label="浮动粒子数量"
+                            value={advancedLyricConfig.decorParticleAmount ?? 40}
+                            min={10}
+                            max={150}
+                            step={5}
+                            onChange={(val) => updateAdvancedLyricConfig({ decorParticleAmount: val })}
+                          />
+                          <SettingSliderRow
+                            label="粒子漂游速度"
+                            value={advancedLyricConfig.decorSpeed ?? 1.0}
+                            min={0.1}
+                            max={3.0}
+                            step={0.1}
+                            unit="x"
+                            formatValue={(v) => `${Number(v).toFixed(1)}x`}
+                            onChange={(val) => updateAdvancedLyricConfig({ decorSpeed: val })}
+                          />
+                          <SettingSliderRow
+                            label="粒子发光尺寸"
+                            value={advancedLyricConfig.decorSize ?? 1.0}
+                            min={0.3}
+                            max={3.0}
+                            step={0.1}
+                            unit="x"
+                            formatValue={(v) => `${Number(v).toFixed(1)}x`}
+                            onChange={(val) => updateAdvancedLyricConfig({ decorSize: val })}
+                          />
+                          <SettingSliderRow
+                            label="基础不透明度"
+                            value={advancedLyricConfig.decorOpacity ?? 0.6}
+                            min={0.1}
+                            max={1.0}
+                            step={0.05}
+                            formatValue={(v) => Number(v).toFixed(2)}
+                            onChange={(val) => updateAdvancedLyricConfig({ decorOpacity: val })}
+                          />
+                          <SettingSwitchRow
+                            label="随音乐节奏闪烁"
+                            checked={advancedLyricConfig.decorTwinkle === true}
+                            onChange={(checked) => updateAdvancedLyricConfig({ decorTwinkle: checked })}
+                          />
                         </>
                       )}
                     </div>

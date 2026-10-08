@@ -4,7 +4,6 @@
 import * as PIXI from 'pixi.js';
 import { BaseEffect } from './base';
 import type { UpdateContext } from '../core/types';
-import { resolveColor } from '../core/types';
 
 interface MatrixColumn {
   x: number;
@@ -14,14 +13,16 @@ interface MatrixColumn {
   charObjs: PIXI.Text[];
   len: number;
   fontSize: number;
+  isForeground: boolean;
 }
 
 const MATRIX_CHARS = 'ｦｱｳｴｵｶｷｹｺｻｼｽｾｿﾀﾂﾃﾅﾆﾇﾈﾊﾋﾎﾏﾐﾑﾒﾓﾔﾕﾗﾘﾜ0123456789ZXYZ#@$%&*<>';
 
 /**
- * 黑客帝国专属：数字代码雨 (Audio-Reactive Matrix Code Rain)
- * 1. 伴随音乐低音 Bass 与鼓点实时加速流动、绽放荧光与强光闪烁
- * 2. 真实片假名与二进制绿色流光
+ * 黑客帝国专属：双景深数字代码雨 (Audio-Reactive Dual-Depth Matrix Code Rain)
+ * 1. 前景与背景双景深流光层次，拉开立体纵深空间
+ * 2. 伴随音乐低音 Bass 与鼓点实时加速流动、绽放荧光与强光闪烁
+ * 3. 真实片假名与二进制绿色流光
  */
 export class MatrixRain extends BaseEffect {
   readonly name = 'matrixRain';
@@ -42,9 +43,10 @@ export class MatrixRain extends BaseEffect {
     const colCount = Math.floor(w / colWidth);
 
     for (let i = 0; i < colCount; i++) {
+      const isForeground = i % 2 === 0;
       const colX = i * colWidth + 10;
-      const len = 10 + Math.floor(Math.random() * 16);
-      const fontSize = 14 + (Math.random() > 0.7 ? 2 : 0);
+      const len = isForeground ? (12 + Math.floor(Math.random() * 16)) : (8 + Math.floor(Math.random() * 10));
+      const fontSize = isForeground ? (15 + (Math.random() > 0.6 ? 2 : 0)) : 11;
       const charObjs: PIXI.Text[] = [];
       const chars: string[] = [];
 
@@ -58,7 +60,7 @@ export class MatrixRain extends BaseEffect {
             fontFamily: '"Consolas", "Courier New", monospace',
             fontSize,
             fontWeight: j === 0 ? 'bold' : 'normal',
-            fill: j === 0 ? '#ffffff' : (j < 3 ? '#20ff66' : '#00aa33'),
+            fill: j === 0 ? '#ffffff' : (isForeground ? '#00ff41' : '#007722'),
           })
         });
         obj.anchor.set(0.5);
@@ -71,11 +73,12 @@ export class MatrixRain extends BaseEffect {
       this.columns.push({
         x: colX,
         y: Math.random() * h - h,
-        speed: 120 + Math.random() * 220,
+        speed: (isForeground ? 140 : 80) + Math.random() * 200,
         chars,
         charObjs,
         len,
-        fontSize
+        fontSize,
+        isForeground
       });
     }
   }
@@ -89,16 +92,16 @@ export class MatrixRain extends BaseEffect {
     const energy = ctx.audioReact?.energy ?? 0;
     const isBeat = ctx.audioReact?.isBeat ?? false;
     const dt = ctx.deltaTime;
-    const speedMult = (1.0 + bass * 1.5 + energy * 0.8) * ctx.animationSpeed;
+    const speedMult = (1.0 + bass * 1.6 + energy * 0.8) * ctx.animationSpeed;
 
     for (const col of this.columns) {
       col.y += col.speed * speedMult * dt;
       if (col.y - col.len * col.fontSize > h) {
         col.y = -Math.random() * 200;
-        col.speed = 120 + Math.random() * 220;
+        col.speed = (col.isForeground ? 140 : 80) + Math.random() * 200;
       }
 
-      // Periodically randomize characters
+      // 周期性随机突变字符
       if (Math.random() < 0.08) {
         const randIdx = Math.floor(Math.random() * col.len);
         col.chars[randIdx] = MATRIX_CHARS[Math.floor(Math.random() * MATRIX_CHARS.length)];
@@ -114,16 +117,18 @@ export class MatrixRain extends BaseEffect {
           obj.visible = false;
         } else {
           obj.visible = true;
-          // Fade tail
+          // 渐变拖尾
           const tailFrac = 1 - j / col.len;
-          obj.alpha = (j === 0 ? 1 : Math.max(0.08, tailFrac * 0.85)) * (0.8 + bass * 0.3);
-          // Highlight head
+          const baseAlpha = col.isForeground ? 0.85 : 0.45;
+          obj.alpha = (j === 0 ? 1 : Math.max(0.06, tailFrac * baseAlpha)) * (0.8 + bass * 0.3);
+
+          // 龙头白光与荧光绿
           if (j === 0 && (isBeat || Math.random() < 0.15)) {
             obj.style.fill = '#ffffff';
           } else if (j < 2) {
-            obj.style.fill = '#80ff99';
+            obj.style.fill = col.isForeground ? '#99ffb3' : '#22bb55';
           } else {
-            obj.style.fill = '#00ff41';
+            obj.style.fill = col.isForeground ? '#00ff41' : '#006622';
           }
         }
       }
@@ -138,5 +143,6 @@ export class MatrixRain extends BaseEffect {
     }
     this.columns = [];
     try { this.layer.destroy({ children: true }); } catch { /* safe */ }
+    super.destroy();
   }
 }

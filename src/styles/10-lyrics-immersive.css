@@ -238,3 +238,62 @@
   box-shadow: -14px 0 44px rgba(0, 0, 0, 0.65) !important;
 }
 
+/* ==========================================================================
+   PV Mode Translation Capsule (底部半透明歌词译文)
+   ========================================================================== */
+.kpv-translation-capsule {
+  position: absolute;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
+  max-width: min(84vw, 820px);
+  padding: 8px 24px;
+  background: rgba(14, 18, 28, 0.68);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 9999px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.45;
+  text-align: center;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1250;
+  letter-spacing: 0.02em;
+  transition: bottom 0.38s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease, transform 0.25s ease;
+  will-change: bottom, opacity;
+  animation: kpvCapsuleFade 0.28s ease;
+}
+
+@keyframes kpvCapsuleFade {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* 当底部播放条通过悬停感应区或播放条自身唤出时，译文胶囊自适应向上避让至播放条上方 */
+.lyrics-open .lyrics-immersive-hover-sensor:hover ~ .lyrics-overlay .kpv-translation-capsule,
+.lyrics-open:has(#player-bar:hover) .kpv-translation-capsule,
+.lyrics-open:has(#player-bar:focus-within) .kpv-translation-capsule,
+.lyrics-open:has(#player-bar[data-volume-open="true"]) .kpv-translation-capsule,
+.lyrics-open:has(#player-bar[data-queue-open="true"]) .kpv-translation-capsule,
+.lyrics-open:has(.app-player-bar:hover) .kpv-translation-capsule,
+.lyrics-open:has(.app-player-bar:focus-within) .kpv-translation-capsule {
+  bottom: 104px;
+}
+
+.mode-light .kpv-translation-capsule {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: #1a1a24;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+

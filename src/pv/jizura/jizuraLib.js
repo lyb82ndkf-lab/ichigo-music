@@ -1084,6 +1084,18 @@ J.fitSize = (text, font, maxW, maxH, opt = {}) => {
 
 /* scheme: bg, fg, sub, accent, accent2, ink (sticker/box colour), dim (bg text), ghostA, ghostB, grad */
 J.STYLES = {
+  matrix: {
+    name: 'マトリックス', desc: '黒地・緑の蛍光コード・サイバー解密・ターミナル',
+    schemes: [
+      { bg: '#030A04', fg: '#00FF41', sub: '#00CC33', accent: '#FFFFFF', accent2: '#00FF41', ink: '#00FF41', dim: '#05220C', ghostA: '#00FF41', ghostB: '#FFFFFF' },
+      { bg: '#020703', fg: '#33FF66', sub: '#00DD3B', accent: '#00FF41', accent2: '#80FFAA', ink: '#33FF66', dim: '#08260F', ghostA: '#00FF41', ghostB: '#33FF66' },
+      { bg: '#001405', fg: '#FFFFFF', sub: '#00FF41', accent: '#00FF41', accent2: '#00DD33', ink: '#FFFFFF', dim: '#00330D', ghostA: '#FFFFFF', ghostB: '#00FF41' },
+    ],
+    fonts: { display: ['mono', 'gothic_black'], serif: ['mono'], body: ['mono', 'gothic_med'], mono: ['mono'] },
+    texture: { grain: 0.4, paper: 0, scan: 0.85 }, ghost: 0.9,
+    bias: { layout: { type: 2.2, vcols: 1.8, stack: 1.5, marquee: 1.4, huge: 1.2 }, enter: { scramble: 2.8, type: 2.2, slice: 1.5 }, exit: { glitch: 2.4, slice: 1.8, fall: 1.5 } },
+    decor: { hud: 1.8, rings: 1.2, barcode: 1.2, counter: 1.2, waveform: 0.8 }, hud: true, glitchBoost: 1.6,
+  },
   noir: {
     name: 'ノワール・クロマ', desc: '黒地・白文字・シアン/琥珀の色ズレ',
     schemes: [
@@ -1225,7 +1237,7 @@ J.STYLES = {
     decor: { rings: 1.4, hud: 0.6, dots: 1 }, hud: false,
   },
 };
-J.STYLE_ORDER = ['noir', 'crimson', 'caution', 'magenta', 'paper', 'hud', 'mint', 'specimen', 'transit', 'blueprint', 'rouge', 'mono'];
+J.STYLE_ORDER = ['matrix', 'noir', 'crimson', 'caution', 'magenta', 'paper', 'hud', 'mint', 'specimen', 'transit', 'blueprint', 'rouge', 'mono'];
 
 /* resolve style + user colour/font overrides into an effective style */
 J.resolveStyle = (project) => {
@@ -34777,7 +34789,7 @@ trReg('tyGridCells', {
 (() => {
 'use strict';
 J.BASE_PACKS = ['core', undefined, 'layoutsA', 'layoutsB', 'enter', 'exitHold', 'decor', 'looks'];
-J.BASE_STYLES = ['noir', 'crimson', 'caution', 'magenta', 'paper', 'hud', 'mint', 'specimen', 'transit', 'blueprint', 'rouge', 'mono'];
+J.BASE_STYLES = ['matrix', 'noir', 'crimson', 'caution', 'magenta', 'paper', 'hud', 'mint', 'specimen', 'transit', 'blueprint', 'rouge', 'mono'];
 J.EXTRA_FONTS = ['reggae', 'rampart', 'potta', 'kiwi', 'klee', 'shippori'];
 J.WA = {
   layout: ['ema', 'chochin', 'noren', 'tanzaku', 'omikuji', 'kakejiku', 'shoji', 'karuta', 'origami', 'postcard', 'letterPaper', 'genkou', 'hanko'],

@@ -45,6 +45,7 @@ export const KTV_TEMPLATE_GALLERY = [
 ];
 
 export const JIZURA_GALLERY_STYLES = [
+  { key: 'matrix', name: '黑客帝国', en: 'Matrix', tag: '代码科技', desc: '字符解密 · 终端命令行 · 内存转储与雷达', gradient: 'linear-gradient(135deg, #05260f 0%, #00ff41 100%)', textColor: '#00ff41', palette: ['#00ff41', '#003b00', '#040804'] },
   { key: 'paper', name: '纸墨残像', en: 'Paper', tag: '纸墨质感', desc: '粗糙纸纹 · 墨韵弥散 · 拼贴杂志', gradient: 'linear-gradient(135deg, #e8dfd5 0%, #a89887 100%)', textColor: '#1a1816', palette: ['#2b2b2b', '#c2a68c', '#efe6dd'] },
   { key: 'noir', name: '暗黑电影', en: 'Noir', tag: '宽幅光影', desc: '颗粒胶片 · 剧场质感 · 电影黑白', gradient: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)', textColor: '#ffffff', palette: ['#ffffff', '#71717a', '#18181b'] },
   { key: 'sakura', name: '和风落樱', en: 'Sakura', tag: '浪漫诗意', desc: '樱瓣轻抚 · 水彩晕染 · 柔和春日', gradient: 'linear-gradient(135deg, #f43f5e 0%, #fda4af 100%)', textColor: '#ffffff', palette: ['#fff1f2', '#fb7185', '#9f1239'] },

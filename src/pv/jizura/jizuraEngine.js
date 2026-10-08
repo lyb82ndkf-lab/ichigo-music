@@ -457,6 +457,11 @@ export class JizuraEngine {
       console.warn('[JizuraEngine] render frame error:', e);
     }
 
+    // 黑客帝国专属：动态数字代码雨流光 (Matrix Code Rain)
+    if (this.styleKey === 'matrix') {
+      this.drawMatrixRain(this.ctx, cw, ch);
+    }
+
     // 绘制封面光影底图（如果开启）：采用 soft-light 柔光模式与高斯模糊叠加在底层，既有专辑光影质感又绝不破坏风格本体调色
     if (this.coverImage && this.useCover) {
       this.ctx.save();
@@ -466,6 +471,59 @@ export class JizuraEngine {
       this.ctx.drawImage(this.coverImage, 0, 0, cw, ch);
       this.ctx.restore();
     }
+  }
+
+  // 矩阵代码雨画布流光
+  drawMatrixRain(ctx, cw, ch) {
+    if (!this.matrixColumns || this.matrixColumns.length === 0 || this.matrixCw !== cw) {
+      this.matrixCw = cw;
+      const colWidth = 24;
+      const count = Math.max(10, Math.floor(cw / colWidth));
+      const charsPool = '0123456789ABCDEFｦｱｳｴｵｶｷｹｺｻｼｽｾｿﾀﾂﾃﾅﾆﾇﾈﾊﾋﾎﾏﾐﾑﾒﾓﾔﾕﾗﾘﾜ';
+      this.matrixColumns = Array.from({ length: count }, (_, i) => ({
+        x: i * colWidth + 12,
+        y: Math.random() * ch - ch,
+        speed: 120 + Math.random() * 240,
+        chars: Array.from({ length: 14 + Math.floor(Math.random() * 10) }, () => charsPool[Math.floor(Math.random() * charsPool.length)])
+      }));
+    }
+
+    const bass = this.smoothedBass || 0;
+    const speedMult = (1.0 + bass * 1.8) * (this._animationSpeed || 1);
+    const fontSize = 14;
+    ctx.save();
+    ctx.font = `bold ${fontSize}px "Consolas", "Courier New", monospace`;
+    ctx.textAlign = 'center';
+
+    const charsPool = '0123456789ABCDEFｦｱｳｴｵｶｷｹｺｻｼｽｾｿﾀﾂﾃﾅﾆﾇﾈﾊﾋﾎﾏﾐﾑﾒﾓﾔﾕﾗﾘﾜ';
+    for (const col of this.matrixColumns) {
+      col.y += (col.speed * speedMult) * (1 / 60);
+      if (col.y - col.chars.length * fontSize > ch) {
+        col.y = -Math.random() * 120;
+        col.speed = 120 + Math.random() * 240;
+      }
+      if (Math.random() < 0.12) {
+        col.chars[Math.floor(Math.random() * col.chars.length)] = charsPool[Math.floor(Math.random() * charsPool.length)];
+      }
+
+      for (let j = 0; j < col.chars.length; j++) {
+        const py = col.y - j * fontSize;
+        if (py < -20 || py > ch + 20) continue;
+        const tailFrac = 1 - j / col.chars.length;
+        if (j === 0) {
+          ctx.fillStyle = '#ffffff';
+          ctx.globalAlpha = 0.95;
+        } else if (j < 2) {
+          ctx.fillStyle = '#66ff99';
+          ctx.globalAlpha = Math.max(0.2, tailFrac * 0.85);
+        } else {
+          ctx.fillStyle = '#00ff41';
+          ctx.globalAlpha = Math.max(0.06, tailFrac * 0.45);
+        }
+        ctx.fillText(col.chars[j], col.x, py);
+      }
+    }
+    ctx.restore();
   }
 
   pause() {

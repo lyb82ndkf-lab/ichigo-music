@@ -11,7 +11,9 @@ import { Sparkles } from 'lucide-react';
 const PRESET_ALIAS_MAP = {
   '蓝色构成': 'blueInk',
   '几何': 'ruler',
-  '黑客帝国': 'rainCity',
+  '黑客帝国': 'matrix',
+  'matrix': 'matrix',
+  'rainCity': 'matrix',
   '错落文字': 'yorushika',
   '冷静反派': 'mono',
   '少女云朵': 'sweetPink',
@@ -67,8 +69,7 @@ const PRESET_ALIAS_MAP = {
   'geometric': 'ruler',
   '极简剪影': 'silhouetteClean',
   'silhouette-clean': 'silhouetteClean',
-  'matrix': 'rainCity',
-  'rain-city': 'rainCity',
+  'rain-city': 'matrix',
   'staggered-text': 'yorushika',
   'calm-villain': 'mono',
   'girly-clouds': 'sweetPink',
@@ -97,6 +98,7 @@ const PRESET_ALIAS_MAP = {
 
 // JIZURA 原生热门风格列表供悬浮胶囊速选
 const JIZURA_POPULAR_STYLES = [
+  { key: 'matrix', name: '黑客帝国 (Matrix)' },
   { key: 'noir', name: '暗黑电影 (Noir)' },
   { key: 'sakura', name: '和风落樱 (Sakura)' },
   { key: 'ocean', name: '幽蓝深海 (Ocean)' },
@@ -550,6 +552,52 @@ export default function KineticKtvLyrics({
     }
   }, [isEngineReady, isPlaying]);
 
+  const showTranslation = config?.showTranslation !== false && config?.ktvShowTranslation !== false;
+
+  // 实时跟踪当前正在播放的歌词译文 (根据精准歌词时钟同步)
+  const [liveTranslation, setLiveTranslation] = useState('');
+
+  useEffect(() => {
+    if (!showTranslation || !lyrics || lyrics.length === 0) {
+      setLiveTranslation('');
+      return;
+    }
+
+    const unsub = subscribeLyricClock((clockTime) => {
+      const exactTime = engineRef?.current?.getCurrentTime
+        ? engineRef.current.getCurrentTime()
+        : clockTime;
+
+      let matchedTrans = '';
+      for (let i = lyrics.length - 1; i >= 0; i--) {
+        const line = lyrics[i];
+        if (line && exactTime >= (line.time ?? 0)) {
+          const duration = typeof line.duration === 'number' ? line.duration : 4.0;
+          if (exactTime < (line.time ?? 0) + duration + 0.8) {
+            matchedTrans = (line.translation || '').trim();
+          }
+          break;
+        }
+      }
+
+      setLiveTranslation(prev => prev !== matchedTrans ? matchedTrans : prev);
+    });
+
+    return () => {
+      unsub();
+    };
+  }, [showTranslation, lyrics, engineRef]);
+
+  // 当 liveTranslation 为空时，若 activeLineIndex 指向有效行且包含译文，则作为同步兜底
+  const currentTranslation = useMemo(() => {
+    if (!showTranslation) return '';
+    if (liveTranslation) return liveTranslation;
+    if (activeLineIndex >= 0 && activeLineIndex < lyrics.length) {
+      return (lyrics[activeLineIndex]?.translation || '').trim();
+    }
+    return '';
+  }, [showTranslation, liveTranslation, activeLineIndex, lyrics]);
+
   return (
     <div
       onMouseMove={handleMouseMove}
@@ -602,6 +650,13 @@ export default function KineticKtvLyrics({
         >
           <Sparkles size={14} color="#ffd166" />
           <span>{proposalToast}</span>
+        </div>
+      )}
+
+      {/* PV 模式底部半透明歌词译文 (Translucent Translation Capsule) */}
+      {showTranslation && currentTranslation && (
+        <div className="kpv-translation-capsule" role="status" aria-live="polite">
+          {currentTranslation}
         </div>
       )}
     </div>

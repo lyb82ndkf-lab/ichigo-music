@@ -816,6 +816,7 @@ export default function Settings() {
                     <option value="auto">自动推荐：按封面配色智能搭配</option>
                     <option value="multi">随机轮播：多风格动态轮播池</option>
                     <optgroup label="JIZURA 热门潮流风格">
+                      <option value="matrix">黑客帝国 (Matrix)</option>
                       <option value="noir">暗黑电影 (Noir)</option>
                       <option value="sakura">和风落樱 (Sakura)</option>
                       <option value="ocean">幽蓝深海 (Ocean)</option>
